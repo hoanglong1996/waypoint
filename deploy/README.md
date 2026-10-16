@@ -7,13 +7,8 @@ Waypoint has three parts: **Redis** (stores step records), **Waypoint Monitor** 
 ## Bring up Redis + Waypoint Monitor
 
 ```bash
-docker compose -f deploy/docker-compose.yml up --build                    # http://localhost:8080
-docker compose -f deploy/docker-compose.yml --profile sample up --build   # plus a demo pipeline
+docker compose -f deploy/docker-compose.yml up --build   # http://localhost:8080
 ```
-
-The `sample` service runs `packages/waypoint_etl/examples/sample_pipeline.py` once; refresh the
-dashboard and pick the `qa` environment to see its three-step graph. Rerun it with
-`docker compose -f deploy/docker-compose.yml --profile sample run --rm sample`.
 
 Redis is not published to the host. To let a pipeline running elsewhere write to it, publish the port
 (or use your own Redis) and point the pipeline's `REDIS_URL` at it. The dashboard has no login, so

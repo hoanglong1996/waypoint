@@ -28,21 +28,15 @@ cd waypoint
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-Open <http://localhost:8080>. To see something right away, add the demo pipeline:
-
-```bash
-docker compose -f deploy/docker-compose.yml --profile sample up --build
-```
-
-Then pick the `qa` environment in the dashboard.
+Open <http://localhost:8080>.
 
 ### Option B: Run it directly (you already have a Redis)
 
 ```bash
 cd waypoint_monitor
 pip install -r requirements.txt
-cp .env.example .env.qa            # edit REDIS_URL
-python -m app.main -c qa           # loads .env.qa, serves http://localhost:8080
+cp .env.example .env               # edit REDIS_URL
+python -m app.main                 # loads .env, serves http://localhost:8080
 ```
 
 Or with Docker only:
@@ -110,9 +104,25 @@ curl -fsSL https://raw.githubusercontent.com/hoanglong1996/waypoint/main/.claude
 ```
 
 (Private repo: clone it and copy the folder instead, or use `~/.claude/skills/` to enable it for all your projects.)
-Then open Claude Code in your project and ask: *"Use the adopting-waypoint-etl skill to add Waypoint tracking
-to this pipeline."* It will inspect the project, ask only for the Redis URL and environment name, and make the
-changes. Review the diff, set `REDIS_URL` for real, and run the pipeline once.
+Then open Claude Code in your project and paste this prompt (fill in the three values):
+
+```text
+Use the adopting-waypoint-etl skill to add Waypoint tracking to this pipeline.
+
+- SDK tag: waypoint-etl-v0.2.0
+- Environment name: qa            (must match the monitor's ENVIRONMENTS)
+- Redis URL: read from the REDIS_URL env var (do not hard-code or print it)
+
+Inspect the project first and tell me the entry point, the steps you found and the files you plan to
+change. Then: install the SDK from the git URL (dependency file and Dockerfile/CI), add REDIS_URL and the
+env name to the existing config, write the PipelineSpec in its own module, decorate each step with
+@audited_step, call waypoint_etl.init once in the entry point, and add an assert_spec_matches test.
+Do not change business logic. Run the tests and import the entry point to verify, and finish with a
+summary of changed files and the config values I must set.
+```
+
+It asks only for what it cannot find in the project. Review the diff, set `REDIS_URL` for real, and run the
+pipeline once; the pipeline then appears in Waypoint Monitor under the chosen environment.
 
 ### Adopt it manually in 3 steps
 
