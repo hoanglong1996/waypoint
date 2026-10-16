@@ -8,7 +8,7 @@ stored, never item contents.
 
 ```bash
 pip install -e "packages/waypoint_etl[redis]"        # inside this repo
-pip install "waypoint-etl[redis] @ git+ssh://git@bitbucket.org/<workspace>/<repo>.git@waypoint-etl-v0.2.0#subdirectory=integrations/callraill/packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.2.0#subdirectory=packages/waypoint_etl"
 ```
 
 ## Adopt it in a pipeline

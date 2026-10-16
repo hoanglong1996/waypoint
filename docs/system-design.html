@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waypoint System Design</title>
+<style>
+  :root {
+    --bg: #fafaf8; --surface: #ffffff; --text: #1a1d21; --text-2: #4a5059; --border: #d8dbe0;
+    --accent: #1d6fdc; --accent-soft: #e6f0fd; --warn: #b45309; --warn-soft: #fdf1e3;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a; --surface: #1c1f25; --text: #e8eaed; --text-2: #a4abb5; --border: #363b44;
+      --accent: #6aa7f5; --accent-soft: #1e2d44; --warn: #f0a85a; --warn-soft: #3a2c18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --surface: #1c1f25; --text: #e8eaed; --text-2: #a4abb5; --border: #363b44;
+    --accent: #6aa7f5; --accent-soft: #1e2d44; --warn: #f0a85a; --warn-soft: #3a2c18;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 { font-size: 20px; margin: 48px 0 8px; }
+  p { margin: 0 0 12px; color: var(--text-2); max-width: 70ch; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+  figure { margin: 20px 0 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { display: block; width: 100%; max-width: 100%; height: auto; color: var(--text); }
+  figcaption { margin-top: 12px; font-size: 14px; color: var(--text-2); max-width: 80ch; }
+  .scroll { overflow-x: auto; }
+  .scroll svg { min-width: 760px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+  tr:last-child td { border-bottom: 0; }
+  .tablewrap { overflow-x: auto; margin-top: 16px; }
+  .tablewrap table { min-width: 680px; }
+  .pill { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  ul.rules { color: var(--text-2); max-width: 75ch; padding-left: 20px; }
+  ul.rules li { margin-bottom: 6px; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: currentColor; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Waypoint system design</h1>
+  <p>Waypoint answers one question about a nightly ETL run: <em>did every step run, and did data survive each hop?</em>
+  Three parts cooperate: the <code>waypoint-etl</code> SDK inside the pipeline, Redis as the store, and Waypoint Monitor as the dashboard.
+  They never talk to each other directly. The Redis key layout is the whole contract between them.</p>
+
+  <h2>1. The three components and who touches Redis</h2>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 440" role="img" aria-label="The pipeline SDK writes flow, step, running and alive keys to Redis; the monitor reads them by SCAN and MGET and writes only the died key; a browser polls the monitor.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <!-- Pipeline -->
+      <rect x="20" y="50" width="240" height="260" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="36" y="76" font-size="14" font-weight="600">Pipeline process</text>
+      <text x="36" y="94" font-size="12" opacity=".7">pip install waypoint-etl</text>
+      <rect x="36" y="110" width="208" height="84" rx="6" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="48" y="134" font-size="13" font-family="ui-monospace,Menlo,monospace">@audited_step</text>
+      <text x="48" y="154" font-size="12" opacity=".7">wraps each use case:</text>
+      <text x="48" y="172" font-size="12" opacity=".7">counts inputs and output</text>
+      <rect x="36" y="206" width="208" height="46" rx="6" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="48" y="226" font-size="13">Heartbeat thread</text>
+      <text x="48" y="243" font-size="12" opacity=".7">daemon, every 15 s</text>
+      <text x="36" y="282" font-size="12" opacity=".7">Redis down? log a warning,</text>
+      <text x="36" y="298" font-size="12" opacity=".7">never fail the pipeline</text>
+
+      <!-- Redis -->
+      <rect x="420" y="50" width="180" height="260" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="510" y="76" font-size="14" font-weight="600" text-anchor="middle">Redis</text>
+      <text x="510" y="94" font-size="12" text-anchor="middle" opacity=".7">keys under waypoint:*</text>
+      <text x="510" y="132" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">:flow</text>
+      <text x="510" y="150" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">:running:NN-step</text>
+      <text x="510" y="168" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">:step:NN-step</text>
+      <text x="510" y="216" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">:alive</text>
+      <text x="510" y="252" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" fill="var(--accent)" style="fill:var(--accent)">:died</text>
+      <text x="510" y="290" font-size="12" text-anchor="middle" opacity=".7">every key expires (TTL 30 d)</text>
+
+      <!-- Monitor -->
+      <rect x="760" y="50" width="220" height="260" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="776" y="76" font-size="14" font-weight="600">Waypoint Monitor</text>
+      <text x="776" y="94" font-size="12" opacity=".7">FastAPI, one container</text>
+      <rect x="776" y="110" width="188" height="84" rx="6" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="788" y="134" font-size="13" font-family="ui-monospace,Menlo,monospace">/api/*</text>
+      <text x="788" y="154" font-size="12" opacity=".7">parse records, rebuild</text>
+      <text x="788" y="172" font-size="12" opacity=".7">the graph, flag data loss</text>
+      <rect x="776" y="206" width="188" height="46" rx="6" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="788" y="226" font-size="13">Liveness judge</text>
+      <text x="788" y="243" font-size="12" opacity=".7">stale alive beat = Died</text>
+      <text x="776" y="282" font-size="12" opacity=".7">also serves the static UI</text>
+      <text x="776" y="298" font-size="12" opacity=".7">(no login: keep internal)</text>
+
+      <!-- Pipeline -> Redis -->
+      <line x1="244" y1="140" x2="418" y2="140" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="332" y="132" font-size="12" text-anchor="middle">flow, running</text>
+      <line x1="244" y1="168" x2="418" y2="168" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="332" y="160" font-size="12" text-anchor="middle">step records</text>
+      <line x1="244" y1="229" x2="418" y2="229" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="332" y="221" font-size="12" text-anchor="middle">alive, every 15 s</text>
+
+      <!-- Monitor -> Redis -->
+      <line x1="762" y1="152" x2="602" y2="152" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="682" y="144" font-size="12" text-anchor="middle">SCAN + MGET (read)</text>
+      <line x1="762" y1="229" x2="602" y2="229" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrA)"/>
+      <text x="682" y="221" font-size="12" text-anchor="middle" style="fill:var(--accent)">SET NX :died</text>
+      <text x="682" y="248" font-size="11" text-anchor="middle" opacity=".7">the monitor's only write</text>
+
+      <!-- Browser -->
+      <rect x="760" y="372" width="220" height="48" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="870" y="394" font-size="14" font-weight="600" text-anchor="middle">Browser</text>
+      <text x="870" y="411" font-size="12" text-anchor="middle" opacity=".7">Latest, History, Graph</text>
+      <line x1="870" y1="370" x2="870" y2="312" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="882" y="346" font-size="12">GET /api/*, polls</text>
+
+      <!-- contract note -->
+      <text x="20" y="398" font-size="12" opacity=".75">No direct link between pipeline and monitor.</text>
+      <text x="20" y="416" font-size="12" opacity=".75">Adding a pipeline = writing keys; the monitor needs no change.</text>
+    </svg>
+    </div>
+    <figcaption>The pipeline only writes, the monitor only reads, with one exception: the monitor writes a <code>:died</code> verdict (dashed, accent) when a run's heartbeat has stopped. Redis is the only thing both sides can see.</figcaption>
+  </figure>
+
+  <h2>2. Key contract: who writes what</h2>
+  <p>Key shape: <code>waypoint:{pipeline}:{env}:{run_id}:{item}</code>, where <code>run_id</code> is the UTC start time, <code>YYYYMMDDTHHMMSSZ</code>. Values are JSON with a version field <code>v</code>.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Item</th><th>Key suffix</th><th>Writer</th><th>Written when</th><th>TTL</th></tr></thead>
+    <tbody>
+      <tr><td>Flow</td><td><code>:flow</code></td><td><span class="pill">SDK</span></td><td>Once at <code>init</code>, before any step. Declares steps, their inputs and groups, so the monitor can draw the graph.</td><td>30 d</td></tr>
+      <tr><td>Running marker</td><td><code>:running:NN-step</code></td><td><span class="pill">SDK</span></td><td>When a step begins.</td><td>24 h</td></tr>
+      <tr><td>Step record</td><td><code>:step:NN-step</code></td><td><span class="pill">SDK</span></td><td>When a step ends: input counts and output count only, never data contents.</td><td>30 d</td></tr>
+      <tr><td>Alive</td><td><code>:alive</code></td><td><span class="pill">SDK</span></td><td>On <code>init</code>, then every <code>heartbeat_seconds</code> (default 15), refreshing its TTL.</td><td>30 d, refreshed</td></tr>
+      <tr><td>Died verdict</td><td><code>:died</code></td><td><span class="pill warn">Monitor</span></td><td>When the alive beat is older than <code>HEARTBEAT_DEAD_SECONDS</code>. <code>SET NX</code>: never overwrites.</td><td>Remaining TTL of alive</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>3. How a run moves through the system</h2>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Timeline of one run: init writes flow and alive; each step writes a running marker then a step record; heartbeats continue every 15 seconds; if the process dies the beats stop and the monitor writes a died verdict after the dead threshold.">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <!-- lane labels -->
+      <text x="20" y="60" font-size="13" font-weight="600">Steps</text>
+      <text x="20" y="150" font-size="13" font-weight="600">Heartbeat</text>
+      <text x="20" y="240" font-size="13" font-weight="600">Monitor</text>
+      <line x1="120" y1="276" x2="980" y2="276" stroke="currentColor" opacity=".4" marker-end="url(#arr2)"/>
+      <text x="980" y="294" font-size="12" text-anchor="end" opacity=".7">time</text>
+
+      <!-- init -->
+      <line x1="150" y1="30" x2="150" y2="270" stroke="currentColor" opacity=".3" stroke-dasharray="3 4"/>
+      <text x="150" y="22" font-size="12" text-anchor="middle">init: write :flow, :alive</text>
+
+      <!-- steps lane -->
+      <rect x="160" y="42" width="150" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="235" y="61" font-size="12" text-anchor="middle">step 01 (running, then record)</text>
+      <rect x="320" y="42" width="190" height="30" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+      <text x="415" y="61" font-size="12" text-anchor="middle">step 02 (running, then record)</text>
+      <rect x="520" y="42" width="140" height="30" rx="5" fill="var(--warn-soft)" stroke="var(--warn)" stroke-dasharray="4 3"/>
+      <text x="590" y="61" font-size="12" text-anchor="middle" style="fill:var(--warn)">step 03 (running, no record)</text>
+      <text x="670" y="61" font-size="20" style="fill:var(--warn)">✕</text>
+      <text x="692" y="61" font-size="12" style="fill:var(--warn)">process dies</text>
+
+      <!-- beats -->
+      <g stroke="currentColor" stroke-width="2">
+        <line x1="150" y1="130" x2="150" y2="152"/><line x1="230" y1="130" x2="230" y2="152"/>
+        <line x1="310" y1="130" x2="310" y2="152"/><line x1="390" y1="130" x2="390" y2="152"/>
+        <line x1="470" y1="130" x2="470" y2="152"/><line x1="550" y1="130" x2="550" y2="152"/>
+        <line x1="630" y1="130" x2="630" y2="152"/>
+      </g>
+      <text x="190" y="122" font-size="11" text-anchor="middle" opacity=".7">15 s</text>
+      <line x1="150" y1="171" x2="630" y2="171" stroke="currentColor" opacity=".5" marker-end="url(#arr2)" stroke-width="1"/>
+      <text x="390" y="187" font-size="12" text-anchor="middle" opacity=".8">each beat refreshes :alive</text>
+      <line x1="660" y1="141" x2="660" y2="270" stroke="var(--warn)" stroke-dasharray="3 4"/>
+      <text x="720" y="146" font-size="12" style="fill:var(--warn)">beats stop</text>
+
+      <!-- monitor lane -->
+      <line x1="630" y1="222" x2="880" y2="222" stroke="var(--warn)" stroke-width="2"/>
+      <line x1="630" y1="214" x2="630" y2="230" stroke="var(--warn)" stroke-width="2"/>
+      <line x1="880" y1="214" x2="880" y2="230" stroke="var(--warn)" stroke-width="2"/>
+      <text x="755" y="212" font-size="12" text-anchor="middle" style="fill:var(--warn)">HEARTBEAT_DEAD_SECONDS</text>
+      <text x="755" y="242" font-size="11" text-anchor="middle" opacity=".7">last beat → now</text>
+      <rect x="888" y="206" width="92" height="32" rx="5" fill="var(--warn-soft)" stroke="var(--warn)"/>
+      <text x="934" y="226" font-size="12" text-anchor="middle" style="fill:var(--warn)">SET NX :died</text>
+    </svg>
+    </div>
+    <figcaption>A hung step still beats (the thread is independent), so the monitor can tell <em>stuck</em> from <em>dead</em>: only when the beats stop for longer than the threshold does it write <code>:died</code>. A run with no <code>:alive</code> key is a legacy run and is never judged Died.</figcaption>
+  </figure>
+
+  <h2>Design rules worth knowing</h2>
+  <ul class="rules">
+    <li><strong>Audit must never break the pipeline.</strong> Every SDK write is wrapped; failures are logged and swallowed. Without <code>init</code>, the decorator is a no-op.</li>
+    <li><strong>Counts, not contents.</strong> Records hold identities, times and item counts. No business data reaches Redis.</li>
+    <li><strong>Data loss is derived, not reported.</strong> The monitor flags a step whose output is 0 while an input was above 0.</li>
+    <li><strong>Clocks must agree.</strong> <code>beat_at</code> comes from the pipeline host and is compared with the monitor's clock, within <code>HEARTBEAT_DEAD_SECONDS</code>.</li>
+    <li><strong>Permissions mirror roles.</strong> Pipeline account: write <code>waypoint:*</code>. Monitor account: <code>SCAN</code>, <code>MGET</code>, <code>PING</code>, plus <code>SET</code>/<code>PTTL</code> on <code>waypoint:*:died</code>. With read-only access the monitor still works; Died verdicts just aren't kept across restarts.</li>
+    <li><strong>Version safety.</strong> Records carry <code>v</code>; a dashboard that doesn't know a version shows "Unsupported record version" instead of wrong data.</li>
+  </ul>
+</main>
+</body>
+</html>

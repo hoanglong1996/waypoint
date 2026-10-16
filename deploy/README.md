@@ -36,10 +36,11 @@ Set `REDIS_URL` for the pipeline (CallRail reads it through `src/utils/config.py
 ## Install the library from another repository
 
 ```bash
-pip install "waypoint-etl[redis] @ git+ssh://git@bitbucket.org/<workspace>/<repo>.git@waypoint-etl-v0.2.0#subdirectory=integrations/callraill/packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.2.0#subdirectory=packages/waypoint_etl"
 ```
 
-Replace `<workspace>/<repo>` with this repository once the first tag exists. Always install with the
+For a private repository use `git+ssh://git@github.com/hoanglong1996/waypoint.git@...` (deploy key) or
+`git+https://x-access-token:${GH_TOKEN}@github.com/hoanglong1996/waypoint.git@...` (token) in CI. Always install with the
 full URL above: do not `pip install waypoint-etl` by bare name, and do not publish the library to the
 public package index without reserving the name first.
 
@@ -48,7 +49,7 @@ public package index without reserving the name first.
 1. Bump `version` in `packages/waypoint_etl/pyproject.toml` and `__version__` in
    `packages/waypoint_etl/src/waypoint_etl/__init__.py`.
 2. Run the package tests and checks (`cd packages/waypoint_etl && python -m unittest discover tests && black --check . && ruff check . && mypy .`).
-3. Tag `waypoint-etl-vX.Y.Z` and push the tag.
+3. Tag and push: `git tag waypoint-etl-vX.Y.Z && git push origin waypoint-etl-vX.Y.Z`.
 
 If a release changes the stored record format, bump `FLOW_VERSION` too. Dashboards that do not know
 the new version show "Unsupported record version" for those runs instead of wrong data.
