@@ -1,8 +1,28 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.DS_Store
+.coverage
+htmlcov/
+
+# Environment
 .env
 .env.*
 !.env.example
+
+# OS / editor
+# .DS_Store
+# .idea/
+# .vscode/
+
+# # Tooling output
+# .playwright-mcp/
+# .claude/settings.local.json
+# *.log

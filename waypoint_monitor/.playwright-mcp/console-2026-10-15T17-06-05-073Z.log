@@ -1,5 +1,0 @@
-[   75276ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8099/api/runs?env=qa&limit=30:0
-[  105281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8099/api/runs?env=qa&limit=30:0
-[  135285ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8099/api/runs?env=qa&limit=30:0
-[  165290ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8099/api/runs?env=qa&limit=30:0
-[  195295ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8099/api/runs?env=qa&limit=30:0
