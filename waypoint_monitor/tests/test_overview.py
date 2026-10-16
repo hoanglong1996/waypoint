@@ -1,0 +1,256 @@
+import unittest
+from typing import Any, Dict, List, Optional
+
+from app.domain.overview import build_overview
+
+ORDER = ["prod", "qa"]
+
+
+def step(
+    name: str, state: str = "done", output: Optional[int] = 1, inputs: int = 0
+) -> Dict[str, Any]:
+    if state in ("done", "unplanned"):
+        ins = [{"name": "rows", "value": inputs}] if inputs else []
+        return {"name": name, "state": state, "inputs": ins, "output": output}
+    return {"name": name, "state": state}
+
+
+def run(
+    env: str,
+    run_id: str,
+    steps: Optional[List[Dict[str, Any]]] = None,
+    status: str = "complete",
+    stale: bool = False,
+    loss: Optional[List[str]] = None,
+    missing: Optional[str] = None,
+    label: Optional[str] = None,
+    flow_steps: Optional[List[Dict[str, Any]]] = None,
+    died: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    steps = steps if steps is not None else [step("a", output=5), step("b", output=9, inputs=5)]
+    flow = None
+    if label is not None or flow_steps is not None:
+        flow = {
+            "label": label,
+            "groups": [],
+            "steps": flow_steps or [{"name": s["name"], "label": s["name"].upper()} for s in steps],
+        }
+    return {
+        "run_id": run_id,
+        "env": env,
+        "status": status,
+        "stale": stale,
+        "started_at": "2026-10-16T02:00:00Z",
+        "ended_at": "2026-10-16T02:01:00Z",
+        "age_seconds": 100,
+        "loss_steps": loss or [],
+        "first_missing_step": missing,
+        "unreadable": 0,
+        "died": died,
+        "flow": flow,
+        "steps": steps,
+    }
+
+
+def one(runs_by_env: Dict[str, List[Dict[str, Any]]], name: str = "p") -> Dict[str, Any]:
+    result = build_overview({env: {name: runs} for env, runs in runs_by_env.items()}, ORDER)
+    return result[0]
+
+
+class TestNewestAcrossEnvironments(unittest.TestCase):
+    def test_greatest_run_id_wins_and_carries_its_env(self) -> None:
+        card = one(
+            {"prod": [run("prod", "20261015T020000Z")], "qa": [run("qa", "20261016T020000Z")]}
+        )
+        self.assertEqual(card["latest"]["env"], "qa")
+        self.assertEqual(card["latest"]["run_id"], "20261016T020000Z")
+
+    def test_equal_run_ids_go_to_the_first_environment_in_order(self) -> None:
+        same = "20261016T020000Z"
+        card = one({"qa": [run("qa", same)], "prod": [run("prod", same)]})
+        self.assertEqual(card["latest"]["env"], "prod")
+
+    def test_environments_list_only_those_with_runs_in_configured_order(self) -> None:
+        card = one({"prod": [], "qa": [run("qa", "20261016T020000Z")]})
+        self.assertEqual(card["environments"], ["qa"])
+        both = one(
+            {"qa": [run("qa", "20261016T020000Z")], "prod": [run("prod", "20261015T020000Z")]}
+        )
+        self.assertEqual(both["environments"], ["prod", "qa"])
+
+    def test_pipeline_without_any_run_is_left_out(self) -> None:
+        self.assertEqual(build_overview({"prod": {"p": []}, "qa": {}}, ORDER), [])
+
+    def test_label_comes_from_the_flow_else_the_name(self) -> None:
+        self.assertEqual(
+            one({"prod": [run("prod", "20261016T020000Z", label="CallRail")]})["label"], "CallRail"
+        )
+        self.assertEqual(one({"prod": [run("prod", "20261016T020000Z")]})["label"], "p")
+
+
+class TestCardStatus(unittest.TestCase):
+    def status(self, **kw: Any) -> Dict[str, Any]:
+        return one({"prod": [run("prod", "20261016T020000Z", **kw)]})
+
+    def test_first_match_wins_running_stale_incomplete_lost_ok(self) -> None:
+        self.assertEqual(
+            self.status(status="running", stale=True, loss=["b"])["card_status"], "running"
+        )
+        self.assertEqual(
+            self.status(stale=True, status="incomplete", loss=["b"])["card_status"], "stale"
+        )
+        self.assertEqual(
+            self.status(status="incomplete", loss=["b"], missing="c")["card_status"], "incomplete"
+        )
+        self.assertEqual(self.status(loss=["b"])["card_status"], "lost")
+        self.assertEqual(self.status()["card_status"], "ok")
+
+    def test_only_stale_incomplete_and_lost_need_attention(self) -> None:
+        self.assertTrue(self.status(stale=True)["needs_attention"])
+        self.assertTrue(self.status(status="incomplete", missing="c")["needs_attention"])
+        self.assertTrue(self.status(loss=["b"])["needs_attention"])
+        self.assertFalse(self.status(status="running")["needs_attention"])
+        self.assertFalse(self.status()["needs_attention"])
+
+    def test_reason_fields(self) -> None:
+        stalled = self.status(
+            status="incomplete",
+            missing="b",
+            steps=[step("a"), {"name": "b", "state": "stalled", "elapsed_seconds": 1800}],
+        )
+        self.assertEqual(stalled["latest"]["stalled_step"], "b")
+        self.assertEqual(stalled["latest"]["stalled_seconds"], 1800)
+        self.assertEqual(stalled["latest"]["first_missing_step"], "b")
+        self.assertEqual(self.status(loss=["b", "c"])["latest"]["loss_steps"], ["b", "c"])
+
+
+class TestOrder(unittest.TestCase):
+    def test_attention_first_then_the_rest_each_by_label(self) -> None:
+        by_env = {
+            "prod": {
+                "zeta": [run("prod", "20261016T020000Z", label="Zeta", stale=True)],
+                "alpha": [run("prod", "20261016T020000Z", label="Alpha")],
+                "mid": [run("prod", "20261016T020000Z", label="mid", loss=["b"])],
+                "beta": [run("prod", "20261016T020000Z", label="Beta", status="running")],
+            }
+        }
+        names = [c["name"] for c in build_overview(by_env, ORDER)]
+        self.assertEqual(names, ["mid", "zeta", "alpha", "beta"])
+
+
+class TestHeadline(unittest.TestCase):
+    def numbers(self, steps: List[Dict[str, Any]], **kw: Any) -> List[Dict[str, Any]]:
+        card = one({"prod": [run("prod", "20261016T020000Z", steps=steps, **kw)]})
+        headline: List[Dict[str, Any]] = card["latest"]["headline"]
+        return headline
+
+    def test_first_largest_middle_last(self) -> None:
+        h = self.numbers(
+            [
+                step("a", output=10),
+                step("b", output=50, inputs=10),
+                step("c", output=30, inputs=50),
+                step("d", output=None, inputs=30),
+            ]
+        )
+        self.assertEqual([x["key"] for x in h], ["first", "peak", "last"])
+        self.assertEqual([x["step"] for x in h], ["a", "b", "d"])
+        self.assertEqual(
+            [x["value"] for x in h], [10, 50, 30]
+        )  # a step that returns nothing uses its input
+
+    def test_unreported_step_has_null_value_and_two_steps_have_no_middle(self) -> None:
+        h = self.numbers(
+            [step("a", output=4), step("b", state="missing")], status="incomplete", missing="b"
+        )
+        self.assertEqual([x["value"] for x in h], [4, None, None])
+        self.assertIsNone(h[1]["step"])
+
+    def test_no_peak_among_unreported_middle_steps_falls_back_to_the_second_step(self) -> None:
+        h = self.numbers(
+            [
+                step("a", output=4),
+                step("b", state="waiting"),
+                step("c", state="waiting"),
+                step("d", state="waiting"),
+            ],
+            status="running",
+        )
+        self.assertEqual(h[1]["step"], "b")
+        self.assertIsNone(h[1]["value"])
+
+    def test_steps_outside_the_flow_are_not_headline_steps(self) -> None:
+        h = self.numbers(
+            [step("a", output=1), step("b", output=2), step("x", state="unplanned", output=999)]
+        )
+        self.assertEqual([x["step"] for x in h], ["a", None, "b"])
+
+    def test_label_is_the_flow_label_else_the_name(self) -> None:
+        h = self.numbers(
+            [step("a", output=1), step("b", output=2)],
+            flow_steps=[{"name": "a", "label": "Accounts"}, {"name": "b", "label": None}],
+            label="X",
+        )
+        self.assertEqual([h[0]["label"], h[2]["label"]], ["Accounts", "b"])
+
+
+SEEN = "2026-10-16T02:07:45Z"
+DIED = {"judged_at": "2026-10-16T02:09:20Z", "last_seen_at": SEEN, "recorded": True}
+
+
+def died_run(env: str = "prod", run_id: str = "20261016T020000Z", **over: Any) -> Dict[str, Any]:
+    steps = [
+        step("a", output=5),
+        {"name": "b", "state": "died", "started_at": "2026-10-16T02:03:00Z", "last_seen_at": SEEN},
+        {"name": "c", "state": "missing", "missing": True},
+    ]
+    return run(env, run_id, steps, status="incomplete", missing="b", died=DIED, **over)
+
+
+class TestDiedCard(unittest.TestCase):
+    """specs/009-run-liveness-heartbeat/contracts/api.md"""
+
+    def test_died_run_gives_a_died_card_that_needs_attention(self) -> None:
+        card = one({"prod": [died_run()]})
+        self.assertEqual(card["card_status"], "died")
+        self.assertTrue(card["needs_attention"])
+        self.assertEqual(card["latest"]["died_step"], "b")
+        self.assertEqual(card["latest"]["last_seen_at"], SEEN)
+
+    def test_died_wins_over_stale_and_incomplete(self) -> None:
+        card = one({"prod": [died_run(stale=True)]})
+        self.assertEqual(card["card_status"], "died")
+
+    def test_running_still_wins_over_everything(self) -> None:
+        live = run("prod", "20261016T020000Z", [step("a", state="running")], status="running")
+        self.assertEqual(one({"prod": [live]})["card_status"], "running")
+
+    def test_other_cards_have_no_died_fields_set(self) -> None:
+        card = one({"prod": [run("prod", "20261016T020000Z")]})
+        self.assertEqual(card["card_status"], "ok")
+        self.assertIsNone(card["latest"]["died_step"])
+        self.assertIsNone(card["latest"]["last_seen_at"])
+
+    def test_died_card_is_listed_with_the_problem_cards_first(self) -> None:
+        cards = build_overview(
+            {
+                "prod": {
+                    "alpha": [run("prod", "20261016T020000Z")],
+                    "bravo": [died_run()],
+                    "charlie": [run("prod", "20261016T020000Z", stale=True)],
+                    "delta": [run("prod", "20261016T020000Z")],
+                }
+            },
+            ORDER,
+        )
+        self.assertEqual([c["name"] for c in cards], ["bravo", "charlie", "alpha", "delta"])
+        self.assertEqual([c["card_status"] for c in cards], ["died", "stale", "ok", "ok"])
+
+    def test_a_died_run_of_an_old_recorder_without_the_key_is_not_died(self) -> None:
+        legacy = run("prod", "20261016T020000Z", status="incomplete", missing="b")
+        del legacy["died"]
+        self.assertEqual(one({"prod": [legacy]})["card_status"], "incomplete")
+
+
+if __name__ == "__main__":
+    unittest.main()

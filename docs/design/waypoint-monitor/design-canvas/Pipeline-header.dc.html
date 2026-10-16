@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pipeline page header</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 4350px; height: 1392px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: flex; gap: 40px; align-items: flex-start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 40px; width: 1440px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Home header: product name · live indicator · theme (no dropdown, no tabs)</div>
+<img src="/_blob/895f568ab48716ebb32e28f5f5d4079e" alt="Home header with only the brand, live indicator and theme toggle" style="width: 1440px; height: 64px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Pipeline header: + context bar “‹ All pipelines | CallRail  Latest  History” (Latest active)</div>
+<img src="/_blob/8d65924b09ea8043ed36ac012eae384d" alt="Pipeline page header with a second bar holding the back link, pipeline name and tabs" style="width: 1440px; height: 112px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">History active (dark)</div>
+<img src="/_blob/1177012b743d231ec9a7a8992fd0d0e8" alt="Pipeline header in dark theme with History active" style="width: 1440px; height: 112px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Long pipeline name: one line, ellipsis (full name in the tooltip)</div>
+<img src="/_blob/06b69618bcb8e9951ba9a1632605a9af" alt="Pipeline header with a long name truncated" style="width: 1440px; height: 112px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Mobile: back link · name · full-width tabs</div>
+<img src="/_blob/2994187325ecd9e4ec2e24bedbf66ff2" alt="Phone pipeline header: back link row, large name row, then tabs row" style="width: 375px; height: 190px; display: block; border-radius: 10px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 40px; width: 960px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Latest: environment tag next to the status (light)</div>
+<img src="/_blob/6db84ab77af77c54b658a407ec34d57a" alt="Latest page hero with a Complete pill followed by a prod tag" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Latest, Google Ads, lost data (dark)</div>
+<img src="/_blob/e3ca6f4693b0b68ab5e55930df0b5848" alt="Latest page in dark theme with Complete, prod and Possible data loss pills" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Latest · mobile · qa run</div>
+<img src="/_blob/04cf49acf7bc9460306c3e86563cccac" alt="Phone Latest page for a running qa run with the qa tag" style="width: 375px; height: 812px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 960px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Unknown pipeline: “Pipeline not found” + link home</div>
+<img src="/_blob/ee0d406eff2e783eed82e9e1c6fcee09" alt="Pipeline not found card with an All pipelines button" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Not found · mobile (dark)</div>
+<img src="/_blob/99dae68b52a33bad6dbbbe70a8dfadf0" alt="Pipeline not found on a phone in the dark theme" style="width: 375px; height: 812px; display: block; border-radius: 12px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":4350,"height":1392}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

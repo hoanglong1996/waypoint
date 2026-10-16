@@ -1,0 +1,118 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=e11]: Waypoint Monitor
+      - generic [ref=e12]:
+        - generic [ref=e13]: Updated just now
+        - button "Switch to dark theme" [ref=e16] [cursor=pointer]
+    - navigation "Breadcrumb" [ref=e129]:
+      - link "All pipelines" [ref=e130] [cursor=pointer]:
+        - /url: "#/"
+      - link "Facebook" [ref=e134] [cursor=pointer]:
+        - /url: "#/p/facebook/history?env=qa"
+      - generic [aria-hidden] [ref=e219]: ›
+      - paragraph [ref=e220]: Fri, Oct 16, 13:06
+  - main [ref=e20]:
+    - region "Run details" [ref=e221]:
+      - region [ref=e222]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - generic [ref=e225]: Complete
+            - generic [ref=e229]:
+              - generic [ref=e230]: Environment
+              - text: qa
+          - heading "Run completed" [level=1] [ref=e231]
+          - generic [ref=e232]:
+            - generic [ref=e233]: Fri, Oct 16, 2026 · started 13:06
+            - generic [ref=e237]: finished 5h 0m ago
+            - generic [ref=e241]: 3s
+        - generic [ref=e245]:
+          - generic [ref=e246]:
+            - generic [ref=e247]: First step · Extract
+            - generic [ref=e248]: "120"
+          - generic [ref=e249]:
+            - generic [ref=e250]: Largest step · Extract
+            - generic [ref=e251]: "120"
+          - generic [ref=e252]:
+            - generic [ref=e253]: Last step · Load
+            - generic [ref=e254]: "118"
+        - generic [ref=e255]:
+          - generic [aria-hidden] [ref=e256]:
+            - generic [ref=e257]: ETL
+            - generic [ref=e258]: Output
+          - list "Step map" [ref=e259]:
+            - 'listitem "extract: ok" [ref=e260]'
+            - 'listitem "clean: ok" [ref=e265]'
+            - 'listitem "load: ok" [ref=e270]'
+          - generic [ref=e275]: 3 of 3 steps reported
+      - generic [ref=e277]:
+        - heading "Steps" [level=2] [ref=e278]
+        - generic [ref=e279]: Select a step to trace it
+        - group "Step view" [ref=e280]:
+          - generic [ref=e282]:
+            - radio "List" [ref=e283] [cursor=pointer]
+            - generic [ref=e284]: List
+          - generic [ref=e290]:
+            - radio "Graph" [checked] [ref=e291] [cursor=pointer]
+            - generic [ref=e292]: Graph
+      - region "Pipeline graph" [ref=e298]:
+        - generic [ref=e299]:
+          - paragraph [ref=e300]:
+            - generic [ref=e304]: Data flows left to right. An arrow A → B means A’s output is B’s input.
+          - paragraph [ref=e305]:
+            - generic [ref=e306]: 3 of 3 steps reported
+        - group "Pipeline graph, left to right" [ref=e308]:
+          - generic: ETL
+          - generic: Output
+          - generic [ref=e316]:
+            - generic [ref=e317]: rows
+            - generic [ref=e318]: "120"
+          - generic [ref=e319]:
+            - generic [ref=e320]: rows
+            - generic [ref=e321]: "118"
+          - 'button "Extract, extract, ETL. State: fine. Output 120." [ref=e322] [cursor=pointer]':
+            - generic [ref=e323]: Fine
+            - generic [ref=e328]: Extract
+            - generic [ref=e330]: extract
+            - generic [ref=e331]:
+              - generic [ref=e332]: "120"
+              - generic [ref=e333]: 13:06:37
+          - 'button "Clean, clean, ETL. State: fine. Output 118." [ref=e334] [cursor=pointer]':
+            - generic [ref=e335]: Fine
+            - generic [ref=e340]: Clean
+            - generic [ref=e342]: clean
+            - generic [ref=e343]:
+              - generic [ref=e344]: "118"
+              - generic [ref=e345]: 13:06:38
+          - 'button "Load, load, Output. State: fine. Output 118." [ref=e346] [cursor=pointer]':
+            - generic [ref=e347]: Fine
+            - generic [ref=e352]: Load
+            - generic [ref=e354]: load
+            - generic [ref=e355]:
+              - generic [ref=e356]: "118"
+              - generic [ref=e357]: 13:06:39
+        - generic "Legend" [ref=e358]:
+          - generic [ref=e359]:
+            - generic [ref=e360]: Steps
+            - generic [ref=e361]: Fine
+            - generic [ref=e365]: Data loss
+            - generic [ref=e370]: Not reported
+            - generic [ref=e374]: Not reached
+            - generic [ref=e378]: Downstream of a loss
+            - generic [ref=e382]: Running
+            - generic [ref=e386]: Waiting
+            - generic [ref=e390]: Stalled
+            - generic [ref=e395]: Died
+          - generic [ref=e399]:
+            - generic [ref=e400]: Arrows
+            - generic [ref=e401]: items flow · thicker = more
+            - generic [ref=e404]: 0 items
+            - generic [ref=e407]: not reached
+          - generic [ref=e410]:
+            - generic [ref=e411]: Groups
+            - generic [ref=e412]: ETL
+            - generic [ref=e414]: Output

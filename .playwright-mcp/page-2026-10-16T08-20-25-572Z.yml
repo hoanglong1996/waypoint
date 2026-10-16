@@ -1,0 +1,209 @@
+- generic [active] [ref=f9e1]:
+  - link "Skip to content" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f9e3]:
+    - generic [ref=f9e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=f9e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=f9e11]: Waypoint Monitor
+      - generic [ref=f9e12]:
+        - generic [ref=f9e13]: Updated just now
+        - button "Switch to dark theme" [ref=f9e16] [cursor=pointer]
+    - generic [ref=f9e21]:
+      - link "All pipelines" [ref=f9e22] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=f9e25]: CallRail
+      - navigation "Pipeline views" [ref=f9e26]:
+        - link "Latest" [ref=f9e27] [cursor=pointer]:
+          - /url: "#/p/google_ads"
+        - link "History" [ref=f9e28] [cursor=pointer]:
+          - /url: "#/p/google_ads/history"
+  - main [ref=f9e29]:
+    - region "Latest run" [ref=f9e215]:
+      - region [ref=f9e216]:
+        - generic [ref=f9e217]:
+          - generic [ref=f9e218]:
+            - generic [ref=f9e219]: Complete
+            - generic [ref=f9e223]:
+              - generic [ref=f9e224]: Environment
+              - text: prod
+            - generic [ref=f9e225]: Possible data loss
+          - heading "Run finished, but one step lost data" [level=1] [ref=f9e229]
+          - generic [ref=f9e230]:
+            - generic [ref=f9e231]: Thu, Oct 15, 2026 · started 09:00
+            - generic [ref=f9e235]: finished 59m ago
+            - generic [ref=f9e239]: 1m 12s
+          - paragraph [ref=f9e243]:
+            - code [ref=f9e244]: read_callrail_call
+            - text: received input but produced 0 items. Downstream steps ran, but their counts may be incomplete.
+        - generic [ref=f9e245]:
+          - generic [ref=f9e246]:
+            - generic [ref=f9e247]: First step · Accounts
+            - generic [ref=f9e248]: "10"
+          - generic [ref=f9e249]:
+            - generic [ref=f9e250]: Largest step · Click views
+            - generic [ref=f9e251]: 3,410
+          - generic [ref=f9e252]:
+            - generic [ref=f9e253]: Last step · Save stats
+            - generic [ref=f9e254]: 1,284
+        - generic [ref=f9e255]:
+          - list "Step map" [ref=f9e256]:
+            - 'listitem "read_callrail_account: ok" [ref=f9e257]'
+            - 'listitem "read_callrail_call: possible data loss" [ref=f9e262]':
+              - generic [aria-hidden] [ref=f9e264]: "!"
+            - 'listitem "read_partners: ok" [ref=f9e265]'
+            - 'listitem "read_instances: ok" [ref=f9e270]'
+            - 'listitem "read_campaigns: ok" [ref=f9e275]'
+            - 'listitem "read_gads_clickview: ok" [ref=f9e280]'
+            - 'listitem "merge_calls_clickview: ok" [ref=f9e285]'
+            - 'listitem "record_call_statistics: ok" [ref=f9e290]'
+            - 'listitem "save_call_statistics: ok" [ref=f9e295]'
+          - generic [ref=f9e300]:
+            - generic [ref=f9e301]: 9 of 9 steps reported
+            - generic [ref=f9e302]: 1 with possible data loss
+      - generic [ref=f9e303]:
+        - heading "Steps" [level=2] [ref=f9e304]
+        - group "Step view" [ref=f9e305]:
+          - generic [ref=f9e307]:
+            - radio "List" [ref=f9e308] [cursor=pointer]
+            - generic [ref=f9e309]: List
+          - generic [ref=f9e315]:
+            - radio "Graph" [checked] [ref=f9e316] [cursor=pointer]
+            - generic [ref=f9e317]: Graph
+      - region "Pipeline graph" [ref=f9e323]:
+        - generic [ref=f9e324]:
+          - paragraph [ref=f9e325]:
+            - generic [ref=f9e329]: Data flows top to bottom. An arrow A → B means A’s output is B’s input.
+          - paragraph [ref=f9e330]:
+            - generic [ref=f9e331]: 9 of 9 steps reported
+            - generic [ref=f9e332]:
+              - text: data loss at
+              - generic [ref=f9e336]: read_callrail_call
+        - group "Pipeline graph, top to bottom" [ref=f9e338]:
+          - generic [ref=f9e366]:
+            - generic [ref=f9e367]: accounts
+            - generic [aria-hidden] [ref=f9e368]: ·
+            - generic [ref=f9e369]: "10"
+          - generic [ref=f9e370]:
+            - generic [ref=f9e371]: partners
+            - generic [aria-hidden] [ref=f9e372]: ·
+            - generic [ref=f9e373]: "6"
+          - generic [ref=f9e374]:
+            - generic [ref=f9e375]: instances
+            - generic [aria-hidden] [ref=f9e376]: ·
+            - generic [ref=f9e377]: "14"
+          - generic [ref=f9e378]:
+            - generic [ref=f9e379]: instances
+            - generic [aria-hidden] [ref=f9e380]: ·
+            - generic [ref=f9e381]: "14"
+          - generic [ref=f9e382]:
+            - generic [ref=f9e383]: calls
+            - generic [aria-hidden] [ref=f9e384]: ·
+            - generic [ref=f9e385]: "0"
+          - generic [ref=f9e386]:
+            - generic [ref=f9e387]: campaigns
+            - generic [aria-hidden] [ref=f9e388]: ·
+            - generic [ref=f9e389]: "92"
+          - generic [ref=f9e390]:
+            - generic [ref=f9e391]: clickview
+            - generic [aria-hidden] [ref=f9e392]: ·
+            - generic [ref=f9e393]: 3,410
+          - generic [ref=f9e394]:
+            - generic [ref=f9e395]: call_statistics
+            - generic [aria-hidden] [ref=f9e396]: ·
+            - generic [ref=f9e397]: 1,284
+          - generic [ref=f9e398]:
+            - generic [ref=f9e399]: call_statistics
+            - generic [aria-hidden] [ref=f9e400]: ·
+            - generic [ref=f9e401]: 1,284
+          - 'button "Accounts, read_callrail_account, CallRail. State: fine. Output 10." [ref=f9e402] [cursor=pointer]':
+            - generic [ref=f9e403]: Fine
+            - generic [ref=f9e408]: Accounts
+            - generic [ref=f9e410]: read_callrail_account
+            - generic [ref=f9e411]:
+              - generic [ref=f9e412]: "10"
+              - generic [ref=f9e413]: 09:00:08
+          - 'button "Partners, read_partners, Google Ads. State: fine. Output 6." [ref=f9e414] [cursor=pointer]':
+            - generic [ref=f9e415]: Fine
+            - generic [ref=f9e420]: Partners
+            - generic [ref=f9e422]: read_partners
+            - generic [ref=f9e423]:
+              - generic [ref=f9e424]: "6"
+              - generic [ref=f9e425]: 09:00:24
+          - 'button "Calls, read_callrail_call, CallRail. State: possible data loss. Output 0." [ref=f9e426] [cursor=pointer]':
+            - generic [ref=f9e427]: Data loss
+            - generic [ref=f9e433]: Calls
+            - generic [ref=f9e435]: read_callrail_call
+            - generic [ref=f9e436]:
+              - generic [ref=f9e437]: "0"
+              - generic [ref=f9e438]: 09:00:16
+          - 'button "Instances, read_instances, Google Ads. State: fine. Output 14." [ref=f9e439] [cursor=pointer]':
+            - generic [ref=f9e440]: Fine
+            - generic [ref=f9e445]: Instances
+            - generic [ref=f9e447]: read_instances
+            - generic [ref=f9e448]:
+              - generic [ref=f9e449]: "14"
+              - generic [ref=f9e450]: 09:00:32
+          - 'button "Campaigns, read_campaigns, Google Ads. State: fine. Output 92." [ref=f9e451] [cursor=pointer]':
+            - generic [ref=f9e452]: Fine
+            - generic [ref=f9e457]: Campaigns
+            - generic [ref=f9e459]: read_campaigns
+            - generic [ref=f9e460]:
+              - generic [ref=f9e461]: "92"
+              - generic [ref=f9e462]: 09:00:40
+          - 'button "Click views, read_gads_clickview, Google Ads. State: fine. Output 3,410." [ref=f9e463] [cursor=pointer]':
+            - generic [ref=f9e464]: Fine
+            - generic [ref=f9e469]: Click views
+            - generic [ref=f9e471]: read_gads_clickview
+            - generic [ref=f9e472]:
+              - generic [ref=f9e473]: 3,410
+              - generic [ref=f9e474]: 09:00:48
+          - 'button "Merged calls, merge_calls_clickview, Merge. State: fine. Output 1,284. Downstream of a data-loss step." [ref=f9e475] [cursor=pointer]':
+            - generic [ref=f9e476]:
+              - generic [ref=f9e477]: Fine
+              - generic "Downstream of a data-loss step" [ref=f9e481]: affected
+            - generic [ref=f9e485]: Merged calls
+            - generic [ref=f9e487]: merge_calls_clickview
+            - generic [ref=f9e488]:
+              - generic [ref=f9e489]: 1,284
+              - generic [ref=f9e490]: 09:00:56
+          - 'button "Record stats, record_call_statistics, Persist. State: fine. Output n/a. Downstream of a data-loss step." [ref=f9e491] [cursor=pointer]':
+            - generic [ref=f9e492]:
+              - generic [ref=f9e493]: Fine
+              - generic "Downstream of a data-loss step" [ref=f9e497]: affected
+            - generic [ref=f9e501]: Record stats
+            - generic [ref=f9e503]: record_call_statistics
+            - generic [ref=f9e504]:
+              - generic [ref=f9e505]: n/a · returns nothing
+              - generic [ref=f9e506]: 09:01:04
+          - 'button "Save stats, save_call_statistics, Persist. State: fine. Output n/a. Downstream of a data-loss step." [ref=f9e507] [cursor=pointer]':
+            - generic [ref=f9e508]:
+              - generic [ref=f9e509]: Fine
+              - generic "Downstream of a data-loss step" [ref=f9e513]: affected
+            - generic [ref=f9e517]: Save stats
+            - generic [ref=f9e519]: save_call_statistics
+            - generic [ref=f9e520]:
+              - generic [ref=f9e521]: n/a · returns nothing
+              - generic [ref=f9e522]: 09:01:12
+        - generic "Legend" [ref=f9e523]:
+          - generic [ref=f9e524]:
+            - generic [ref=f9e525]: Steps
+            - generic [ref=f9e526]: Fine
+            - generic [ref=f9e530]: Data loss
+            - generic [ref=f9e535]: Not reported
+            - generic [ref=f9e539]: Not reached
+            - generic [ref=f9e543]: Downstream of a loss
+            - generic [ref=f9e547]: Running
+            - generic [ref=f9e551]: Waiting
+            - generic [ref=f9e555]: Stalled
+          - generic [ref=f9e560]:
+            - generic [ref=f9e561]: Arrows
+            - generic [ref=f9e562]: items flow · thicker = more
+            - generic [ref=f9e565]: 0 items
+            - generic [ref=f9e568]: not reached
+          - generic [ref=f9e571]:
+            - generic [ref=f9e572]: Groups
+            - generic [ref=f9e573]: CallRail
+            - generic [ref=f9e575]: Google Ads
+            - generic [ref=f9e577]: Merge
+            - generic [ref=f9e579]: Persist

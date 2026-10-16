@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Navigation and addresses</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1800px; height: 1080px; box-sizing: border-box; padding: 48px; background: #f6f7f9; display: flex; flex-direction: column; gap: 28px; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 style="margin: 0; font-size: 28px; font-weight: 600">Navigation and addresses</h2>
+<p style="margin: 0; font-size: 15px; color: #4a5261">Every page has its own hash address, so reload, Back/Forward and sharing return to the same view.</p>
+</div>
+<div style="display: flex; align-items: center; gap: 0">
+<div style="width: 380px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #ffffff; border: 1px solid #cdd2da; border-radius: 14px">
+<img src="/_blob/3df4ef954aec50a5cf842e009dd79dc3" alt="Home page thumbnail" style="width: 348px; height: 200px; object-fit: cover; object-position: top left; display: block; border-radius: 8px; border: 1px solid #e3e6eb">
+<div style="font-size: 18px; font-weight: 600">Home</div>
+<div style="font-family: ui-monospace, monospace; font-size: 14px; color: #3e4cc9">#/</div>
+<div style="font-size: 13px; color: #4a5261">Default landing page. All pipelines; product name links here from every page.</div>
+</div>
+<div style="width: 170px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 8px">
+<div style="font-size: 13px; font-weight: 600; color: #4a5261; text-align: center">click / Enter on a card</div>
+<div style="width: 100%; height: 2px; background: #3e4cc9; position: relative"></div>
+<div style="align-self: flex-end; width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 12px solid #3e4cc9; margin-top: -14px"></div>
+</div>
+<div style="width: 380px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #ffffff; border: 1px solid #cdd2da; border-radius: 14px">
+<img src="/_blob/6db84ab77af77c54b658a407ec34d57a" alt="Latest page thumbnail" style="width: 348px; height: 200px; object-fit: cover; object-position: top left; display: block; border-radius: 8px; border: 1px solid #e3e6eb">
+<div style="font-size: 18px; font-weight: 600">Latest</div>
+<div style="font-family: ui-monospace, monospace; font-size: 14px; color: #3e4cc9">#/p/callrail</div>
+<div style="font-size: 13px; color: #4a5261">Newest run in any environment, with its env tag.</div>
+</div>
+<div style="width: 170px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 8px">
+<div style="font-size: 13px; font-weight: 600; color: #4a5261; text-align: center">Latest | History tabs</div>
+<div style="display: flex; align-items: center; width: 100%">
+<div style="width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-right: 12px solid #3e4cc9"></div>
+<div style="flex: 1; height: 2px; background: #3e4cc9"></div>
+<div style="width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 12px solid #3e4cc9"></div>
+</div>
+</div>
+<div style="width: 420px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #ffffff; border: 1px solid #cdd2da; border-radius: 14px">
+<img src="/_blob/294b60291b5d302d7ea97d4465393fa6" alt="History page thumbnail" style="width: 388px; height: 200px; object-fit: cover; object-position: top left; display: block; border-radius: 8px; border: 1px solid #e3e6eb">
+<div style="font-size: 18px; font-weight: 600">History</div>
+<div style="font-family: ui-monospace, monospace; font-size: 14px; color: #3e4cc9">#/p/callrail/history?env=prod</div>
+<div style="font-size: 13px; color: #4a5261">Changing the environment rewrites ?env= (new history entry). Without ?env: prod if it has runs, else the newest run’s env.</div>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; margin-left: 190px; width: 1130px; padding: 10px 16px; border: 2px dashed #3e4cc9; border-top: 0; border-radius: 0 0 14px 14px; position: relative">
+<div style="width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid #3e4cc9; position: absolute; left: -8px; top: -12px"></div>
+<span style="font-size: 14px; font-weight: 600; color: #3e4cc9">Back to Home</span>
+<span style="font-size: 13px; color: #4a5261">“‹ All pipelines” back link, or the product name, from Latest or History</span>
+</div>
+<div style="display: flex; align-items: center; gap: 24px">
+<div style="width: 380px; display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #ffffff; border: 1.5px dashed #b0222a; border-radius: 14px">
+<div style="font-size: 18px; font-weight: 600">Pipeline not found</div>
+<div style="font-family: ui-monospace, monospace; font-size: 14px; color: #b0222a">#/p/unknown · any other path</div>
+<div style="font-size: 13px; color: #4a5261">Shown for an unknown pipeline id or address. Its button “All pipelines” links to #/.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: #4a5261; max-width: 900px">
+<div style="font-weight: 600; color: #0e1116">Rules</div>
+<div>· Hash routing (#/…) needs no server rewrites; the page title follows the route (“CallRail · History · Waypoint Monitor”).</div>
+<div>· Opening a run drawer does not change the address; closing it returns focus to its row.</div>
+<div>· Moving between routes closes the drawer, scrolls to the top and keeps the List | Graph choice.</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":1080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

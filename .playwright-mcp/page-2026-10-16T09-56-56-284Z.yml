@@ -1,0 +1,93 @@
+- generic [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=e11]: Waypoint Monitor
+      - generic [ref=e12]:
+        - generic [ref=e13]: Updated just now
+        - button "Switch to dark theme" [ref=e16] [cursor=pointer]
+    - generic [ref=e129]:
+      - link "All pipelines" [ref=e130] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=e134]: qs009
+      - navigation "Pipeline views" [ref=e135]:
+        - link "Latest" [ref=e136] [cursor=pointer]:
+          - /url: "#/p/qs009"
+        - link "History" [ref=e137] [cursor=pointer]:
+          - /url: "#/p/qs009/history"
+  - main [ref=e20]:
+    - region "Latest run" [ref=e138]:
+      - region [ref=e405]:
+        - generic [ref=e406]:
+          - generic [ref=e407]:
+            - generic [ref=e408]: Died
+            - generic [ref=e411]:
+              - generic [ref=e412]: Environment
+              - text: qa
+          - heading "The pipeline process died" [level=1] [ref=e413]
+          - generic [ref=e414]:
+            - generic [ref=e415]: Fri, Oct 16, 2026 · started 21:00
+            - generic [ref=e419]: finished 1m ago
+            - generic [ref=e423]: 0s
+          - paragraph [ref=e427]:
+            - text: "The process stopped sending signs of life after 16:55 (last seen 1m ago), so it is not just slow. First missing step:"
+            - code [ref=e428]: load
+            - text: . 1 of 2 steps did not report, so statistics were not saved for this run.
+        - generic [ref=e429]:
+          - generic [ref=e430]:
+            - generic [ref=e431]: First step · extract
+            - generic [ref=e432]: "3"
+            - generic [ref=e433]: 0%
+          - generic [ref=e436]:
+            - generic [ref=e437]: Largest step · extract
+            - generic [ref=e438]: "3"
+            - generic [ref=e439]: 0%
+          - generic [ref=e442]:
+            - generic [ref=e443]: Last step · extract
+            - generic [ref=e444]: "3"
+            - generic [ref=e445]: 0%
+        - generic [ref=e448]:
+          - list "Step map" [ref=e451]:
+            - 'listitem "extract: ok" [ref=e452]'
+            - 'listitem "load: died" [ref=e457]'
+          - generic [ref=e462]: 1 of 2 steps reported
+      - generic [ref=e464]:
+        - heading "Steps" [level=2] [ref=e465]
+        - generic [ref=e466]: Output per step · sparkline = last 14 runs
+        - group "Step view" [ref=e467]:
+          - generic [ref=e469]:
+            - radio "List" [checked] [active] [ref=e470] [cursor=pointer]
+            - generic [ref=e471]: List
+          - generic [ref=e477]:
+            - radio "Graph" [ref=e478] [cursor=pointer]
+            - generic [ref=e479]: Graph
+      - list [ref=e485]:
+        - listitem [ref=e486]:
+          - generic [ref=e488]: "1"
+          - article "Step 1, extract, ok" [ref=e489]:
+            - generic [ref=e490]:
+              - generic [ref=e491]: extract
+              - generic [ref=e492]:
+                - generic "Finished at" [ref=e493]
+                - generic [ref=e496]: 16:55:40
+            - generic "Inputs" [ref=e497]: input none
+            - generic [ref=e499]:
+              - generic [ref=e500]: "3"
+              - generic [ref=e501]:
+                - generic [ref=e502]: output
+                - generic [ref=e503]: 0%
+            - generic "Last 5 runs" [ref=e507]: 5 runs
+        - listitem [ref=e511]:
+          - generic [ref=e513]: "2"
+          - article "Step 2, load, died" [ref=e514]:
+            - generic [ref=e515]:
+              - generic [ref=e516]: load
+              - generic [ref=e517]: Started 16:55:40
+            - generic "Inputs" [ref=e519]: input not recorded
+            - generic [ref=e521]:
+              - generic [ref=e522]: Died · last seen 16:55:42
+              - generic [ref=e526]: process gone
+            - generic "Last 5 runs" [ref=e527]: 5 runs

@@ -1,0 +1,364 @@
+[
+ {
+  "key": "etl-audit:callrail:qa:RUN:flow",
+  "ttl": 100,
+  "record": {
+   "v": 1,
+   "pipeline": "callrail",
+   "env": "qa",
+   "run_id": "RUN",
+   "steps": [
+    {
+     "name": "read_callrail_account",
+     "inputs": [],
+     "label": "Accounts",
+     "group": "callrail"
+    },
+    {
+     "name": "read_callrail_call",
+     "inputs": [
+      {
+       "name": "accounts",
+       "from": "read_callrail_account"
+      }
+     ],
+     "label": "Calls",
+     "group": "callrail"
+    },
+    {
+     "name": "read_partners",
+     "inputs": [],
+     "label": "Partners",
+     "group": "gads"
+    },
+    {
+     "name": "read_instances",
+     "inputs": [
+      {
+       "name": "partners",
+       "from": "read_partners"
+      }
+     ],
+     "label": "Instances",
+     "group": "gads"
+    },
+    {
+     "name": "read_campaigns",
+     "inputs": [
+      {
+       "name": "instances",
+       "from": "read_instances"
+      }
+     ],
+     "label": "Campaigns",
+     "group": "gads"
+    },
+    {
+     "name": "read_gads_clickview",
+     "inputs": [
+      {
+       "name": "instances",
+       "from": "read_instances"
+      }
+     ],
+     "label": "Click views",
+     "group": "gads"
+    },
+    {
+     "name": "merge_calls_clickview",
+     "inputs": [
+      {
+       "name": "calls",
+       "from": "read_callrail_call"
+      },
+      {
+       "name": "campaigns",
+       "from": "read_campaigns"
+      },
+      {
+       "name": "clickview",
+       "from": "read_gads_clickview"
+      }
+     ],
+     "label": "Merged calls",
+     "group": "merge"
+    },
+    {
+     "name": "record_call_statistics",
+     "inputs": [
+      {
+       "name": "call_statistics",
+       "from": "merge_calls_clickview"
+      }
+     ],
+     "label": "Record stats",
+     "group": "persist",
+     "returns_nothing": true
+    },
+    {
+     "name": "save_call_statistics",
+     "inputs": [
+      {
+       "name": "call_statistics",
+       "from": "merge_calls_clickview"
+      }
+     ],
+     "label": "Save stats",
+     "group": "persist",
+     "returns_nothing": true
+    }
+   ],
+   "label": "CallRail",
+   "groups": [
+    {
+     "key": "callrail",
+     "label": "CallRail"
+    },
+    {
+     "key": "gads",
+     "label": "Google Ads"
+    },
+    {
+     "key": "merge",
+     "label": "Merge"
+    },
+    {
+     "key": "persist",
+     "label": "Persist"
+    }
+   ]
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:01-read_callrail_account",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_callrail_account",
+   "index": 1
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:01-read_callrail_account",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_callrail_account",
+   "index": 1,
+   "inputs": {},
+   "output": 10
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:02-read_callrail_call",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_callrail_call",
+   "index": 2
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:02-read_callrail_call",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_callrail_call",
+   "index": 2,
+   "inputs": {
+    "accounts": 10
+   },
+   "output": 3
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:03-read_partners",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_partners",
+   "index": 3
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:03-read_partners",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_partners",
+   "index": 3,
+   "inputs": {},
+   "output": 1
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:04-read_instances",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_instances",
+   "index": 4
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:04-read_instances",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_instances",
+   "index": 4,
+   "inputs": {
+    "partners": 1
+   },
+   "output": 2
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:05-read_campaigns",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_campaigns",
+   "index": 5
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:05-read_campaigns",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_campaigns",
+   "index": 5,
+   "inputs": {
+    "instances": 2
+   },
+   "output": 4
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:06-read_gads_clickview",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_gads_clickview",
+   "index": 6
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:06-read_gads_clickview",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "read_gads_clickview",
+   "index": 6,
+   "inputs": {
+    "instances": 2
+   },
+   "output": 6
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:07-merge_calls_clickview",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "merge_calls_clickview",
+   "index": 7
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:07-merge_calls_clickview",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "merge_calls_clickview",
+   "index": 7,
+   "inputs": {
+    "calls": 3,
+    "campaigns": 4,
+    "clickview": 6
+   },
+   "output": 5
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:08-record_call_statistics",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "record_call_statistics",
+   "index": 8
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:08-record_call_statistics",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "record_call_statistics",
+   "index": 8,
+   "inputs": {
+    "call_statistics": 5
+   },
+   "output": null
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:running:09-save_call_statistics",
+  "ttl": 86400,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "save_call_statistics",
+   "index": 9
+  }
+ },
+ {
+  "key": "etl-audit:callrail:qa:RUN:step:09-save_call_statistics",
+  "ttl": 100,
+  "record": {
+   "pipeline": "callrail",
+   "run_id": "RUN",
+   "env": "qa",
+   "step": "save_call_statistics",
+   "index": 9,
+   "inputs": {
+    "call_statistics": 5
+   },
+   "output": null
+  }
+ }
+]

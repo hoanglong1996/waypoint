@@ -1,0 +1,101 @@
+- generic [active] [ref=f9e1]:
+  - link "Skip to content" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f9e3]:
+    - generic [ref=f9e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=f9e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=f9e11]: Waypoint Monitor
+      - generic [ref=f9e12]:
+        - generic [ref=f9e13]: Updated just now
+        - button "Switch to dark theme" [ref=f9e16] [cursor=pointer]
+    - generic [ref=f9e21]:
+      - link "All pipelines" [ref=f9e22] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=f9e25]: CallRail
+      - navigation "Pipeline views" [ref=f9e26]:
+        - link "Latest" [ref=f9e27] [cursor=pointer]:
+          - /url: "#/p/callrail"
+        - link "History" [ref=f9e28] [cursor=pointer]:
+          - /url: "#/p/callrail/history"
+  - main [ref=f9e29]:
+    - region "History" [ref=f9e30]:
+      - region "Environment filter" [ref=f9e31]:
+        - generic [ref=f9e32]:
+          - generic [ref=f9e33]: Environment
+          - radiogroup "Environment" [ref=f9e34]:
+            - generic [ref=f9e35]:
+              - radio "prod" [checked] [ref=f9e36] [cursor=pointer]
+              - generic [ref=f9e37]: prod
+            - generic [ref=f9e38]:
+              - radio "qa" [ref=f9e39] [cursor=pointer]
+              - generic [ref=f9e40]: qa
+        - paragraph [ref=f9e41]: Showing 2 prod runs. The trend, the runs list and run details use this environment.
+      - region [ref=f9e42]:
+        - generic [ref=f9e43]:
+          - generic [ref=f9e44]:
+            - heading "Step trend" [level=2] [ref=f9e45]
+            - generic [ref=f9e46]: Step
+            - combobox "Step" [ref=f9e47]:
+              - option "read_callrail_account" [selected]
+              - option "read_callrail_call"
+              - option "read_partners"
+              - option "read_instances"
+              - option "read_campaigns"
+              - option "read_gads_clickview"
+              - option "merge_calls_clickview"
+              - option "record_call_statistics"
+              - option "save_call_statistics"
+          - generic [ref=f9e48]:
+            - generic [ref=f9e49]: "10"
+            - generic [ref=f9e50]: 0%
+            - generic [ref=f9e52]: Latest run (Oct 14) vs previous run
+        - img "read_callrail_account output for the last 2 runs. Latest 10." [ref=f9e53]:
+          - img [aria-hidden] [ref=f9e54]:
+            - generic [ref=f9e55]: "0"
+            - generic [ref=f9e56]: "3"
+            - generic [ref=f9e57]: "5"
+            - generic [ref=f9e58]: "8"
+            - generic [ref=f9e59]: "10"
+            - generic [ref=f9e60]: Oct 13
+            - generic [ref=f9e61]: Oct 14
+        - generic [ref=f9e65]:
+          - generic [ref=f9e66]: value per run
+          - generic [ref=f9e68]: 0 with input (possible loss)
+          - generic [ref=f9e70]: step not recorded
+          - generic [ref=f9e72]: Use ← → to move between runs
+      - region [ref=f9e73]:
+        - generic [ref=f9e74]:
+          - heading "Runs" [level=2] [ref=f9e75]
+          - generic [ref=f9e76]: 2 runs · newest first
+        - list [ref=f9e77]:
+          - listitem [ref=f9e78]:
+            - button "Wed, Oct 14 09:00 · 40s Incomplete First step 10 Largest step 1,284 Last step 92" [ref=f9e79] [cursor=pointer]:
+              - generic [ref=f9e80]:
+                - text: Wed, Oct 14
+                - generic [ref=f9e81]: 09:00 · 40s
+              - generic [ref=f9e82]: Incomplete
+              - generic [ref=f9e87]:
+                - generic [ref=f9e88]: First step
+                - text: "10"
+              - generic [ref=f9e89]:
+                - generic [ref=f9e90]: Largest step
+                - text: 1,284
+              - generic [ref=f9e91]:
+                - generic [ref=f9e92]: Last step
+                - text: "92"
+          - listitem [ref=f9e93]:
+            - button "Tue, Oct 13 09:00 · 1m 12s Complete First step 10 Largest step 3,410 Last step 1,284" [ref=f9e94] [cursor=pointer]:
+              - generic [ref=f9e95]:
+                - text: Tue, Oct 13
+                - generic [ref=f9e96]: 09:00 · 1m 12s
+              - generic [ref=f9e97]: Complete
+              - generic [ref=f9e102]:
+                - generic [ref=f9e103]: First step
+                - text: "10"
+              - generic [ref=f9e104]:
+                - generic [ref=f9e105]: Largest step
+                - text: 3,410
+              - generic [ref=f9e106]:
+                - generic [ref=f9e107]: Last step
+                - text: 1,284

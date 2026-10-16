@@ -1,0 +1,43 @@
+# Waypoint Stack: Redis + Waypoint Monitor, and (profile "sample") a tiny pipeline that reports to it.
+#   docker compose -f deploy/docker-compose.yml up --build
+#   docker compose -f deploy/docker-compose.yml --profile sample up --build
+name: waypoint
+
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  monitor:
+    build: ../waypoint_monitor
+    image: waypoint-monitor
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENTS: prod,qa
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  sample:
+    profiles: ["sample"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.sample
+    image: waypoint-sample
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ENV_NAME: qa
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:

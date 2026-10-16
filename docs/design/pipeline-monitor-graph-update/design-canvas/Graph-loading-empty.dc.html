@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph loading and empty</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 3000px; height: 1016px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; align-content: start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">7 · Loading skeleton (light)</div>
+<img src="/_blob/d8f418c478de17ab90f7988758a266f3" alt="Graph panel loading: skeleton nodes in the final layout with dashed ghost edges" style="width: 1440px; height: 900px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">7 · Empty — No runs yet for qa (dark)</div>
+<img src="/_blob/c50476a6cbdbc9290e75d1f7305872c3" alt="Empty graph panel: faded ghost graph behind a centred No runs yet for qa message" style="width: 1440px; height: 900px; display: block; border-radius: 14px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3000,"height":1016}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

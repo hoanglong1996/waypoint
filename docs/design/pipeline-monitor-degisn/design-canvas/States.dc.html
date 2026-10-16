@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>States</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2040px; height: 3474px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; align-content: start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Loading (skeletons)</div>
+<img src="/_blob/478d2e59ab6b13c1465050bc5f035ced" alt="Loading state with skeleton hero and step rows" style="width: 960px; height: 675px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Empty — No runs yet for qa</div>
+<img src="/_blob/4e7bc6dad1741b38fb1d67d5dc655b1f" alt="Empty state card saying no runs yet for qa" style="width: 960px; height: 675px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Data store unreachable (dark)</div>
+<img src="/_blob/443cb821191a183ca4724f6e33216700" alt="Error card replacing all data, with a retry button and auto-retry hint" style="width: 960px; height: 675px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Stale run warning (&gt; 26 h)</div>
+<img src="/_blob/0ea5a8d6b4ddc4efd471571e654d822e" alt="Amber banner saying no new run in the last 26 hours, and a Stale pill in the hero" style="width: 960px; height: 675px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Some records could not be read (dark)</div>
+<img src="/_blob/a57ae0c527d7743a8dc8262aaa6fcf90" alt="Info banner saying two step records could not be read" style="width: 960px; height: 675px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px"></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Incomplete run</div>
+<img src="/_blob/3f52251dfed554fa15ed113c76b549c7" alt="Incomplete run with the last two steps shown as hatched missing cards" style="width: 960px; height: 1105px; display: block; border-radius: 10px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Run with a data-loss step (dark)</div>
+<img src="/_blob/6d3c0e310e2fe1143e829e2546e417ef" alt="Run where read_gads_clickview output 0 from 14 instances, highlighted in red" style="width: 960px; height: 1105px; display: block; border-radius: 10px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2040,"height":3474}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

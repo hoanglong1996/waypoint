@@ -1,0 +1,108 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=e11]: Waypoint Monitor
+      - generic [ref=e12]:
+        - generic [ref=e13]: Updated just now
+        - button "Switch to dark theme" [ref=e16] [cursor=pointer]
+    - generic [ref=e129]:
+      - link "All pipelines" [ref=e130] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=e134]: qs009
+      - navigation "Pipeline views" [ref=e135]:
+        - link "Latest" [ref=e136] [cursor=pointer]:
+          - /url: "#/p/qs009"
+        - link "History" [ref=e137] [cursor=pointer]:
+          - /url: "#/p/qs009/history"
+  - main [ref=e20]:
+    - region "Latest run" [ref=e138]:
+      - region [ref=e229]:
+        - generic [ref=e230]:
+          - generic [ref=e231]:
+            - generic [ref=e232]: Died
+            - generic [ref=e235]:
+              - generic [ref=e236]: Environment
+              - text: qa
+          - heading "The pipeline process died" [level=1] [ref=e237]
+          - generic [ref=e238]:
+            - generic [ref=e239]: Fri, Oct 16, 2026 · started 21:00
+            - generic [ref=e243]: finished 1m ago
+            - generic [ref=e247]: 0s
+          - paragraph [ref=e251]:
+            - text: "The process stopped sending signs of life after 16:55 (last seen 1m ago), so it is not just slow. First missing step:"
+            - code [ref=e252]: load
+            - text: . 1 of 2 steps did not report, so statistics were not saved for this run.
+        - generic [ref=e253]:
+          - generic [ref=e254]:
+            - generic [ref=e255]: First step · extract
+            - generic [ref=e256]: "3"
+            - generic [ref=e257]: 0%
+          - generic [ref=e260]:
+            - generic [ref=e261]: Largest step · extract
+            - generic [ref=e262]: "3"
+            - generic [ref=e263]: 0%
+          - generic [ref=e266]:
+            - generic [ref=e267]: Last step · extract
+            - generic [ref=e268]: "3"
+            - generic [ref=e269]: 0%
+        - generic [ref=e272]:
+          - list "Step map" [ref=e275]:
+            - 'listitem "extract: ok" [ref=e276]'
+            - 'listitem "load: died" [ref=e281]'
+          - generic [ref=e286]: 1 of 2 steps reported
+      - generic [ref=e288]:
+        - heading "Steps" [level=2] [ref=e289]
+        - generic [ref=e290]: Select a step to trace it
+        - group "Step view" [ref=e291]:
+          - generic [ref=e293]:
+            - radio "List" [ref=e294] [cursor=pointer]
+            - generic [ref=e295]: List
+          - generic [ref=e301]:
+            - radio "Graph" [checked] [ref=e302] [cursor=pointer]
+            - generic [ref=e303]: Graph
+      - region "Pipeline graph" [ref=e309]:
+        - generic [ref=e310]:
+          - paragraph [ref=e311]:
+            - generic [ref=e315]: Data flows left to right. An arrow A → B means A’s output is B’s input.
+          - paragraph [ref=e316]:
+            - generic [ref=e317]: 1 of 2 steps reported
+            - generic [ref=e318]:
+              - text: died at
+              - generic [ref=e321]: load
+        - group "Pipeline graph, left to right" [ref=e323]:
+          - generic [ref=e327]:
+            - generic [ref=e328]: rows
+            - generic [ref=e329]: —
+          - 'button "extract, extract. State: fine. Output 3." [ref=e330] [cursor=pointer]':
+            - generic [ref=e331]: Fine
+            - generic [ref=e336]: extract
+            - generic [ref=e338]: extract
+            - generic [ref=e339]:
+              - generic [ref=e340]: "3"
+              - generic [ref=e341]: 16:55:40
+          - 'button "load, load. State: died — the process is gone, the run stopped here." [ref=e342] [cursor=pointer]':
+            - generic [ref=e343]: Died
+            - generic [ref=e348]: load
+            - generic [ref=e350]: load
+            - generic [ref=e351]: last seen 16:55:42
+        - generic "Legend" [ref=e353]:
+          - generic [ref=e354]:
+            - generic [ref=e355]: Steps
+            - generic [ref=e356]: Fine
+            - generic [ref=e360]: Data loss
+            - generic [ref=e365]: Not reported
+            - generic [ref=e369]: Not reached
+            - generic [ref=e373]: Downstream of a loss
+            - generic [ref=e377]: Running
+            - generic [ref=e381]: Waiting
+            - generic [ref=e385]: Stalled
+            - generic [ref=e390]: Died
+          - generic [ref=e394]:
+            - generic [ref=e395]: Arrows
+            - generic [ref=e396]: items flow · thicker = more
+            - generic [ref=e399]: 0 items
+            - generic [ref=e402]: not reached

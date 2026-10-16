@@ -1,0 +1,85 @@
+- generic [ref=f7e1]:
+  - link "Skip to content" [ref=f7e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f7e3]:
+    - generic [ref=f7e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=f7e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=f7e11]: Waypoint Monitor
+      - generic [ref=f7e12]:
+        - generic [ref=f7e13]: Updated just now
+        - button "Switch to dark theme" [ref=f7e16] [cursor=pointer]
+    - generic [ref=f7e151]:
+      - link "All pipelines" [ref=f7e152] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=f7e156]: CallRail
+      - navigation "Pipeline views" [ref=f7e157]:
+        - link "Latest" [ref=f7e158] [cursor=pointer]:
+          - /url: "#/p/callrail"
+        - link "History" [ref=f7e159] [cursor=pointer]:
+          - /url: "#/p/callrail/history?env=qa"
+  - main [ref=f7e20]:
+    - region "History" [ref=f7e160]:
+      - region "Environment filter" [ref=f7e171]:
+        - generic [ref=f7e172]:
+          - generic [ref=f7e173]: Environment
+          - radiogroup "Environment" [ref=f7e174]:
+            - generic [ref=f7e175]:
+              - radio "prod" [ref=f7e176] [cursor=pointer]
+              - generic [ref=f7e177]: prod
+            - generic [ref=f7e178]:
+              - radio "qa" [checked] [active] [ref=f7e179] [cursor=pointer]
+              - generic [ref=f7e180]: qa
+        - paragraph [ref=f7e181]: Showing 1 qa run. The trend, the runs list and run details use this environment.
+      - region [ref=f7e182]:
+        - generic [ref=f7e183]:
+          - generic [ref=f7e184]:
+            - heading "Step trend" [level=2] [ref=f7e185]
+            - generic [ref=f7e186]: Step
+            - combobox "Step" [ref=f7e187]:
+              - option "read_callrail_account" [selected]
+              - option "read_callrail_call"
+              - option "read_partners"
+              - option "read_instances"
+              - option "read_campaigns"
+              - option "read_gads_clickview"
+              - option "merge_calls_clickview"
+              - option "record_call_statistics"
+              - option "save_call_statistics"
+          - generic [ref=f7e188]:
+            - generic [ref=f7e189]: "10"
+            - generic [ref=f7e190]: Latest run (Oct 15) vs previous run
+        - img "read_callrail_account output for the last 1 runs. Latest 10." [ref=f7e191]:
+          - img [aria-hidden] [ref=f7e192]:
+            - generic [ref=f7e193]: "0"
+            - generic [ref=f7e194]: "3"
+            - generic [ref=f7e195]: "5"
+            - generic [ref=f7e196]: "8"
+            - generic [ref=f7e197]: "10"
+            - generic [ref=f7e198]: Oct 15
+        - generic [ref=f7e200]:
+          - generic [ref=f7e201]: value per run
+          - generic [ref=f7e203]: 0 with input (possible loss)
+          - generic [ref=f7e205]: step not recorded
+          - generic [ref=f7e207]: Use ← → to move between runs
+      - region [ref=f7e208]:
+        - generic [ref=f7e209]:
+          - heading "Runs" [level=2] [ref=f7e210]
+          - generic [ref=f7e211]: 1 runs · newest first
+        - generic [aria-hidden] [ref=f7e212]:
+          - generic [ref=f7e213]: Run
+          - generic [ref=f7e214]: Status
+          - generic [ref=f7e215]: First step
+          - generic [ref=f7e216]: Largest step
+          - generic [ref=f7e217]: Last step
+          - generic [ref=f7e218]: Flags
+        - list [ref=f7e219]:
+          - listitem [ref=f7e220]:
+            - button "Thu, Oct 15 09:00 · 1m 12s Complete 10 3,410 1,284" [ref=f7e221] [cursor=pointer]:
+              - generic [ref=f7e222]:
+                - text: Thu, Oct 15
+                - generic [ref=f7e223]: 09:00 · 1m 12s
+              - generic [ref=f7e224]: Complete
+              - generic [ref=f7e229]: "10"
+              - generic [ref=f7e230]: 3,410
+              - generic [ref=f7e231]: 1,284

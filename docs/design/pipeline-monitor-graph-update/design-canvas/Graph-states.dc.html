@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 2424px; height: 2089px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; align-content: start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">1 · Healthy complete run (light)</div>
+<img src="/_blob/ffa2a22eee81f201d2c1490ff8d71c30" alt="Graph of a healthy run: nine steps in four groups, all marked Fine, with edge chips showing counts" style="width: 1152px; height: 607px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">1 · Healthy complete run (dark)</div>
+<img src="/_blob/0bf2cfc4523cf579af86c605dfe9e03f" alt="Healthy run graph in the dark theme" style="width: 1152px; height: 607px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">2 · Data loss at read_campaigns (light)</div>
+<img src="/_blob/50ebed34eb1b665d8b31c467f686511e" alt="Graph where read_campaigns outputs 0: red node, red dotted edge with a 0 chip into merge, downstream nodes marked affected" style="width: 1152px; height: 606px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">2 · Data loss at read_campaigns (dark)</div>
+<img src="/_blob/e697b8a48c3998ce74fc23e545e3ebd3" alt="Data-loss graph in the dark theme" style="width: 1152px; height: 606px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">3 · Incomplete — stopped before read_gads_clickview (light)</div>
+<img src="/_blob/4a91618deb1b111ed62340b2e6523e1d" alt="Incomplete run graph: click views marked Not reported with amber dashed border, merge and sinks Not reached, edges dashed" style="width: 1152px; height: 606px; display: block; border-radius: 14px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">3 · Incomplete — stopped before read_gads_clickview (dark)</div>
+<img src="/_blob/822fbeaeacaa82a41a52e6194c66e5a7" alt="Incomplete run graph in the dark theme" style="width: 1152px; height: 606px; display: block; border-radius: 14px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2424,"height":2089}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

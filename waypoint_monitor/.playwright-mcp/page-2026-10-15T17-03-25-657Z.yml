@@ -1,0 +1,191 @@
+- generic [ref=f1e1]:
+  - link "Skip to content" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - generic [ref=f1e11]: Pipeline Monitor
+        - generic [ref=f1e12]: CallRail × Google Ads
+      - group "Environment" [ref=f1e13]:
+        - generic [ref=f1e15]:
+          - radio "qa" [checked] [active] [ref=f1e16] [cursor=pointer]
+          - generic [ref=f1e17]: qa
+        - generic [ref=f1e18]:
+          - radio "prod" [ref=f1e19] [cursor=pointer]
+          - generic [ref=f1e20]: prod
+      - generic [ref=f1e21]:
+        - generic [ref=f1e22]: Updated just now
+        - button "Switch to dark theme" [ref=f1e25] [cursor=pointer]
+      - tablist "Views" [ref=f1e29]:
+        - tab "Latest" [selected] [ref=f1e30] [cursor=pointer]
+        - tab "History" [ref=f1e31] [cursor=pointer]
+  - main [ref=f1e32]:
+    - tabpanel "Latest" [ref=f1e33]:
+      - region [ref=f1e379]:
+        - generic [ref=f1e380]:
+          - generic [ref=f1e381]: Running
+          - heading "A run is in progress" [level=1] [ref=f1e385]
+          - generic [ref=f1e386]:
+            - generic [ref=f1e387]: Fri, Oct 16, 2026 · started 00:03
+            - generic [ref=f1e391]: finished 0m ago
+            - generic [ref=f1e395]: 0s
+          - paragraph [ref=f1e399]:
+            - text: "Running now:"
+            - code [ref=f1e400]: read_callrail_account
+            - text: . The page updates by itself every few seconds.
+        - generic [ref=f1e401]:
+          - generic [ref=f1e402]:
+            - generic [ref=f1e403]: Accounts
+            - generic [ref=f1e404]: —
+            - generic [ref=f1e405]: not read
+          - generic [ref=f1e407]:
+            - generic [ref=f1e408]: Calls
+            - generic [ref=f1e409]: —
+            - generic [ref=f1e410]: not read
+          - generic [ref=f1e412]:
+            - generic [ref=f1e413]: Saved stats
+            - generic [ref=f1e414]: —
+            - generic [ref=f1e415]: not saved
+        - generic [ref=f1e417]:
+          - generic [aria-hidden] [ref=f1e418]:
+            - generic [ref=f1e419]: CallRail
+            - generic [ref=f1e420]: Google Ads
+            - generic [ref=f1e421]: Merge
+            - generic [ref=f1e422]: Persist
+          - list "Step map" [ref=f1e423]:
+            - 'listitem "read_callrail_account: running" [ref=f1e424]'
+            - 'listitem "read_callrail_call: waiting" [ref=f1e429]':
+              - generic [aria-hidden] [ref=f1e431]: "2"
+            - 'listitem "read_partners: waiting" [ref=f1e432]':
+              - generic [aria-hidden] [ref=f1e434]: "3"
+            - 'listitem "read_instances: waiting" [ref=f1e435]':
+              - generic [aria-hidden] [ref=f1e437]: "4"
+            - 'listitem "read_campaigns: waiting" [ref=f1e438]':
+              - generic [aria-hidden] [ref=f1e440]: "5"
+            - 'listitem "read_gads_clickview: waiting" [ref=f1e441]':
+              - generic [aria-hidden] [ref=f1e443]: "6"
+            - 'listitem "merge_calls_clickview: waiting" [ref=f1e444]':
+              - generic [aria-hidden] [ref=f1e446]: "7"
+            - 'listitem "record_call_statistics: waiting" [ref=f1e447]':
+              - generic [aria-hidden] [ref=f1e449]: "8"
+            - 'listitem "save_call_statistics: waiting" [ref=f1e450]':
+              - generic [aria-hidden] [ref=f1e452]: "9"
+          - generic [ref=f1e453]: 0 of 9 steps reported
+      - generic [ref=f1e455]:
+        - heading "Steps" [level=2] [ref=f1e456]
+        - generic [ref=f1e457]: Select a step to trace it
+        - group "Step view" [ref=f1e458]:
+          - generic [ref=f1e460]:
+            - radio "List" [ref=f1e461] [cursor=pointer]
+            - generic [ref=f1e462]: List
+          - generic [ref=f1e468]:
+            - radio "Graph" [checked] [ref=f1e469] [cursor=pointer]
+            - generic [ref=f1e470]: Graph
+      - region "Pipeline graph" [ref=f1e476]:
+        - generic [ref=f1e477]:
+          - paragraph [ref=f1e478]:
+            - generic [ref=f1e482]: Data flows left to right. An arrow A → B means A’s output is B’s input.
+          - paragraph [ref=f1e483]:
+            - generic [ref=f1e484]: 0 of 9 steps reported
+            - generic [ref=f1e485]:
+              - text: running
+              - generic [ref=f1e488]: read_callrail_account
+        - group "Pipeline graph, left to right" [ref=f1e490]:
+          - generic: CallRail
+          - generic: Google Ads
+          - generic: Merge
+          - generic: Persist
+          - generic [ref=f1e526]:
+            - generic [ref=f1e527]: accounts
+            - generic [ref=f1e528]: —
+          - generic [ref=f1e529]:
+            - generic [ref=f1e530]: partners
+            - generic [ref=f1e531]: —
+          - generic [ref=f1e532]:
+            - generic [ref=f1e533]: instances
+            - generic [ref=f1e534]: —
+          - generic [ref=f1e535]:
+            - generic [ref=f1e536]: instances
+            - generic [ref=f1e537]: —
+          - generic [ref=f1e538]:
+            - generic [ref=f1e539]: calls
+            - generic [ref=f1e540]: —
+          - generic [ref=f1e541]:
+            - generic [ref=f1e542]: campaigns
+            - generic [ref=f1e543]: —
+          - generic [ref=f1e544]:
+            - generic [ref=f1e545]: clickview
+            - generic [ref=f1e546]: —
+          - generic [ref=f1e547]:
+            - generic [ref=f1e548]: call_statistics
+            - generic [ref=f1e549]: —
+          - generic [ref=f1e550]:
+            - generic [ref=f1e551]: call_statistics
+            - generic [ref=f1e552]: —
+          - 'button "Accounts, read_callrail_account, CallRail. State: running now." [ref=f1e553] [cursor=pointer]':
+            - generic [ref=f1e554]: Running
+            - generic [ref=f1e559]: Accounts
+            - generic [ref=f1e561]: read_callrail_account
+            - generic [ref=f1e562]: 2 s
+          - 'button "Partners, read_partners, Google Ads. State: waiting for an earlier step." [ref=f1e565] [cursor=pointer]':
+            - generic [ref=f1e566]: Waiting
+            - generic [ref=f1e571]: Partners
+            - generic [ref=f1e573]: read_partners
+            - generic [ref=f1e574]: —
+          - 'button "Calls, read_callrail_call, CallRail. State: waiting for an earlier step." [ref=f1e576] [cursor=pointer]':
+            - generic [ref=f1e577]: Waiting
+            - generic [ref=f1e582]: Calls
+            - generic [ref=f1e584]: read_callrail_call
+            - generic [ref=f1e585]: —
+          - 'button "Instances, read_instances, Google Ads. State: waiting for an earlier step." [ref=f1e587] [cursor=pointer]':
+            - generic [ref=f1e588]: Waiting
+            - generic [ref=f1e593]: Instances
+            - generic [ref=f1e595]: read_instances
+            - generic [ref=f1e596]: —
+          - 'button "Campaigns, read_campaigns, Google Ads. State: waiting for an earlier step." [ref=f1e598] [cursor=pointer]':
+            - generic [ref=f1e599]: Waiting
+            - generic [ref=f1e604]: Campaigns
+            - generic [ref=f1e606]: read_campaigns
+            - generic [ref=f1e607]: —
+          - 'button "Click views, read_gads_clickview, Google Ads. State: waiting for an earlier step." [ref=f1e609] [cursor=pointer]':
+            - generic [ref=f1e610]: Waiting
+            - generic [ref=f1e615]: Click views
+            - generic [ref=f1e617]: read_gads_clickview
+            - generic [ref=f1e618]: —
+          - 'button "Merged calls, merge_calls_clickview, Merge. State: waiting for an earlier step." [ref=f1e620] [cursor=pointer]':
+            - generic [ref=f1e621]: Waiting
+            - generic [ref=f1e626]: Merged calls
+            - generic [ref=f1e628]: merge_calls_clickview
+            - generic [ref=f1e629]: —
+          - 'button "Record stats, record_call_statistics, Persist. State: waiting for an earlier step." [ref=f1e631] [cursor=pointer]':
+            - generic [ref=f1e632]: Waiting
+            - generic [ref=f1e637]: Record stats
+            - generic [ref=f1e639]: record_call_statistics
+            - generic [ref=f1e640]: —
+          - 'button "Save stats, save_call_statistics, Persist. State: waiting for an earlier step." [ref=f1e642] [cursor=pointer]':
+            - generic [ref=f1e643]: Waiting
+            - generic [ref=f1e648]: Save stats
+            - generic [ref=f1e650]: save_call_statistics
+            - generic [ref=f1e651]: —
+        - generic "Legend" [ref=f1e653]:
+          - generic [ref=f1e654]:
+            - generic [ref=f1e655]: Steps
+            - generic [ref=f1e656]: Fine
+            - generic [ref=f1e660]: Data loss
+            - generic [ref=f1e665]: Not reported
+            - generic [ref=f1e669]: Not reached
+            - generic [ref=f1e673]: Downstream of a loss
+            - generic [ref=f1e677]: Running
+            - generic [ref=f1e681]: Waiting
+            - generic [ref=f1e685]: Stalled
+          - generic [ref=f1e690]:
+            - generic [ref=f1e691]: Arrows
+            - generic [ref=f1e692]: items flow · thicker = more
+            - generic [ref=f1e695]: 0 items
+            - generic [ref=f1e698]: not reached
+          - generic [ref=f1e701]:
+            - generic [ref=f1e702]: Groups
+            - generic [ref=f1e703]: CallRail
+            - generic [ref=f1e705]: Google Ads
+            - generic [ref=f1e707]: Merge
+            - generic [ref=f1e709]: Persist

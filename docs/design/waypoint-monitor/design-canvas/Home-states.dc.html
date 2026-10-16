@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 3870px; height: 2068px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: flex; gap: 40px; align-items: flex-start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 40px; width: 960px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Loading: skeleton cards (light)</div>
+<img src="/_blob/733b660850d2f6174c3c2af17f3a389e" alt="Six skeleton cards while pipelines load" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Data store unreachable, retry countdown (light)</div>
+<img src="/_blob/123000f08dc5a348fd09f08b16bd49da" alt="Error card with Retry now and a retrying in 30 seconds countdown" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Very long pipeline name: wraps to 2 lines, then ellipsis</div>
+<img src="/_blob/2f008e83511dbee7238d87d1a7a5258c" alt="A card whose long pipeline name wraps to two lines and ends with an ellipsis" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 40px; width: 960px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Empty: “Pipelines appear here after their first run” (dark)</div>
+<img src="/_blob/9c30eef096c13b8d9d7cfd702831e2c8" alt="Empty Home with the message Pipelines appear here after their first run" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Partial data notice (dark)</div>
+<img src="/_blob/61fef9f1b2a53a27cd786b20446bfca5" alt="Info banner Some records could not be read above the card grid" style="width: 960px; height: 600px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">Hover (Facebook) and keyboard focus ring (Google Ads)</div>
+<img src="/_blob/f78714a864059f9c3861a22a39a72488" alt="Two cards: one hovered with a darker border, one with a blue keyboard focus ring" style="width: 960px; height: 448px; display: block; border-radius: 12px">
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 960px">
+<div style="height: 28px; font-size: 16px; font-weight: 600">22 pipelines: 6 need attention, 16 healthy or running</div>
+<img src="/_blob/79910c0cf4a8be402f68e2435861d4b3" alt="Home with 22 pipeline cards in three columns" style="width: 960px; height: 1323px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Long name · mobile (dark)</div>
+<img src="/_blob/77748e583a2c9b2e065de47e20734012" alt="Phone Home with the long pipeline name wrapping" style="width: 375px; height: 1461px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Many cards · mobile (dark)</div>
+<img src="/_blob/bf5e23e6cc1688790b919a5c08d1b184" alt="Phone Home with many cards, first screen" style="width: 375px; height: 812px; display: block; border-radius: 12px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3870,"height":2068}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

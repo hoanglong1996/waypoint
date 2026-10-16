@@ -1,0 +1,37 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=e11]: Waypoint Monitor
+      - generic [ref=e12]:
+        - generic [ref=e13]: Loading…
+        - button "Switch to dark theme" [ref=e16] [cursor=pointer]
+    - generic [ref=e129]:
+      - link "All pipelines" [ref=e130] [cursor=pointer]:
+        - /url: "#/"
+      - paragraph [ref=e134]: qs009
+      - navigation "Pipeline views" [ref=e135]:
+        - link "Latest" [ref=e136] [cursor=pointer]:
+          - /url: "#/p/qs009"
+        - link "History" [ref=e137] [cursor=pointer]:
+          - /url: "#/p/qs009/history"
+  - main [ref=e20]:
+    - region "Latest run" [ref=e138]:
+      - status [ref=e139]: Loading runs…
+      - region "Loading latest run" [ref=e140]
+      - generic [ref=e163]:
+        - heading "Steps" [level=2] [ref=e164]
+        - group "Step view" [ref=e165]:
+          - generic [ref=e167]:
+            - radio "List" [ref=e168] [cursor=pointer]
+            - generic [ref=e169]: List
+          - generic [ref=e175]:
+            - radio "Graph" [checked] [ref=e176] [cursor=pointer]
+            - generic [ref=e177]: Graph
+      - region "Loading pipeline graph" [ref=e183]:
+        - paragraph [ref=e185]:
+          - generic [ref=e189]: Data flows left to right. An arrow A → B means A’s output is B’s input.
+        - group "Pipeline graph, left to right" [ref=e191]

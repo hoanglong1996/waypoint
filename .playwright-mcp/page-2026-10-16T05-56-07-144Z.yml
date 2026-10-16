@@ -1,0 +1,189 @@
+- generic [active] [ref=f4e1]:
+  - link "Skip to content" [ref=f4e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f4e3]:
+    - generic [ref=f4e4]:
+      - generic [ref=f4e5]: Waypoint Monitor
+      - combobox "Pipeline" [ref=f4e12]:
+        - option "CallRail" [selected]
+        - option "Demo pipeline"
+      - generic [ref=f4e13]:
+        - generic [ref=f4e14]: Updated 3s ago
+        - button "Switch to dark theme" [ref=f4e17] [cursor=pointer]
+      - tablist "Views" [ref=f4e21]:
+        - tab "Latest" [selected] [ref=f4e22] [cursor=pointer]
+        - tab "History" [ref=f4e23] [cursor=pointer]
+  - main [ref=f4e24]:
+    - tabpanel "Latest" [ref=f4e25]:
+      - region [ref=f4e26]:
+        - generic [ref=f4e27]:
+          - generic [ref=f4e28]: Incomplete
+          - heading "Run stopped before the end" [level=1] [ref=f4e33]
+          - generic [ref=f4e34]:
+            - generic [ref=f4e35]: Fri, Oct 16, 2026 · started 12:16
+            - generic [ref=f4e39]: finished 40m ago
+            - generic [ref=f4e43]: 15s
+          - paragraph [ref=f4e47]:
+            - text: "First missing step:"
+            - code [ref=f4e48]: read_gads_clickview
+            - text: . 4 of 9 steps did not report, so statistics were not saved for this run.
+        - generic [ref=f4e49]:
+          - generic [ref=f4e50]:
+            - generic [ref=f4e51]: First step · Accounts
+            - generic [ref=f4e52]: "6"
+            - generic [ref=f4e53]: 0%
+          - generic [ref=f4e56]:
+            - generic [ref=f4e57]: Largest step · Calls
+            - generic [ref=f4e58]: "412"
+            - generic [ref=f4e59]: 0%
+          - generic [ref=f4e62]:
+            - generic [ref=f4e63]: Last step · Campaigns
+            - generic [ref=f4e64]: "38"
+            - generic [ref=f4e65]: 0%
+        - generic [ref=f4e68]:
+          - generic [aria-hidden] [ref=f4e69]:
+            - generic [ref=f4e70]: CallRail
+            - generic [ref=f4e71]: Google Ads
+            - generic [ref=f4e72]: Merge
+            - generic [ref=f4e73]: Persist
+          - list "Step map" [ref=f4e74]:
+            - 'listitem "read_callrail_account: ok" [ref=f4e75]'
+            - 'listitem "read_callrail_call: ok" [ref=f4e80]'
+            - 'listitem "read_partners: ok" [ref=f4e85]'
+            - 'listitem "read_instances: ok" [ref=f4e90]'
+            - 'listitem "read_campaigns: ok" [ref=f4e95]'
+            - 'listitem "read_gads_clickview: stalled" [ref=f4e100]':
+              - generic [aria-hidden] [ref=f4e102]: "6"
+            - 'listitem "merge_calls_clickview: not recorded" [ref=f4e103]':
+              - generic [aria-hidden] [ref=f4e105]: "7"
+            - 'listitem "record_call_statistics: not recorded" [ref=f4e106]':
+              - generic [aria-hidden] [ref=f4e108]: "8"
+            - 'listitem "save_call_statistics: not recorded" [ref=f4e109]':
+              - generic [aria-hidden] [ref=f4e111]: "9"
+          - generic [ref=f4e112]: 5 of 9 steps reported
+      - generic [ref=f4e114]:
+        - heading "Steps" [level=2] [ref=f4e115]
+        - generic [ref=f4e116]: Select a step to trace it
+        - group "Step view" [ref=f4e117]:
+          - generic [ref=f4e119]:
+            - radio "List" [ref=f4e120] [cursor=pointer]
+            - generic [ref=f4e121]: List
+          - generic [ref=f4e127]:
+            - radio "Graph" [checked] [ref=f4e128] [cursor=pointer]
+            - generic [ref=f4e129]: Graph
+      - region "Pipeline graph" [ref=f4e135]:
+        - generic [ref=f4e136]:
+          - paragraph [ref=f4e137]:
+            - generic [ref=f4e141]: Data flows left to right. An arrow A → B means A’s output is B’s input.
+          - paragraph [ref=f4e142]:
+            - generic [ref=f4e143]: 5 of 9 steps reported
+            - generic [ref=f4e144]:
+              - text: stalled at
+              - generic [ref=f4e148]: read_gads_clickview
+        - group "Pipeline graph, left to right" [ref=f4e150]:
+          - generic: Merge
+          - generic: Persist
+          - generic [ref=f4e180]:
+            - generic [ref=f4e181]: accounts
+            - generic [ref=f4e182]: "6"
+          - generic [ref=f4e183]:
+            - generic [ref=f4e184]: partners
+            - generic [ref=f4e185]: "9"
+          - generic [ref=f4e186]:
+            - generic [ref=f4e187]: instances
+            - generic [ref=f4e188]: "14"
+          - generic [ref=f4e189]:
+            - generic [ref=f4e190]: instances
+            - generic [ref=f4e191]: —
+          - generic [ref=f4e192]:
+            - generic [ref=f4e193]: calls
+            - generic [ref=f4e194]: —
+          - generic [ref=f4e195]:
+            - generic [ref=f4e196]: campaigns
+            - generic [ref=f4e197]: —
+          - generic [ref=f4e198]:
+            - generic [ref=f4e199]: clickview
+            - generic [ref=f4e200]: —
+          - generic [ref=f4e201]:
+            - generic [ref=f4e202]: call_statistics
+            - generic [ref=f4e203]: —
+          - generic [ref=f4e204]:
+            - generic [ref=f4e205]: call_statistics
+            - generic [ref=f4e206]: —
+          - 'button "Accounts, read_callrail_account, CallRail. State: fine. Output 6." [ref=f4e207] [cursor=pointer]':
+            - generic [ref=f4e208]: Fine
+            - generic [ref=f4e213]: Accounts
+            - generic [ref=f4e215]: read_callrail_account
+            - generic [ref=f4e216]:
+              - generic [ref=f4e217]: "6"
+              - generic [ref=f4e218]: 12:16:03
+          - 'button "Partners, read_partners, Google Ads. State: fine. Output 9." [ref=f4e219] [cursor=pointer]':
+            - generic [ref=f4e220]: Fine
+            - generic [ref=f4e225]: Partners
+            - generic [ref=f4e227]: read_partners
+            - generic [ref=f4e228]:
+              - generic [ref=f4e229]: "9"
+              - generic [ref=f4e230]: 12:16:09
+          - 'button "Calls, read_callrail_call, CallRail. State: fine. Output 412." [ref=f4e231] [cursor=pointer]':
+            - generic [ref=f4e232]: Fine
+            - generic [ref=f4e237]: Calls
+            - generic [ref=f4e239]: read_callrail_call
+            - generic [ref=f4e240]:
+              - generic [ref=f4e241]: "412"
+              - generic [ref=f4e242]: 12:16:06
+          - 'button "Instances, read_instances, Google Ads. State: fine. Output 14." [ref=f4e243] [cursor=pointer]':
+            - generic [ref=f4e244]: Fine
+            - generic [ref=f4e249]: Instances
+            - generic [ref=f4e251]: read_instances
+            - generic [ref=f4e252]:
+              - generic [ref=f4e253]: "14"
+              - generic [ref=f4e254]: 12:16:12
+          - 'button "Campaigns, read_campaigns, Google Ads. State: fine. Output 38." [ref=f4e255] [cursor=pointer]':
+            - generic [ref=f4e256]: Fine
+            - generic [ref=f4e261]: Campaigns
+            - generic [ref=f4e263]: read_campaigns
+            - generic [ref=f4e264]:
+              - generic [ref=f4e265]: "38"
+              - generic [ref=f4e266]: 12:16:15
+          - 'button "Click views, read_gads_clickview, Google Ads. State: stalled — running far longer than expected, the run stopped here." [ref=f4e267] [cursor=pointer]':
+            - generic [ref=f4e268]: Stalled
+            - generic [ref=f4e274]: Click views
+            - generic [ref=f4e276]: read_gads_clickview
+            - generic [ref=f4e277]: 39m 48s
+          - 'button "Merged calls, merge_calls_clickview, Merge. State: not reached." [ref=f4e280] [cursor=pointer]':
+            - generic [ref=f4e281]: Not reached
+            - generic [ref=f4e286]: Merged calls
+            - generic [ref=f4e288]: merge_calls_clickview
+            - generic [ref=f4e289]: —
+          - 'button "Record stats, record_call_statistics, Persist. State: not reached." [ref=f4e291] [cursor=pointer]':
+            - generic [ref=f4e292]: Not reached
+            - generic [ref=f4e297]: Record stats
+            - generic [ref=f4e299]: record_call_statistics
+            - generic [ref=f4e300]: —
+          - 'button "Save stats, save_call_statistics, Persist. State: not reached." [ref=f4e302] [cursor=pointer]':
+            - generic [ref=f4e303]: Not reached
+            - generic [ref=f4e308]: Save stats
+            - generic [ref=f4e310]: save_call_statistics
+            - generic [ref=f4e311]: —
+        - generic "Legend" [ref=f4e313]:
+          - generic [ref=f4e314]:
+            - generic [ref=f4e315]: Steps
+            - generic [ref=f4e316]: Fine
+            - generic [ref=f4e320]: Data loss
+            - generic [ref=f4e325]: Not reported
+            - generic [ref=f4e329]: Not reached
+            - generic [ref=f4e333]: Downstream of a loss
+            - generic [ref=f4e337]: Running
+            - generic [ref=f4e341]: Waiting
+            - generic [ref=f4e345]: Stalled
+          - generic [ref=f4e350]:
+            - generic [ref=f4e351]: Arrows
+            - generic [ref=f4e352]: items flow · thicker = more
+            - generic [ref=f4e355]: 0 items
+            - generic [ref=f4e358]: not reached
+          - generic [ref=f4e361]:
+            - generic [ref=f4e362]: Groups
+            - generic [ref=f4e363]: CallRail
+            - generic [ref=f4e365]: Google Ads
+            - generic [ref=f4e367]: Merge
+            - generic [ref=f4e369]: Persist

@@ -1,0 +1,22 @@
+- generic [ref=f9e1]:
+  - link "Skip to content" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f9e3]:
+    - generic [ref=f9e4]:
+      - link "Waypoint Monitor, all pipelines" [ref=f9e5] [cursor=pointer]:
+        - /url: "#/"
+        - generic [ref=f9e11]: Waypoint Monitor
+      - generic [ref=f9e12]:
+        - generic [ref=f9e13]: Loading…
+        - button "Switch to dark theme" [ref=f9e16] [cursor=pointer]
+  - main [ref=f9e29]:
+    - region "All pipelines" [ref=f9e108]:
+      - heading "Pipelines" [level=1] [ref=f9e110]
+      - status [ref=f9e111]: Loading pipelines…
+      - list [aria-hidden] [ref=f9e112]:
+        - listitem [ref=f9e113]
+        - listitem [ref=f9e130]
+        - listitem [ref=f9e147]
+        - listitem [ref=f9e164]
+        - listitem [ref=f9e181]
+        - listitem [ref=f9e198]

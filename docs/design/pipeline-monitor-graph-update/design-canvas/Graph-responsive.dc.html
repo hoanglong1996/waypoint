@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph responsive</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1822px; height: 2031px; box-sizing: border-box; padding: 40px; background: #e9ecf1; display: flex; gap: 40px; align-items: flex-start; font-family: ui-sans-serif, system-ui, sans-serif; color: #0e1116">
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">5 · Mobile 375 · data loss (light)</div>
+<img src="/_blob/ae2e18b6d46e9fde6e9edc8e16e42ca1" alt="Phone layout: graph flows top to bottom in two lanes, the calls edge runs down the left gutter into merge" style="width: 375px; height: 1915px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 375px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">5 · Mobile 375 · incomplete (dark)</div>
+<img src="/_blob/b7c53cdc6dc25b9b07dad4b82816aec1" alt="Phone layout in the dark theme for an incomplete run with not reported and not reached steps" style="width: 375px; height: 1914px; display: block; border-radius: 12px">
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 912px">
+<div style="height: 28px; font-size: 15px; font-weight: 600">Tablet 960 · compact layout, scaled up</div>
+<img src="/_blob/37ee8acae41a5fb6204e7bce45c41ff8" alt="Tablet width graph using the compact left-to-right layout" style="width: 912px; height: 552px; display: block; border-radius: 12px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1822,"height":2031}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

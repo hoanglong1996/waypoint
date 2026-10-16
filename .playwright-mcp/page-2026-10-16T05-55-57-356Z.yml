@@ -1,0 +1,26 @@
+- generic [active] [ref=f3e1]:
+  - link "Skip to content" [ref=f3e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=f3e3]:
+    - generic [ref=f3e4]:
+      - generic [ref=f3e5]: Waypoint Monitor
+      - combobox "Pipeline" [ref=f3e12]:
+        - option "CallRail" [selected]
+        - option "Demo pipeline"
+      - generic [ref=f3e13]:
+        - generic [ref=f3e14]: Loading…
+        - button "Switch to light theme" [ref=f3e17] [cursor=pointer]
+      - tablist "Views" [ref=f3e20]:
+        - tab "Latest" [selected] [ref=f3e21] [cursor=pointer]
+        - tab "History" [ref=f3e22] [cursor=pointer]
+  - main [ref=f3e23]:
+    - tabpanel "Latest" [ref=f3e24]:
+      - status [ref=f3e25]: Loading runs…
+      - region "Loading latest run" [ref=f3e26]
+      - list [aria-hidden] [ref=f3e49]:
+        - listitem [ref=f3e50]
+        - listitem [ref=f3e63]
+        - listitem [ref=f3e76]
+        - listitem [ref=f3e89]
+        - listitem [ref=f3e102]
+        - listitem [ref=f3e115]
