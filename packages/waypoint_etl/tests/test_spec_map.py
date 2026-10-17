@@ -3,7 +3,7 @@
 import unittest
 from typing import Dict, Tuple
 
-from waypoint_etl import MapStepSpec, Metric, PipelineSpec, StepSpec
+from waypoint_etl import GroupSpec, MapStepSpec, Metric, PipelineSpec, StepSpec
 from waypoint_etl.spec import validate_spec
 
 
@@ -96,6 +96,11 @@ class TestMapStepSpec(unittest.TestCase):
                 MapStepSpec("m", steps=(StepSpec("x", metrics=(Metric("Bad"),)),))
             ),
             "undeclared group": spec(MapStepSpec("m", steps=inner("x"), group="g")),
+            "inner step with a group": PipelineSpec(
+                name="demo",
+                groups=(GroupSpec("g", "G"),),
+                steps=(MapStepSpec("m", steps=(StepSpec("x", group="g"),)),),
+            ),
             "negative layout hint": spec(MapStepSpec("m", steps=inner("x"), col=-1)),
         }
         for label, candidate in cases.items():

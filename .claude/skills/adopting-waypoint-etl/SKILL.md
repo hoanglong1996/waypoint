@@ -55,6 +55,7 @@ waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint
    - `param_name` must equal the **parameter name** of the decorated function (excluding `self`). If it differs, rename on the decorator: `@audited_step("x", inputs={"my_param": "spec_input"})`.
    - Last or side-effect steps: `returns_nothing=True`.
    - Optional: `label` (<=40 chars), `group` (must exist in `groups`), pipeline `name` `[a-z0-9][a-z0-9_-]{0,39}`.
+   - Groups: declare `groups=(GroupSpec("extract", "Extract"), ...)` on the `PipelineSpec`, then set `group="extract"` on a `StepSpec` or `MapStepSpec`. A `MapStepSpec` takes its own `group`; its inner `StepSpec`s must **not** set `group` (rejected from 0.6.2).
    - If a validation error is unclear, read `spec.py` in the SDK source (`pip show -f waypoint-etl` for its location).
 
 ## Step 3: Decorate the steps
@@ -118,6 +119,7 @@ MY_PIPELINE = PipelineSpec(name="my-pipeline", steps=(
 
 Rules (a violation turns tracking off with a warning naming the problem):
 - Inner step names are unique across the **whole** pipeline, including top-level steps and other map steps.
+- Inner steps never set `group` (rejected from 0.6.2); put the `group` on the `MapStepSpec`.
 - 1 to 20 inner steps, in a **straight line**: no branches, no map step inside a map step (see "Nested loops" below).
 - An inner step's `inputs` may name only an earlier inner step of the same map or an earlier top-level step.
 - `max_concurrency`, when given, is an int >= 1. `over` must name an earlier top-level step.

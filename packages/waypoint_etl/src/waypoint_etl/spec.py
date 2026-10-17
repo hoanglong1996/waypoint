@@ -159,6 +159,10 @@ def _validate_map(step: MapStepSpec, groups: Set[str], top: Set[str], every: Set
     for inner in step.steps:
         if isinstance(inner, MapStepSpec):
             raise ValueError(f"map step {step.name!r} cannot contain map step {inner.name!r}")
+        if inner.group is not None:
+            raise ValueError(
+                f"inner step {inner.name!r}{where} cannot have a group; set it on the map step"
+            )
         _validate_step(inner, groups, top | inner_seen, where)
         if inner.name in every or inner.name in inner_seen:
             raise ValueError(f"duplicate step {inner.name!r}{where}")

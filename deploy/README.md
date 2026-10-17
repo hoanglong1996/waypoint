@@ -32,7 +32,7 @@ Set `REDIS_URL` for the pipeline (CallRail reads it through `src/utils/config.py
 ## Install the library from another repository
 
 ```bash
-pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.6.1#subdirectory=packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.6.2#subdirectory=packages/waypoint_etl"
 ```
 
 For a private repository use `git+ssh://git@github.com/hoanglong1996/waypoint.git@...` (deploy key) or

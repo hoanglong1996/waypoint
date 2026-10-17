@@ -19,7 +19,7 @@ from waypoint_etl.keys import FLOW_VERSION
 from waypoint_etl.registry import error, init, item, log, map_step, metric, warn
 from waypoint_etl.spec import GroupSpec, MapStepSpec, Metric, PipelineSpec, StepSpec
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 __all__ = [
     "FLOW_VERSION",
