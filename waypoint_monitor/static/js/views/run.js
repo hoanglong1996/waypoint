@@ -4,7 +4,7 @@ import {
   isNewest, stepOf, stepState, metric,
 } from '../model.js';
 import {
-  I, deltaChip, envTag, getStepsView, lossPill, stalePill, statusPill, stepsHeadHTML,
+  I, deltaChip, envTag, getStepsView, lossPill, stalePill, statusPill, stepsHeadHTML, wireCopy,
 } from '../ui.js';
 import { mountGraph } from './graph.js';
 import { stepItemHTML } from './step.js';
@@ -37,7 +37,11 @@ export function heroHTML(run, runs, cfg) {
   const title = heroTitle(a, newest);
   const total = run.steps.length;
   let why = '';
-  if (a.died) {
+  if (a.failed) {
+    why = '<p class="hero__why">Stopped at <code>' + esc(a.failed.step) + '</code>: the step raised an error' +
+      (a.missingCount > 1 ? ', so the ' + (a.missingCount - 1) + ' later step' + (a.missingCount - 1 === 1 ? ' was' : 's were') + ' not reached' : '') +
+      '. Statistics were not saved for this run. Open the step to see the error.</p>';
+  } else if (a.died) {
     why = '<p class="hero__why">The process stopped sending signs of life' + (a.lastSeenAt ? ' after ' + hhmm(a.lastSeenAt) + ' (last seen ' + ago((Date.now() - a.lastSeenAt.getTime()) / 3600000) + ')' : '') +
       ', so it is not just slow. First missing step: <code>' + esc(a.firstMissing) + '</code>. ' + a.missingCount + ' of ' + total + ' steps did not report, so statistics were not saved for this run.</p>';
   } else if (a.running) {
@@ -57,10 +61,10 @@ export function heroHTML(run, runs, cfg) {
 
   const cells = run.steps.map((s, i) => {
     const live = stepState(s);
-    const isLive = live === 'running' || live === 'waiting' || live === 'stalled' || live === 'died';
+    const isLive = live === 'running' || live === 'waiting' || live === 'stalled' || live === 'died' || live === 'failed';
     const st = s.missing ? 'missing' : isLive ? live : isLoss(s) ? 'loss' : 'ok';
     const label = s.name + ': ' + (st === 'missing' ? 'not recorded' : isLive ? live : st === 'loss' ? 'possible data loss' : 'ok');
-    const ico = st === 'ok' ? I.check : st === 'running' ? I.spinner : st === 'died' ? I.power : st === 'loss' ? '!' : i + 1;
+    const ico = st === 'ok' ? I.check : st === 'running' ? I.spinner : st === 'died' ? I.power : st === 'failed' ? I.failed : st === 'loss' ? '!' : i + 1;
     return '<li class="flow__cell flow__cell--' + st + '" title="' + esc(label) + '"><span class="sr-only">' + esc(label) + '</span><span aria-hidden="true">' + ico + '</span></li>';
   }).join('');
 
@@ -96,6 +100,7 @@ export function heroHTML(run, runs, cfg) {
 
 /** The page of one run (`run` is one of `runs`, which are newest first and of the same environment). */
 export function renderRun(el, run, runs, cfg) {
+  wireCopy();
   if (getStepsView() === 'graph') {
     el.innerHTML = heroHTML(run, runs, cfg) + stepsHeadHTML('steps-view-run', 'Select a step to trace it') +
       '<section class="card graph-panel" id="run-graph" aria-label="Pipeline graph"></section>' +

@@ -3,12 +3,20 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.domain.analysis import build_runs
-from app.domain.parsing import parse_alive, parse_died, parse_flows, parse_markers, parse_records
+from app.domain.parsing import (
+    parse_alive,
+    parse_died,
+    parse_failures,
+    parse_flows,
+    parse_markers,
+    parse_records,
+)
 from tests.fakes import (
     PIPELINE,
     flow_value,
     make_alive,
     make_died,
+    make_failure,
     make_flow,
     make_marker,
     make_run,
@@ -30,6 +38,7 @@ def runs_for(
     beats: Optional[Dict[str, datetime]] = None,
     verdicts: Optional[Dict[str, Tuple[datetime, datetime]]] = None,
     dead_seconds: float = 90.0,
+    failures: Optional[List[Tuple[str, str]]] = None,
 ) -> List[Dict[str, Any]]:
     raw_flows, raw_records, raw_markers = split(raw)
     alive = parse_alive(env, PIPELINE, [make_alive(env, r, at) for r, at in (beats or {}).items()])
@@ -48,6 +57,7 @@ def runs_for(
         alive=alive,
         verdicts=died,
         dead_seconds=dead_seconds,
+        failures=parse_failures(env, PIPELINE, failures or [])[0],
     )
 
 
@@ -685,3 +695,220 @@ class TestRunsWithoutAHeartbeat(unittest.TestCase):
             flows=parse_flows("prod", PIPELINE, raw_flows),
         )[0]
         self.assertEqual((run["status"], run["died"]), ("complete", None))
+
+
+FAIL_AT = datetime(2026, 10, 15, 2, 0, 50, tzinfo=timezone.utc)  # step 4 raised 17 s after it began
+LATER = FAIL_AT + timedelta(minutes=30)
+
+
+def _without(raw: List[Tuple[str, str]], number: int) -> List[Tuple[str, str]]:
+    return [r for r in raw if f":step:{number:02d}-" not in r[0]]
+
+
+def _retried_record(raw: List[Tuple[str, str]], number: int, attempt: int) -> List[Tuple[str, str]]:
+    """The finish record of step `number` as written by a later attempt `attempt`."""
+    import json
+
+    out = []
+    for key, value in raw:
+        if f":step:{number:02d}-" in key:
+            data = json.loads(value)
+            data["index"] = attempt
+            key = key.replace(f":step:{number:02d}-", f":step:{attempt:02d}-")
+            value = json.dumps(data)
+        out.append((key, value))
+    return out
+
+
+class TestFailedSteps(unittest.TestCase):
+    """specs/011-step-failure-errors/data-model.md: a failure with the highest attempt index wins."""
+
+    def _failed_run(self, now: datetime = LATER, **kw: Any) -> Dict[str, Any]:
+        raw = make_run("prod", R1, missing_from=3)  # steps 1-3 finished, step 4 raised
+        kw.setdefault("markers", [make_marker("prod", R1, 3, START4)])
+        kw.setdefault("failures", [make_failure("prod", R1, 3, FAIL_AT, started_at=START4)])
+        return runs_for(raw, now=now, **kw)[0]
+
+    def test_failure_beats_an_old_marker(self) -> None:
+        run = (
+            self._failed_run()
+        )  # the marker is 30 minutes old: would be Stalled without the failure
+        self.assertEqual(_states(run), ["done"] * 3 + ["failed"] + ["missing"] * 5)
+        step = run["steps"][3]
+        self.assertEqual(step["name"], "read_instances")
+        self.assertEqual((step["started_at"], step["failed_at"]), (_iso(START4), _iso(FAIL_AT)))
+        self.assertEqual(step["error"]["type"], "ValueError")
+        self.assertEqual(step["error"]["message"], "boom")
+        self.assertIn("ValueError: boom", step["error"]["traceback"])
+        self.assertNotIn("elapsed_seconds", step)
+
+    def test_failure_beats_a_fresh_marker_too(self) -> None:
+        run = self._failed_run(now=FAIL_AT + timedelta(seconds=2))
+        self.assertEqual(run["steps"][3]["state"], "failed")
+        self.assertIsNone(run["running_step"])
+
+    def test_stopping_failure_makes_the_run_failed(self) -> None:
+        run = self._failed_run()
+        self.assertEqual(
+            run["failed"], {"step": "read_instances", "index": 4, "failed_at": _iso(FAIL_AT)}
+        )
+        self.assertEqual(run["status"], "incomplete")
+        self.assertIsNone(run["running_step"])
+        self.assertEqual(run["first_missing_step"], "read_instances")
+        self.assertEqual(run["missing_count"], 6)
+        self.assertEqual(run["ended_at"], _iso(FAIL_AT))
+        self.assertIsNone(run["died"])
+
+    def test_later_steps_are_not_reached_never_waiting(self) -> None:
+        run = self._failed_run(now=FAIL_AT + timedelta(seconds=2))
+        self.assertNotIn("waiting", _states(run))
+        self.assertTrue(all(s.get("missing") for s in run["steps"][4:]))
+
+    def test_failed_beats_died_even_with_a_stale_heartbeat(self) -> None:
+        run = self._failed_run(beats={R1: BEAT})  # beat is 28 minutes old: would be Died
+        self.assertIsNone(run["died"])
+        self.assertEqual(run["steps"][3]["state"], "failed")
+        self.assertIsNotNone(run["failed"])
+
+    def test_stored_died_verdict_does_not_override_a_stopping_failure(self) -> None:
+        run = self._failed_run(verdicts={R1: (DEAD, BEAT)})
+        self.assertIsNone(run["died"])
+        self.assertIsNotNone(run["failed"])
+
+    def test_failure_item_without_a_marker_still_fails_the_step(self) -> None:
+        run = self._failed_run(markers=[])
+        self.assertEqual(run["steps"][3]["state"], "failed")
+        self.assertIsNotNone(run["failed"])
+
+    def test_a_failure_alone_creates_the_run(self) -> None:
+        run = runs_for([], failures=[make_failure("prod", R1, 0, FAIL_AT)])[0]
+        self.assertEqual(run["run_id"], R1)
+        self.assertEqual(run["steps"][0]["state"], "failed")
+        self.assertEqual(run["failed"]["step"], "read_callrail_account")
+
+    def test_flow_run_failing_in_its_first_step(self) -> None:
+        run = runs_for([make_flow("prod", R1)], failures=[make_failure("prod", R1, 0, FAIL_AT)])[0]
+        self.assertEqual(_states(run), ["failed"] + ["missing"] * 8)
+        self.assertEqual(run["status"], "incomplete")
+
+    def test_handled_error_marks_the_step_but_not_the_run(self) -> None:
+        # step 4 raised and was caught; steps 5-9 still ran (their attempt indexes are higher)
+        raw = _without(make_run("prod", R1), 4)
+        run = runs_for(
+            raw,
+            now=NOW,
+            markers=[make_marker("prod", R1, 3, START4)],
+            failures=[make_failure("prod", R1, 3, FAIL_AT)],
+        )[0]
+        self.assertEqual(run["steps"][3]["state"], "failed")
+        self.assertIsNone(run["failed"])
+        self.assertIsNone(run["died"])
+        self.assertEqual(run["status"], "incomplete")  # a failed planned step is never "complete"
+        self.assertEqual((run["first_missing_step"], run["missing_count"]), ("read_instances", 1))
+
+    def test_handled_error_in_a_run_still_running(self) -> None:
+        raw = _without(make_run("prod", R1, missing_from=6), 4)  # steps 5-6 ran after the failure
+        run = runs_for(
+            raw,
+            now=START4 + timedelta(seconds=60),
+            markers=[make_marker("prod", R1, 6, START4 + timedelta(seconds=50))],
+            failures=[make_failure("prod", R1, 3, FAIL_AT)],
+        )[0]
+        self.assertEqual(run["status"], "running")
+        self.assertEqual(run["steps"][3]["state"], "failed")
+        self.assertEqual(run["steps"][6]["state"], "running")
+        self.assertIsNone(run["failed"])
+
+    def test_successful_retry_replaces_the_failure(self) -> None:
+        raw = _retried_record(make_run("prod", R1), 4, 20)
+        run = runs_for(raw, now=NOW, failures=[make_failure("prod", R1, 3, FAIL_AT)])[0]
+        self.assertEqual(run["steps"][3]["state"], "done")
+        self.assertIsNone(run["failed"])
+        self.assertEqual(run["status"], "complete")
+
+    def test_retry_in_progress_is_running_not_failed(self) -> None:
+        retry = make_marker("prod", R1, 9, FAIL_AT + timedelta(seconds=2), step="read_instances")
+        run = self._failed_run(
+            now=FAIL_AT + timedelta(seconds=10),
+            markers=[make_marker("prod", R1, 3, START4), retry],
+        )
+        self.assertEqual(run["steps"][3]["state"], "running")
+        self.assertEqual(run["status"], "running")
+        self.assertIsNone(run["failed"])
+
+    def test_retry_that_fails_again_shows_the_latest_failure(self) -> None:
+        second = FAIL_AT + timedelta(minutes=1)
+        run = self._failed_run(
+            failures=[
+                make_failure("prod", R1, 3, FAIL_AT),
+                make_failure(
+                    "prod",
+                    R1,
+                    3,
+                    second,
+                    index=10,
+                    error={"type": "KeyError", "traceback": "KeyError\n"},
+                ),
+            ]
+        )
+        step = run["steps"][3]
+        self.assertEqual(step["failed_at"], _iso(second))
+        self.assertEqual(step["error"], {"type": "KeyError", "traceback": "KeyError\n"})
+        self.assertEqual(run["failed"]["index"], 10)
+
+    def test_failure_of_a_step_outside_the_flow_is_shown(self) -> None:
+        run = self._failed_run(
+            markers=[], failures=[make_failure("prod", R1, 3, FAIL_AT, step="mystery")]
+        )
+        by_name = {s["name"]: s for s in run["steps"]}
+        self.assertEqual(by_name["mystery"]["state"], "failed")
+        self.assertEqual(run["failed"]["step"], "mystery")
+        self.assertEqual(run["missing_count"], 6)  # planned steps 4-9 were never reached
+
+    def test_run_without_a_flow_lists_the_failed_step_in_order(self) -> None:
+        raw = make_run("prod", R1, missing_from=3, with_flow=False)
+        run = runs_for(raw, now=LATER, failures=[make_failure("prod", R1, 3, FAIL_AT)])[0]
+        self.assertEqual(_states(run), ["done"] * 3 + ["failed"])
+        self.assertEqual([s["name"] for s in run["steps"]][-1], "read_instances")
+        self.assertEqual(run["steps"][-1]["state"], "failed")
+        self.assertEqual(run["failed"]["step"], "read_instances")
+
+    def test_failed_run_age_counts_from_the_failure(self) -> None:
+        run = self._failed_run(now=FAIL_AT + timedelta(hours=27))
+        self.assertEqual(run["age_seconds"], 27 * 3600)
+        self.assertTrue(run["stale"])
+        young = self._failed_run(now=FAIL_AT + timedelta(hours=1))
+        self.assertFalse(young["stale"])
+
+
+class TestRunsWithoutFailureItems(unittest.TestCase):
+    """specs/011 FR-015: a run with no failure item is exactly what it was; `failed` is the only new key."""
+
+    def test_every_older_state_has_no_failed_and_unchanged_status(self) -> None:
+        start4 = [make_marker("prod", R1, 3, START4)]
+        cases = {
+            "complete": (runs_for(make_run("prod", R1)), "complete"),
+            "running": (
+                runs_for(make_run("prod", R1, missing_from=3), now=START4, markers=start4),
+                "running",
+            ),
+            "stalled": (
+                runs_for(make_run("prod", R1, missing_from=3), now=LATER, markers=start4),
+                "incomplete",
+            ),
+            "died": (
+                runs_for(
+                    make_run("prod", R1, missing_from=3), now=DEAD, markers=start4, beats={R1: BEAT}
+                ),
+                "incomplete",
+            ),
+            "incomplete": (runs_for(make_run("prod", R1, missing_from=5)), "incomplete"),
+            "no flow": (runs_for(make_run("prod", R1, with_flow=False)), "complete"),
+        }
+        for label, (runs, status) in cases.items():
+            with self.subTest(label):
+                (run,) = runs
+                self.assertEqual(run["status"], status)
+                self.assertIsNone(run["failed"])
+                self.assertNotIn("failed", [s["state"] for s in run["steps"]])
+                self.assertTrue(all("error" not in s for s in run["steps"]))

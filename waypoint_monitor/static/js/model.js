@@ -8,7 +8,7 @@ export function stepOf(run, name) {
 }
 
 /**
- * A step's state: done, missing, running, stalled, died, waiting or unplanned (reported, but not in the run's
+ * A step's state: done, missing, running, stalled, died, failed, waiting or unplanned (reported, but not in the run's
  * flow description). Payloads without `state` (older servers) fall back to missing/done.
  */
 export function stepState(step) {
@@ -90,6 +90,7 @@ export function analyse(run) {
     ageH: run.ageSeconds / 3600,
     died: !!run.died,
     lastSeenAt: run.died ? run.died.lastSeenAt : null,
+    failed: run.failed || null,
   };
 }
 
@@ -188,11 +189,12 @@ export function retryIn(nextAt, now) {
 /* ---------- home page cards (a card is one pipeline's newest run in any environment) ---------- */
 
 /**
- * Card status, first match wins: Running, Stale, Incomplete, Lost data, Completed (the server decides;
- * this adds the words and tone). Stale, Incomplete and Lost data need attention.
+ * Card status, first match wins: Running, Failed, Died, Stale, Incomplete, Lost data, Completed (the server
+ * decides; this adds the words and tone). Everything but Running and Completed needs attention.
  */
 const CARD_STATUS = {
   running: { text: 'Running', tone: 'running', attn: false },
+  failed: { text: 'Failed', tone: 'bad', attn: true },
   died: { text: 'Died', tone: 'bad', attn: true },
   stale: { text: 'Stale', tone: 'warn', attn: true },
   incomplete: { text: 'Incomplete', tone: 'bad', attn: true },
@@ -207,6 +209,10 @@ export function cardStatus(card) {
 /** Why a card needs attention: {kind, step?, hours?}, or null. */
 export function cardReason(card, staleHours) {
   const l = card.latest;
+  if (card.status === 'failed') {
+    const e = l.error || {};
+    return { kind: 'failed', step: l.failedStep, errorType: e.type || 'Error', message: e.message == null ? null : e.message };
+  }
   if (card.status === 'died') return { kind: 'died', step: l.diedStep };
   if (card.status === 'stale') return { kind: 'stale', hours: staleHours };
   if (card.status === 'incomplete') {
@@ -216,11 +222,13 @@ export function cardReason(card, staleHours) {
   return null;
 }
 
-/** Needs-attention cards first, then the rest; each group A to Z by label. */
+/** Needs-attention cards first (Failed ones lead them), then the rest; each group A to Z by label. */
 export function groupCards(cards) {
   const byLabel = (x, y) => x.label.localeCompare(y.label) || x.name.localeCompare(y.name);
+  const isFailed = (c) => c.status === 'failed';
+  const failedFirst = (x, y) => (isFailed(x) === isFailed(y) ? byLabel(x, y) : isFailed(x) ? -1 : 1);
   return {
-    attention: cards.filter((c) => c.needsAttention).sort(byLabel),
+    attention: cards.filter((c) => c.needsAttention).sort(failedFirst),
     rest: cards.filter((c) => !c.needsAttention).sort(byLabel),
   };
 }
@@ -232,11 +240,14 @@ export function cardNumbers(card) {
   return card.latest.headline.filter((h) => h.step).map((h) => ({ ...h, role: CARD_ROLE[h.key] }));
 }
 
-/** What the card says about time: running for X, stalled for X, last seen X ago (died), stopped Xh ago, finished Xh ago. */
+/** What the card says about time: running for X, stalled for X, last seen X ago (died), failed Xh ago, stopped Xh ago, finished Xh ago. */
 export function cardWhen(card, nowSeconds) {
   const l = card.latest;
   if (card.status === 'running') {
     return { kind: 'running', seconds: Math.max(0, Math.floor((card.generatedAt.getTime() - l.startedAt.getTime()) / 1000)) };
+  }
+  if (card.status === 'failed') {
+    return { kind: 'failed', hours: (l.ageSeconds + (nowSeconds || 0)) / 3600 };
   }
   if (card.status === 'died') {
     const seen = l.lastSeenAt ? Math.floor((card.generatedAt.getTime() - l.lastSeenAt.getTime()) / 1000) : 0;
@@ -296,6 +307,11 @@ export function findRun(runs, env, runId) {
   return runs.find((r) => r.env === env && r.id === runId) || null;
 }
 
+/** The runs History lists: every run (`'all'`), or only those a failed step stopped (`'failed'`). */
+export function filterRuns(runs, mode) {
+  return mode === 'failed' ? runs.filter((r) => !!r.failed) : runs;
+}
+
 /** True for the first (newest) run of a newest-first list. */
 export function isNewest(runs, run) {
   return runs.length > 0 && runs[0] === run;
@@ -308,6 +324,7 @@ export function runRoute(pipelineId, run) {
 
 /** The run page's headline. "Last night" and "Latest" wording only makes sense for the newest run. */
 export function heroTitle(a, newest) {
+  if (a.failed) return 'A step failed';
   if (a.died) return 'The pipeline process died';
   if (a.running) return 'A run is in progress';
   if (!a.complete) return 'Run stopped before the end';

@@ -95,6 +95,32 @@ class DiedVerdict:
 
 
 @dataclass(frozen=True)
+class ErrorInfo:
+    """What a failure item says went wrong: the error `type` (at most 200 characters), the `message`
+    (at most 500 characters, None when not stored) and the frames-only `traceback` (at most 8192
+    UTF-8 bytes, last frames kept)."""
+
+    type: str
+    message: Optional[str]
+    traceback: str
+
+
+@dataclass(frozen=True)
+class StepFailure:
+    """One validated failure item: attempt `index` (int >= 1) of `step` began at `started_at` and
+    raised at `failed_at` (both UTC). pipeline, run_id and env must equal the ones in the key."""
+
+    pipeline: str
+    run_id: str
+    env: str
+    step: str
+    index: int
+    started_at: datetime
+    failed_at: datetime
+    error: ErrorInfo
+
+
+@dataclass(frozen=True)
 class ParseResult:
     records: List[StepRecord]
     unreadable_by_run: Dict[str, int] = field(default_factory=dict)

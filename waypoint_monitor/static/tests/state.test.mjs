@@ -126,3 +126,29 @@ test('a died run stops at the died step; later steps are not reached; it is not 
 test('a died step is not part of the headline numbers', () => {
   assert.ok(!headline(diedRun()).some((k) => k.step === 'b'));
 });
+
+/* ---------- History: failed runs (specs/011-step-failure-errors) ---------- */
+test('filterRuns keeps every run for "all" and only the failed ones for "failed"', async () => {
+  const { filterRuns } = await import('../js/model.js');
+  const runs = [{ id: 'c', failed: null }, { id: 'b', failed: { step: 'x' } }, { id: 'a', failed: null }, { id: 'z', failed: { step: 'y' } }];
+  assert.deepEqual(filterRuns(runs, 'all').map((r) => r.id), ['c', 'b', 'a', 'z']);
+  assert.deepEqual(filterRuns(runs, 'failed').map((r) => r.id), ['b', 'z']);
+  assert.deepEqual(filterRuns(runs, 'anything else').map((r) => r.id), ['c', 'b', 'a', 'z']);
+  assert.deepEqual(filterRuns([], 'failed'), []);
+});
+
+test('a Failed run shows the Failed pill, never Died or Incomplete', async () => {
+  const { statusPill } = await import('../js/ui.js');
+  const html = statusPill({ failed: { step: 'b' }, died: false, running: false, complete: false }, 'sm');
+  assert.match(html, /Failed/);
+  assert.doesNotMatch(html, /Died|Incomplete/);
+  assert.match(statusPill({ died: true }), /Died/);
+  assert.match(statusPill({ failed: null, complete: false }), /Incomplete/);
+});
+
+test('a failed step has no metric, so the trend and deltas treat it as a gap', async () => {
+  const { series } = await import('../js/model.js');
+  const failed = { name: 'b', state: 'failed', inputs: [], output: null, error: { type: 'E', message: null, traceback: '' } };
+  const ok = { name: 'b', state: 'done', inputs: [], output: 5 };
+  assert.deepEqual(series([{ steps: [failed] }, { steps: [ok] }], 'b', 2), [5, null]);
+});

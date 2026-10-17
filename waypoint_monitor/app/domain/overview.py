@@ -2,8 +2,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 Run = Dict[str, Any]
 
-# Card status, first match wins: running, died, stale, incomplete, lost, ok
-ATTENTION = ("died", "stale", "incomplete", "lost")
+# Card status, first match wins: running, failed, died, stale, incomplete, lost, ok
+ATTENTION = ("failed", "died", "stale", "incomplete", "lost")
 
 
 def _metric(step: Mapping[str, Any]) -> Optional[int]:
@@ -19,6 +19,8 @@ def _metric(step: Mapping[str, Any]) -> Optional[int]:
 def card_status(run: Mapping[str, Any]) -> str:
     if run["status"] == "running":
         return "running"
+    if run.get("failed"):
+        return "failed"
     if run.get("died"):
         return "died"
     if run["stale"]:
@@ -72,6 +74,21 @@ def _latest(env_order: Sequence[str], by_env: Mapping[str, Sequence[Run]]) -> Op
     return newest
 
 
+def _failure(run: Run) -> Dict[str, Any]:
+    """The run's stopping failure for a card: step, time and the error without its traceback."""
+    failed = run.get("failed")
+    if not failed:
+        return {"failed_step": None, "failed_at": None, "error": None}
+    step = next((s for s in run["steps"] if s["name"] == failed["step"]), None)
+    detail = (step or {}).get("error") or {}
+    error: Optional[Dict[str, Any]] = None
+    if detail.get("type"):
+        error = {"type": detail["type"]}
+        if detail.get("message") is not None:
+            error["message"] = detail["message"]
+    return {"failed_step": failed["step"], "failed_at": failed["failed_at"], "error": error}
+
+
 def _summary(run: Run) -> Dict[str, Any]:
     stalled = next((s for s in run["steps"] if s.get("state") == "stalled"), None)
     died = run.get("died")
@@ -92,6 +109,7 @@ def _summary(run: Run) -> Dict[str, Any]:
         "last_seen_at": died["last_seen_at"] if died else None,
         "unreadable": run["unreadable"],
         "headline": _headline(run),
+        **_failure(run),
     }
 
 
@@ -100,7 +118,8 @@ def build_overview(
 ) -> List[Dict[str, Any]]:
     """One card per pipeline that has a run. `runs[env][pipeline]` is that pipeline's runs, newest first.
 
-    Cards that need attention come first; each group is ordered by label.
+    Cards that need attention come first and Failed cards lead them; every other group is ordered by
+    label.
     """
     names = sorted({name for by_pipeline in runs.values() for name in by_pipeline})
     cards: List[Dict[str, Any]] = []
@@ -121,5 +140,12 @@ def build_overview(
                 "latest": _summary(newest),
             }
         )
-    cards.sort(key=lambda c: (not c["needs_attention"], c["label"].casefold(), c["name"]))
+    cards.sort(
+        key=lambda c: (
+            not c["needs_attention"],
+            c["card_status"] != "failed",
+            c["label"].casefold(),
+            c["name"],
+        )
+    )
     return cards

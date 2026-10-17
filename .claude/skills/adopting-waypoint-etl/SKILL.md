@@ -109,7 +109,7 @@ waypoint_etl.init(
 | Step name typo between spec and decorator | Step never shown / `assert_spec_matches` fails |
 | `init` called per partner/loop | Replaces config, new run each time (prints warning) |
 | Non-str or unlisted `env` | Breaks the key, or the monitor never shows it |
-| Expecting exceptions to be recorded | A raising step keeps its start marker, writes no finish; the exception is untouched |
+| Expecting exceptions to stay invisible | From 0.3.0 a raising step writes a failure item (type, shortened message, frames-only trace) and the exception is re-raised untouched; shown as Failed. Messages can hold data: pass `capture_error_message=False` or `redact=` to `init` when they might |
 | Parallel steps | SDK assumes steps run one after another per run |
 
 Counts: `None` is 0, list/tuple/set is its length, anything else is 1.

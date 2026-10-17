@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -6,9 +7,15 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-import json
-
-from tests.fakes import FakeStore, flow_value, make_alive, make_died, make_marker, make_run
+from tests.fakes import (
+    FakeStore,
+    flow_value,
+    make_alive,
+    make_died,
+    make_failure,
+    make_marker,
+    make_run,
+)
 
 NOW = datetime(2026, 10, 15, 3, 0, 0, tzinfo=timezone.utc)
 R1 = "20261015T020000Z"
@@ -93,6 +100,7 @@ class TestRuns(unittest.TestCase):
                 "steps",
                 "running_step",
                 "died",
+                "failed",  # specs/011: the only new key on a run
             },
         )
 
@@ -427,6 +435,9 @@ class TestOverview(unittest.TestCase):
         "headline",
         "died_step",
         "last_seen_at",
+        "failed_step",
+        "failed_at",
+        "error",
     }
 
     def overview(self, store: FakeStore, **kw: Any) -> Dict[str, Any]:
@@ -716,6 +727,89 @@ class TestWithoutHeartbeat(unittest.TestCase):
         store = FakeStore()
         store.died = [make_died("prod", R1, NOW, NOW)]
         self.assertEqual(client_for(store).get("/api/runs", params=RUNS).json()["runs"], [])
+
+
+FAIL_AT = datetime(2026, 10, 15, 2, 0, 50, tzinfo=timezone.utc)
+
+
+def _failed_store(beat: Optional[datetime] = BEAT) -> FakeStore:
+    """Steps 1-3 finished; step 4 began at 02:00:33 and raised at 02:00:50."""
+    store = FakeStore(make_run("prod", R1, missing_from=3))
+    store.markers = [
+        make_marker("prod", R1, 3, datetime(2026, 10, 15, 2, 0, 33, tzinfo=timezone.utc))
+    ]
+    store.failures = [make_failure("prod", R1, 3, FAIL_AT)]
+    if beat is not None:
+        store.alive = [make_alive("prod", R1, beat)]
+    return store
+
+
+class TestFailed(unittest.TestCase):
+    """specs/011-step-failure-errors/contracts/api.md"""
+
+    def test_runs_show_the_failed_step_and_the_failed_run(self) -> None:
+        run = _first_run(client_for(_failed_store()))
+        self.assertEqual(
+            [s["state"] for s in run["steps"]], ["done"] * 3 + ["failed"] + ["missing"] * 5
+        )
+        step = run["steps"][3]
+        self.assertEqual(step["error"]["type"], "ValueError")
+        self.assertEqual(step["error"]["message"], "boom")
+        self.assertIn("traceback", step["error"])
+        self.assertEqual(
+            run["failed"],
+            {"step": "read_instances", "index": 4, "failed_at": "2026-10-15T02:00:50Z"},
+        )
+        self.assertEqual((run["status"], run["died"]), ("incomplete", None))
+
+    def test_message_is_omitted_when_it_was_not_stored(self) -> None:
+        store = _failed_store()
+        store.failures = [
+            make_failure(
+                "prod", R1, 3, FAIL_AT, error={"type": "KeyError", "traceback": "KeyError\n"}
+            )
+        ]
+        step = _first_run(client_for(store))["steps"][3]
+        self.assertEqual(step["error"], {"type": "KeyError", "traceback": "KeyError\n"})
+
+    def test_overview_card_is_failed_without_the_traceback(self) -> None:
+        body = client_for(_failed_store()).get("/api/overview").json()
+        (card,) = body["pipelines"]
+        self.assertEqual((card["card_status"], card["needs_attention"]), ("failed", True))
+        latest = card["latest"]
+        self.assertEqual(latest["failed_step"], "read_instances")
+        self.assertEqual(latest["failed_at"], "2026-10-15T02:00:50Z")
+        self.assertEqual(latest["error"], {"type": "ValueError", "message": "boom"})
+
+    def test_a_failed_run_with_an_old_heartbeat_is_never_judged_died(self) -> None:
+        store = _failed_store()
+        run = _first_run(client_for(store))
+        self.assertIsNone(run["died"])
+        self.assertEqual(store.write_calls, [])  # the monitor wrote no died verdict
+
+    def test_the_monitor_never_writes_failure_data(self) -> None:
+        store = _failed_store()
+        client = client_for(store)
+        client.get("/api/runs", params=RUNS)
+        client.get("/api/overview")
+        self.assertEqual(store.write_calls, [])
+
+    def test_damaged_failure_item_counts_as_unreadable_and_the_run_still_shows(self) -> None:
+        store = _failed_store()
+        store.failures.append((store.failures[0][0].replace(":failed:04-", ":failed:05-"), "{nope"))
+        body = client_for(store).get("/api/runs", params=RUNS).json()
+        self.assertEqual(body["unreadable_total"], 1)
+        self.assertEqual(body["runs"][0]["unreadable"], 1)
+        self.assertEqual(body["runs"][0]["steps"][3]["state"], "failed")
+        overview = client_for(store).get("/api/overview").json()
+        self.assertEqual(overview["unreadable_total"], 1)
+
+    def test_a_store_without_failure_items_gives_null_fields(self) -> None:
+        store = FakeStore(make_run("prod", R1))
+        run = _first_run(client_for(store))
+        self.assertIsNone(run["failed"])
+        (card,) = client_for(store).get("/api/overview").json()["pipelines"]
+        self.assertEqual((card["latest"]["failed_step"], card["latest"]["error"]), (None, None))
 
 
 if __name__ == "__main__":

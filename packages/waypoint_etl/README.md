@@ -8,7 +8,7 @@ stored, never item contents.
 
 ```bash
 pip install -e "packages/waypoint_etl[redis]"        # inside this repo
-pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.2.0#subdirectory=packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.3.0#subdirectory=packages/waypoint_etl"
 ```
 
 ## Adopt it in a pipeline
@@ -69,7 +69,25 @@ outside.
 - Records are written to `waypoint:{pipeline}:{env}:{run_id}:...` (contract:
   `specs/007-rename-to-waypoint/contracts/redis-keys.md`).
 - A Redis failure at any moment is logged and swallowed; results and exceptions of your steps are
-  never altered. If a step raises, its start marker stays and no finish record is written.
+  never altered.
+- **Step errors** (0.3.0): if a step raises an `Exception` (sync or `async`), one failure item
+  `waypoint:{pipeline}:{env}:{run_id}:failed:{NN}-{step}` is written and **the same exception is re-raised
+  untouched**; no finish record is written and the start marker stays (the monitor lets the failure win). The item holds
+  the error type, a message shortened to 500 characters, a stack trace shortened to 8 KB (last frames kept) and
+  `started_at` / `failed_at`. The trace has file, line, function and source line of each frame, never variable
+  values. `KeyboardInterrupt`, `SystemExit` and `asyncio.CancelledError` are not recorded (they look like a process that
+  stopped, which the heartbeat turns into Died). Error messages can contain data, so you decide what is kept:
+
+  ```python
+  waypoint_etl.init(
+      pipeline=SPEC, redis_url=url, env="prod",
+      capture_error_message=True,     # default; False stores only the type and the trace
+      redact=lambda text: scrub(text),  # optional str -> str, applied to every message first
+  )
+  ```
+
+  A `redact` that raises drops the message instead of storing it raw. Older monitors ignore the item
+  (the step then looks Stalled or Died as before); the monitor shows it as **Failed** from this release on.
 - **Heartbeat** (0.2.0): after `init`, a daemon thread refreshes `waypoint:{pipeline}:{env}:{run_id}:alive`
   (`{"v":1, "pipeline", "env", "run_id", "beat_at"}`, same TTL as the run) right away and then every
   `heartbeat_seconds` (15). It keeps beating while a step is blocked and stops when the process dies, so the

@@ -193,3 +193,28 @@ class TestRedisRecordStore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailureItems(unittest.TestCase):
+    def test_list_failures_scans_the_failed_pattern_and_never_writes(self) -> None:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        client.scan_iter.return_value = iter(["waypoint:demo:prod:R:failed:02-s"])
+        client.mget.return_value = ["{}"]
+        out = store.list_failures("prod", "demo")
+        client.scan_iter.assert_called_once_with(match="waypoint:demo:prod:*:failed:*", count=500)
+        self.assertEqual(out, [("waypoint:demo:prod:R:failed:02-s", "{}")])
+        client.set.assert_not_called()
+        client.setex.assert_not_called()
+        client.delete.assert_not_called()
+
+    def test_unreachable_store_raises_store_unavailable(self) -> None:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        client.scan_iter.side_effect = redis.ConnectionError("down")
+        with self.assertRaises(StoreUnavailable):
+            store.list_failures("prod", "demo")

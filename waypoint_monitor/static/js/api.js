@@ -34,7 +34,11 @@ export async function loadConfig() {
  * (contracts/api.md, GET /api/overview). Already in display order: needs attention first.
  */
 export async function loadOverview() {
-  const body = await getJson('/api/overview');
+  return mapOverview(await getJson('/api/overview'));
+}
+
+/** The overview body as the views use it. Failure fields are null for a server that sends none. */
+export function mapOverview(body) {
   const generatedAt = new Date(body.generated_at);
   return {
     generatedAt,
@@ -60,6 +64,9 @@ export async function loadOverview() {
         stalledSeconds: p.latest.stalled_seconds,
         diedStep: p.latest.died_step || null,
         lastSeenAt: p.latest.last_seen_at ? new Date(p.latest.last_seen_at) : null,
+        failedStep: p.latest.failed_step || null,
+        failedAt: p.latest.failed_at ? new Date(p.latest.failed_at) : null,
+        error: p.latest.error || null,
         unreadable: p.latest.unreadable,
         headline: p.latest.headline,
       },
@@ -69,6 +76,24 @@ export async function loadOverview() {
 
 function mapStep(s) {
   if (s.missing) return { name: s.name, state: 'missing', missing: true };
+  if (s.state === 'failed') {
+    // The step raised: no counts. Keep when it began and failed, and what the error said (text, never HTML).
+    const error = s.error || {};
+    return {
+      name: s.name,
+      state: 'failed',
+      inputs: [],
+      output: null,
+      finishedAt: null,
+      startedAt: s.started_at ? new Date(s.started_at) : null,
+      failedAt: s.failed_at ? new Date(s.failed_at) : null,
+      error: {
+        type: typeof error.type === 'string' ? error.type : 'Error',
+        message: typeof error.message === 'string' ? error.message : null,
+        traceback: typeof error.traceback === 'string' ? error.traceback : '',
+      },
+    };
+  }
   if (s.state === 'died') {
     // The process is gone: no counts, and no running clock. Keep when it began and when it was last seen.
     return {
@@ -157,6 +182,9 @@ export function mapRun(r) {
     unreadable: r.unreadable,
     died: r.died
       ? { judgedAt: new Date(r.died.judged_at), lastSeenAt: new Date(r.died.last_seen_at), recorded: !!r.died.recorded }
+      : null,
+    failed: r.failed
+      ? { step: r.failed.step, index: r.failed.index, failedAt: new Date(r.failed.failed_at) }
       : null,
     flowStatus: r.flow_status || (flow ? 'ok' : 'missing'),
     flowProblems: r.flow_problems || [],

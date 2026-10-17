@@ -26,6 +26,7 @@ def run(
     label: Optional[str] = None,
     flow_steps: Optional[List[Dict[str, Any]]] = None,
     died: Optional[Dict[str, Any]] = None,
+    failed: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     steps = steps if steps is not None else [step("a", output=5), step("b", output=9, inputs=5)]
     flow = None
@@ -47,6 +48,7 @@ def run(
         "first_missing_step": missing,
         "unreadable": 0,
         "died": died,
+        "failed": failed,
         "flow": flow,
         "steps": steps,
     }
@@ -250,6 +252,88 @@ class TestDiedCard(unittest.TestCase):
         legacy = run("prod", "20261016T020000Z", status="incomplete", missing="b")
         del legacy["died"]
         self.assertEqual(one({"prod": [legacy]})["card_status"], "incomplete")
+
+
+FAILED_AT = "2026-10-16T02:03:41Z"
+ERROR = {"type": "ValueError", "message": "boom", "traceback": "Traceback...\nValueError: boom\n"}
+
+
+def failed_run(env: str = "prod", run_id: str = "20261016T020000Z", **over: Any) -> Dict[str, Any]:
+    steps = [
+        step("a", output=5),
+        {
+            "name": "b",
+            "state": "failed",
+            "started_at": "2026-10-16T02:03:00Z",
+            "failed_at": FAILED_AT,
+            "error": ERROR,
+        },
+        {"name": "c", "state": "missing", "missing": True},
+    ]
+    failed = {"step": "b", "index": 2, "failed_at": FAILED_AT}
+    return run(env, run_id, steps, status="incomplete", missing="b", failed=failed, **over)
+
+
+class TestFailedCard(unittest.TestCase):
+    """specs/011-step-failure-errors/contracts/api.md"""
+
+    def test_failed_run_gives_a_failed_card_that_needs_attention(self) -> None:
+        card = one({"prod": [failed_run()]})
+        self.assertEqual(card["card_status"], "failed")
+        self.assertTrue(card["needs_attention"])
+        latest = card["latest"]
+        self.assertEqual((latest["failed_step"], latest["failed_at"]), ("b", FAILED_AT))
+        self.assertEqual(latest["error"], {"type": "ValueError", "message": "boom"})
+        self.assertNotIn("traceback", latest["error"])
+
+    def test_message_is_left_out_when_it_was_not_stored(self) -> None:
+        bare = failed_run()
+        bare["steps"][1]["error"] = {"type": "KeyError", "traceback": "KeyError\n"}
+        self.assertEqual(one({"prod": [bare]})["latest"]["error"], {"type": "KeyError"})
+
+    def test_priority_running_failed_died_stale_incomplete_lost_ok(self) -> None:
+        live = run("prod", "20261016T020000Z", [step("a", state="running")], status="running")
+        live["failed"] = {"step": "a", "index": 1, "failed_at": FAILED_AT}
+        self.assertEqual(one({"prod": [live]})["card_status"], "running")
+        both = failed_run(stale=True)
+        both["died"] = DIED
+        self.assertEqual(one({"prod": [both]})["card_status"], "failed")
+        self.assertEqual(one({"prod": [died_run(stale=True)]})["card_status"], "died")
+
+    def test_other_cards_have_no_failed_fields_set(self) -> None:
+        latest = one({"prod": [run("prod", "20261016T020000Z")]})["latest"]
+        self.assertEqual(
+            (latest["failed_step"], latest["failed_at"], latest["error"]), (None, None, None)
+        )
+
+    def test_a_run_of_an_old_recorder_without_the_key_is_not_failed(self) -> None:
+        legacy = run("prod", "20261016T020000Z", status="incomplete", missing="b")
+        del legacy["failed"]
+        card = one({"prod": [legacy]})
+        self.assertEqual(card["card_status"], "incomplete")
+        self.assertIsNone(card["latest"]["failed_step"])
+
+    def test_failed_cards_lead_the_attention_group_the_rest_stay_by_label(self) -> None:
+        inc = run("prod", "20261016T020000Z", status="incomplete", missing="b")
+        lost = run("prod", "20261016T020000Z", loss=["b"])
+        cards = build_overview(
+            {
+                "prod": {
+                    "a_ok": [run("prod", "20261016T020000Z")],
+                    "b_lost": [lost],
+                    "c_inc": [inc],
+                    "d_stale": [run("prod", "20261016T020000Z", stale=True)],
+                    "e_died": [died_run()],
+                    "f_failed": [failed_run()],
+                    "g_failed": [failed_run()],
+                }
+            },
+            ORDER,
+        )
+        self.assertEqual(
+            [c["name"] for c in cards],
+            ["f_failed", "g_failed", "b_lost", "c_inc", "d_stale", "e_died", "a_ok"],
+        )
 
 
 if __name__ == "__main__":

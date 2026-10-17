@@ -8,11 +8,13 @@ must not change what the pipeline does.
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional, TypeVar
 
+from waypoint_etl.errors import build_error
 from waypoint_etl.heartbeat import Heartbeat
 from waypoint_etl.keys import (
     FLOW_VERSION,
     START_MARKER_TTL_SECONDS,
     alive_key,
+    failed_key,
     flow_key,
     marker_key,
     step_key,
@@ -34,6 +36,10 @@ def count_items(value: object) -> Optional[int]:
 
 def _utc_stamp(now: datetime) -> str:
     return now.strftime("%Y%m%dT%H%M%SZ")
+
+
+def _stamp(now: datetime) -> str:
+    return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _flow_value(spec: PipelineSpec, env: str, run_id: str) -> Dict[str, object]:
@@ -76,13 +82,18 @@ class StepAuditor:
         env: str,
         ttl_seconds: int,
         run_id: Optional[str] = None,
+        capture_error_message: bool = True,
+        redact: Optional[Callable[[str], str]] = None,
     ) -> None:
         self.store = store
         self.spec = spec
         self.env = env
         self.ttl_seconds = ttl_seconds
         self.run_id = run_id or _utc_stamp(datetime.now(timezone.utc))
+        self.capture_error_message = capture_error_message
+        self.redact = redact
         self._index = 0
+        self._begun: Dict[int, str] = {}
         self._heartbeat: Optional[Heartbeat] = None
         self._started = False
         self._spec_ok = True
@@ -140,6 +151,8 @@ class StepAuditor:
         self._index += 1
         index = self._index
         pipeline = self.spec.name
+        started_at = _stamp(datetime.now(timezone.utc))
+        self._begun[index] = started_at
         if self._spec_ok and name not in {s.name for s in self.spec.steps}:
             print(f"Warning: step {name} is not in pipeline spec {pipeline}")
         try:
@@ -149,7 +162,7 @@ class StepAuditor:
                 "env": self.env,
                 "step": name,
                 "index": index,
-                "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "started_at": started_at,
             }
             self.store.write(
                 marker_key(pipeline, self.env, self.run_id, index, name),
@@ -163,6 +176,7 @@ class StepAuditor:
     def finish(self, name: str, index: int, inputs: Dict[str, object], result: object) -> None:
         """Write the finish record for a step that returned. Never raises."""
         pipeline = self.spec.name
+        self._begun.pop(index, None)
         try:
             now = datetime.now(timezone.utc)
             record: Dict[str, object] = {
@@ -181,6 +195,35 @@ class StepAuditor:
         except Exception as exc:
             print(f"Warning: Waypoint record failed for {name}: {exc}")
 
+    def fail(self, name: str, index: int, exc: BaseException) -> None:
+        """Write the failure item for attempt ``index`` of step ``name``. Never raises.
+
+        The start marker is left in place: the monitor lets a failure with the highest attempt index
+        win over it. Contract: specs/011-step-failure-errors/contracts/redis-keys.md
+        """
+        pipeline = self.spec.name
+        started_at = self._begun.pop(index, None)
+        try:
+            now = _stamp(datetime.now(timezone.utc))
+            record: Dict[str, object] = {
+                "v": FLOW_VERSION,
+                "pipeline": pipeline,
+                "env": self.env,
+                "run_id": self.run_id,
+                "step": name,
+                "index": index,
+                "started_at": started_at or now,
+                "failed_at": now,
+                "error": build_error(
+                    exc, capture_message=self.capture_error_message, redact=self.redact
+                ),
+            }
+            self.store.write(
+                failed_key(pipeline, self.env, self.run_id, index, name), record, self.ttl_seconds
+            )
+        except Exception as exc_write:
+            print(f"Warning: Waypoint failure record failed for {name}: {exc_write}")
+
     def run(
         self,
         name: str,
@@ -191,10 +234,15 @@ class StepAuditor:
         """Call ``fn(*args)`` and record input/output counts.
 
         ``inputs`` only feeds the record's input counts; it is not passed to fn.
-        If fn raises, the exception propagates and no finish record is written. A step that is not
-        in the spec is still recorded (the monitor shows it as unplanned) after a warning.
+        If fn raises an ``Exception``, a failure item is written and the exception propagates
+        unchanged; no finish record is written. A step that is not in the spec is still recorded
+        (the monitor shows it as unplanned) after a warning.
         """
         index = self.begin(name)
-        result = fn(*args)
+        try:
+            result = fn(*args)
+        except Exception as exc:
+            self.fail(name, index, exc)
+            raise
         self.finish(name, index, inputs or {}, result)
         return result

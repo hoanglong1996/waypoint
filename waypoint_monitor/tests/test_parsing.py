@@ -1,16 +1,17 @@
 import json
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.domain.parsing import (
     parse_alive,
     parse_died,
+    parse_failures,
     parse_flows,
     parse_markers,
     parse_records,
     pipeline_of_key,
 )
-from tests.fakes import PIPELINE, make_marker, make_run, split
+from tests.fakes import PIPELINE, make_failure, make_marker, make_run, split
 
 RUN = "20261015T020000Z"
 
@@ -240,3 +241,85 @@ class TestAliveAndDied(unittest.TestCase):
         }.items():
             with self.subTest(label):
                 self.assertEqual(parse_died("prod", PIPELINE, [(key, value)]), {})
+
+
+class TestParseFailures(unittest.TestCase):
+    """specs/011-step-failure-errors/data-model.md: Failure item"""
+
+    AT = datetime(2026, 10, 17, 2, 3, 41, tzinfo=timezone.utc)
+
+    def _item(self, **kw: object) -> tuple:  # type: ignore[type-arg]
+        return make_failure("prod", RUN, 1, self.AT, **kw)  # type: ignore[arg-type]
+
+    def test_valid_item_parses(self) -> None:
+        failures, unreadable = parse_failures("prod", PIPELINE, [self._item()])
+        self.assertEqual(unreadable, {})
+        (f,) = failures
+        self.assertEqual((f.step, f.index, f.run_id), ("read_callrail_call", 2, RUN))
+        self.assertEqual(f.failed_at, self.AT)
+        self.assertEqual(f.started_at, self.AT - timedelta(seconds=5))
+        self.assertEqual((f.error.type, f.error.message), ("ValueError", "boom"))
+        self.assertIn("ValueError: boom", f.error.traceback)
+
+    def test_invalid_items_are_skipped_and_counted_for_their_run(self) -> None:
+        key, value = self._item()
+        data = json.loads(value)
+        bad_cases = {
+            "bad json": "{nope",
+            "not an object": "[1]",
+            "pipeline": {**data, "pipeline": "other"},
+            "env": {**data, "env": "qa"},
+            "run": {**data, "run_id": "20250101T000000Z"},
+            "step": {**data, "step": "mystery"},
+            "index not int": {**data, "index": "2"},
+            "index zero": {**data, "index": 0},
+            "index differs from key": {**data, "index": 3},
+            "bad failed_at": {**data, "failed_at": "yesterday"},
+            "bad started_at": {**data, "started_at": 5},
+            "no error": {k: v for k, v in data.items() if k != "error"},
+            "error not object": {**data, "error": "x"},
+            "empty type": {**data, "error": {**data["error"], "type": ""}},
+            "type not string": {**data, "error": {**data["error"], "type": 5}},
+            "traceback not string": {**data, "error": {**data["error"], "traceback": 5}},
+            "message not string": {**data, "error": {**data["error"], "message": 5}},
+        }
+        for label, bad in bad_cases.items():
+            with self.subTest(label):
+                raw = bad if isinstance(bad, str) else json.dumps(bad)
+                failures, unreadable = parse_failures("prod", PIPELINE, [(key, raw)])
+                self.assertEqual(failures, [])
+                self.assertEqual(unreadable, {RUN: 1})
+
+    def test_long_message_and_traceback_are_shortened_not_rejected(self) -> None:
+        error = {"type": "T" * 500, "message": "m" * 900, "traceback": "a\n" * 9000 + "LAST\n"}
+        (f,) = parse_failures("prod", PIPELINE, [self._item(error=error)])[0]
+        self.assertEqual(len(f.error.type), 200)
+        self.assertEqual(len(f.error.message or ""), 500)
+        self.assertLessEqual(len(f.error.traceback.encode("utf-8")), 8192)
+        self.assertTrue(f.error.traceback.endswith("LAST\n"))
+
+    def test_missing_message_is_none(self) -> None:
+        error = {"type": "KeyError", "traceback": "KeyError\n"}
+        (f,) = parse_failures("prod", PIPELINE, [self._item(error=error)])[0]
+        self.assertIsNone(f.error.message)
+
+    def test_foreign_and_non_failure_keys_are_ignored_not_counted(self) -> None:
+        key, value = self._item()
+        other_pipeline = key.replace(f"waypoint:{PIPELINE}:", "waypoint:other:")
+        other_env = key.replace(":prod:", ":qa:")
+        step_key = key.replace(":failed:", ":step:")
+        raw = [(other_pipeline, value), (other_env, value), (step_key, value)]
+        self.assertEqual(parse_failures("prod", PIPELINE, raw), ([], {}))
+
+    def test_malformed_key_under_the_pipeline_is_not_counted_per_run(self) -> None:
+        failures, unreadable = parse_failures(
+            "prod", PIPELINE, [(f"waypoint:{PIPELINE}:prod:{RUN}:failed:x", "{}")]
+        )
+        self.assertEqual(failures, [])
+        self.assertEqual(unreadable, {})
+
+    def test_unknown_fields_are_dropped(self) -> None:
+        key, value = self._item()
+        data = {**json.loads(value), "extra": "x"}
+        (f,) = parse_failures("prod", PIPELINE, [(key, json.dumps(data))])[0]
+        self.assertFalse(hasattr(f, "extra"))

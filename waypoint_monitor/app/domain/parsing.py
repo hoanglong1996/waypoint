@@ -4,15 +4,29 @@ from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from app.domain.flow import parse_flow
-from app.domain.models import AliveSignal, DiedVerdict, Flow, ParseResult, StartMarker, StepRecord
+from app.domain.models import (
+    AliveSignal,
+    DiedVerdict,
+    ErrorInfo,
+    Flow,
+    ParseResult,
+    StartMarker,
+    StepFailure,
+    StepRecord,
+)
 
 _RUN_ID = re.compile(r"^\d{8}T\d{6}Z$")
 ROOT = "waypoint"
+MAX_ERROR_TYPE = 200
+MAX_ERROR_MESSAGE = 500
+MAX_TRACEBACK_BYTES = 8192
+_OMITTED = "... (earlier frames omitted)\n"
 PIPELINE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 _P = r"(?P<pipeline>[a-z0-9][a-z0-9_-]{0,39}):(?P<env>[^:]+):(?P<run>\d{8}T\d{6}Z)"
 _KEY = re.compile(rf"^{ROOT}:{_P}:step:(?P<idx>\d{{2,}})-(?P<step>.+)$")
 _MARKER_KEY = re.compile(rf"^{ROOT}:{_P}:running:(?P<idx>\d{{2,}})-(?P<step>.+)$")
 _FLOW_KEY = re.compile(rf"^{ROOT}:{_P}:flow$")
+_FAILED_KEY = re.compile(rf"^{ROOT}:{_P}:failed:(?P<idx>\d{{2,}})-(?P<step>.+)$")
 _ALIVE_KEY = re.compile(rf"^{ROOT}:{_P}:alive$")
 _DIED_KEY = re.compile(rf"^{ROOT}:{_P}:died$")
 _ANY_KEY = re.compile(rf"^{ROOT}:(?P<pipeline>[a-z0-9][a-z0-9_-]{{0,39}}):(?P<env>[^:]+):")
@@ -101,6 +115,75 @@ def parse_records(env: str, pipeline: str, raw: Iterable[Tuple[str, str]]) -> Pa
         else:
             records.append(record)
     return ParseResult(records, by_run, unattributed)
+
+
+def _shorten_traceback(text: str) -> str:
+    """At most 8192 UTF-8 bytes, keeping the last frames (a longer one was not written by the library)."""
+    raw = text.encode("utf-8")
+    if len(raw) <= MAX_TRACEBACK_BYTES:
+        return text
+    room = MAX_TRACEBACK_BYTES - len(_OMITTED.encode("utf-8"))
+    return _OMITTED + raw[-room:].decode("utf-8", errors="ignore")
+
+
+def _validate_failure(
+    pipeline: str, env: str, run_id: str, step: str, key_index: int, raw: str
+) -> Optional[StepFailure]:
+    data = _load(raw, pipeline, env, run_id)
+    if data is None or data.get("step") != step:
+        return None
+    index = data.get("index")
+    if not (isinstance(index, int) and not isinstance(index, bool) and index >= 1):
+        return None
+    if index != key_index:
+        return None
+    started = _parse_time(data.get("started_at"))
+    failed = _parse_time(data.get("failed_at"))
+    error = data.get("error")
+    if started is None or failed is None or not isinstance(error, dict):
+        return None
+    kind, message, trace = error.get("type"), error.get("message"), error.get("traceback")
+    if not isinstance(kind, str) or not kind or not isinstance(trace, str):
+        return None
+    if message is not None and not isinstance(message, str):
+        return None
+    return StepFailure(
+        pipeline=pipeline,
+        run_id=run_id,
+        env=env,
+        step=step,
+        index=index,
+        started_at=started,
+        failed_at=failed,
+        error=ErrorInfo(
+            type=kind[:MAX_ERROR_TYPE],
+            message=message[:MAX_ERROR_MESSAGE] if message else None,
+            traceback=_shorten_traceback(trace),
+        ),
+    )
+
+
+def parse_failures(
+    env: str, pipeline: str, raw: Iterable[Tuple[str, str]]
+) -> Tuple[List[StepFailure], Dict[str, int]]:
+    """Validate raw `(key, json)` failure items: the failures and the unreadable count by run id.
+
+    Never raises. An invalid item is skipped and counted for its run, like a step record. Keys of
+    other pipelines or environments, and keys that are not failure keys, are not ours and are ignored.
+    """
+    failures: List[StepFailure] = []
+    unreadable: Dict[str, int] = {}
+    for key, value in raw:
+        match = _FAILED_KEY.match(key)
+        if not match or match["env"] != env or match["pipeline"] != pipeline:
+            continue
+        run_id = match["run"]
+        failure = _validate_failure(pipeline, env, run_id, match["step"], int(match["idx"]), value)
+        if failure is None:
+            unreadable[run_id] = unreadable.get(run_id, 0) + 1
+        else:
+            failures.append(failure)
+    return failures, unreadable
 
 
 def _validate_marker(

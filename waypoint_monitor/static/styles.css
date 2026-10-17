@@ -894,6 +894,26 @@ svg[viewBox="0 0 24 24"] { fill: none; stroke: currentColor; stroke-width: 1.8; 
 .step--stalled .step__card { border-style: dashed; border-color: var(--warn); box-shadow: none; }
 .step--died .step__node { border-color: var(--bad); color: var(--bad); background: var(--bad-bg); }
 .step--died .step__card { border-color: var(--bad-border); box-shadow: none; }
+/* Failed (spec 011): the step raised an error. Own icon and word on every surface; a thicker accent edge on top of the
+   error colour, so it is never told apart by colour alone and never reads as Died (the process is gone). */
+.gpill--failed { color: var(--bad); background: var(--bad-bg); border-color: var(--bad); }
+.step--failed .step__node { border-color: var(--bad); color: var(--bad); background: var(--bad-bg); }
+.step--failed .step__node svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.step--failed .step__card { border-color: var(--bad-border); border-left: 4px solid var(--bad); box-shadow: none; }
+.step--failed .step__live-text { color: var(--bad); }
+.step__error { grid-column: 1 / -1; display: grid; gap: var(--s-2); min-width: 0; padding-top: var(--s-3); border-top: 1px solid var(--bad-border); }
+.step__error--compact { display: flex; flex-wrap: wrap; gap: var(--s-2); padding-top: var(--s-2); font-size: var(--fs-xs); }
+.step__error-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); min-width: 0; }
+.step__error-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.step__error-type { color: var(--bad); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.step__error-msg { color: var(--text); overflow-wrap: anywhere; }
+.step__trace {
+  margin: 0; padding: var(--s-3); max-height: 16rem; overflow: auto; white-space: pre; tab-size: 4;
+  font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.5;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text);
+}
+.btn--copy { flex: none; height: 28px; font-size: var(--fs-xs); }
+.pcard__msg { color: var(--text-2); overflow-wrap: anywhere; }
 .step__live { grid-area: output; justify-self: end; text-align: right; min-width: 120px; display: grid; gap: 6px; justify-items: end; }
 .step__live-text { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
 .step__live-text svg { width: 16px; height: 16px; stroke-width: 2.4; flex: none; }
@@ -904,7 +924,7 @@ svg[viewBox="0 0 24 24"] { fill: none; stroke: currentColor; stroke-width: 1.8; 
 .step__live-sub { font-size: var(--fs-xs); color: var(--text-2); }
 .step__progress { width: 100%; min-width: 120px; height: 3px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
 .step__progress i { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--running); animation: wp-slide 1.3s ease-in-out infinite; }
-.steps--compact .step--waiting .step__card, .steps--compact .step--running .step__card, .steps--compact .step--stalled .step__card, .steps--compact .step--died .step__card { grid-template-areas: "name inputs output"; }
+.steps--compact .step--waiting .step__card, .steps--compact .step--running .step__card, .steps--compact .step--stalled .step__card, .steps--compact .step--died .step__card, .steps--compact .step--failed .step__card { grid-template-areas: "name inputs output"; }
 
 /* graph node */
 .gnode--running { border-color: var(--running); animation: wp-pulse 1.6s ease-in-out infinite; }
@@ -915,6 +935,8 @@ svg[viewBox="0 0 24 24"] { fill: none; stroke: currentColor; stroke-width: 1.8; 
   background: repeating-linear-gradient(-45deg, var(--hatch) 0 6px, transparent 6px 12px), var(--surface);
 }
 .gnode--died { box-shadow: none; border-width: 1.5px; border-color: var(--bad); background: linear-gradient(var(--bad-bg), var(--bad-bg)), var(--surface); }
+.gnode--failed { box-shadow: none; border-width: 1.5px; border-left-width: 4px; border-color: var(--bad); background: linear-gradient(var(--bad-bg), var(--bad-bg)), var(--surface); }
+.gnode--failed .gnode__live { color: var(--bad); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gnode__live { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
 .gnode--running .gnode__live { color: var(--running); }
 .gnode--waiting .gnode__live { color: var(--text-3); font-weight: var(--fw-medium); }
@@ -934,6 +956,8 @@ svg[viewBox="0 0 24 24"] { fill: none; stroke: currentColor; stroke-width: 1.8; 
 .flow__cell--waiting { background: transparent; color: var(--text-3); border: 1px dotted var(--border-strong); }
 .flow__cell--stalled { background: var(--warn-bg); color: var(--warn); border: 1px dashed var(--warn); }
 .flow__cell--died { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
+.flow__cell--failed { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); border-left-width: 3px; }
+.flow__cell--failed svg { width: 14px; height: 14px; }
 
 /* ---------------------------------------------------------------------
    Home page, pipeline context bar, environment filter (spec 008)

@@ -1,7 +1,7 @@
 /* History view: step trend chart and the runs list. A run opens as its own page (views/run.js). */
 import { drawTrend } from '../chart.js';
 import {
-  HEADLINE_TITLE, analyse, dayLabel, dur, esc, fmt, headline, hhmm, runRoute,
+  HEADLINE_TITLE, analyse, dayLabel, dur, esc, filterRuns, fmt, headline, hhmm, runRoute,
 } from '../model.js';
 import { buildRoute } from '../router.js';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../ui.js';
 
 let trendStep = null;
+let show = 'all'; // the run list filter: 'all' or 'failed' (client side; the trend always uses every run)
 let ctx = { runs: [], cfg: null };
 
 const $ = (id) => document.getElementById(id);
@@ -33,6 +34,13 @@ export function envBarHTML(info, count) {
       ? 'Showing <b>' + count + '</b> ' + esc(info.applied) + ' run' + (count === 1 ? '' : 's') + '. The trend and the runs list use this environment.'
       : 'No ' + esc(info.applied) + ' runs for this pipeline.') + '</p></section>'
   );
+}
+
+/** "All runs / Failed only": narrows the runs list to the runs a failed step stopped. */
+function showFilterHTML() {
+  const opt = (v, label) =>
+    '<label class="segmented__opt"><input type="radio" name="show" value="' + v + '"' + (show === v ? ' checked' : '') + '><span>' + label + '</span></label>';
+  return '<fieldset class="segmented segmented--show"><legend class="sr-only">Show</legend>' + opt('all', 'All runs') + opt('failed', 'Failed only') + '</fieldset>';
 }
 
 function noRunsEnvHTML(info) {
@@ -69,13 +77,14 @@ export function renderHistory(el, runs, cfg, envInfo) {
   const num = (v, lbl) =>
     '<span class="run-row__n' + (v == null ? ' run-row__n--na' : '') + '"><span class="run-row__lbl">' + lbl + '</span>' + (v == null ? '—' : fmt(v)) + '</span>';
   const pipelineId = (envInfo && envInfo.pipelineId) || runs[0].pipeline;
-  const rows = runs
+  const shown = filterRuns(runs, show);
+  const rows = shown
     .map((r, i) => {
       const a = analyse(r);
       const h = headline(r);
       return (
         '<li><a class="run-row" href="' + esc(buildRoute(runRoute(pipelineId, r))) + '" data-id="' + esc(r.id) + '">' +
-        '<span class="run-row__date">' + dayLabel(r.startedAt) + (i === 0 ? '<span class="tag-new">Newest</span>' : '') + '<small>' + hhmm(r.startedAt) + ' · ' + dur(a.durationS) + '</small></span>' +
+        '<span class="run-row__date">' + dayLabel(r.startedAt) + (i === 0 && show === 'all' ? '<span class="tag-new">Newest</span>' : '') + '<small>' + hhmm(r.startedAt) + ' · ' + dur(a.durationS) + '</small></span>' +
         '<span class="run-row__status">' + statusPill(a, 'sm') + '</span>' +
         h.map((k) => num(k.value, HEADLINE_TITLE[k.key])).join('') +
         '<span class="run-row__flags">' + (a.loss.length ? lossPill(a.loss.length, 'sm') : '') + unreadablePill(r.unreadable) + '</span>' +
@@ -92,11 +101,18 @@ export function renderHistory(el, runs, cfg, envInfo) {
     '<div class="chart" id="chart" tabindex="0" role="img" aria-roledescription="line chart"></div>' +
     '<div class="chart__legend"><span><i class="lg-dot"></i>value per run</span><span><i class="lg-dot lg-dot--bad"></i>0 with input (possible loss)</span><span><i class="lg-dot lg-dot--gap"></i>step not recorded</span><span>Use ← → to move between runs</span></div></section>' +
     '<section class="card runs" aria-labelledby="runs-title">' +
-    '<div class="section-head" style="padding:16px 20px"><h2 class="section-title" id="runs-title">Runs</h2><span class="faint" style="font-size:12px">' + runs.length + ' runs · newest first</span></div>' +
+    '<div class="section-head" style="padding:16px 20px"><h2 class="section-title" id="runs-title">Runs</h2><span class="faint" style="font-size:12px">' +
+    (show === 'failed' ? shown.length + ' failed of ' + runs.length + ' runs' : runs.length + ' runs') + ' · newest first</span>' + showFilterHTML() + '</div>' +
     '<div class="runs__head" aria-hidden="true"><span>Run</span><span>Status</span>' + ['first', 'peak', 'last'].map((k) => '<span class="r">' + HEADLINE_TITLE[k] + '</span>').join('') + '<span>Flags</span><span></span></div>' +
-    '<ul class="runs__list">' + rows + '</ul></section>';
+    '<ul class="runs__list">' + (rows || '<li class="runs__none" role="status">No failed runs among these ' + runs.length + '.</li>') + '</ul></section>';
 
   if (envInfo) wireEnv(el, envInfo);
+  el.querySelectorAll('input[name="show"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      show = r.value === 'failed' ? 'failed' : 'all';
+      renderHistory(el, runs, cfg, envInfo);
+    }),
+  );
   $('trend-step').addEventListener('change', (e) => {
     trendStep = e.target.value;
     redrawTrend();

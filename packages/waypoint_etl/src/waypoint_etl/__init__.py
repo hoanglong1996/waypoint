@@ -13,7 +13,7 @@ from waypoint_etl.keys import FLOW_VERSION
 from waypoint_etl.registry import init
 from waypoint_etl.spec import GroupSpec, PipelineSpec, StepSpec
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "FLOW_VERSION",

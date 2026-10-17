@@ -1,6 +1,6 @@
 """The one active auditor of this process, set by ``init`` and read by ``audited_step``."""
 
-from typing import Optional
+from typing import Callable, Optional
 
 from waypoint_etl.auditor import StepAuditor
 from waypoint_etl.keys import HEARTBEAT_SECONDS
@@ -35,6 +35,8 @@ def init(
     run_id: Optional[str] = None,
     store: Optional[StepAuditStore] = None,
     heartbeat_seconds: Optional[float] = HEARTBEAT_SECONDS,
+    capture_error_message: bool = True,
+    redact: Optional[Callable[[str], str]] = None,
 ) -> bool:
     """Configure auditing once, from the pipeline's entry point.
 
@@ -43,6 +45,11 @@ def init(
     ``store`` replaces the Redis store (tests, other back ends). While the run is alive an
     "alive" item is refreshed every ``heartbeat_seconds`` so the monitor can tell a dead process
     from a slow one; ``None`` or 0 turns that off.
+
+    When a step raises, a failure item with the error type, a shortened message and a shortened
+    stack trace (never variable values) is written and the exception is re-raised unchanged.
+    ``capture_error_message=False`` leaves the message out; ``redact`` (``str -> str``) cleans every
+    message before it is shortened and stored (a ``redact`` that raises drops the message).
     """
     if _active is not None:
         print("Warning: waypoint_etl.init called again, replacing the previous configuration")
@@ -61,7 +68,18 @@ def init(
         except Exception as exc:
             print(f"Warning: Waypoint disabled, invalid Redis URL: {exc}")
             return False
-    auditor = StepAuditor(store, pipeline, env, ttl_days * 86400, run_id)
+    if redact is not None and not callable(redact):
+        print("Warning: Waypoint ignores redact: it must be a function taking and returning a str")
+        redact = None
+    auditor = StepAuditor(
+        store,
+        pipeline,
+        env,
+        ttl_days * 86400,
+        run_id,
+        capture_error_message=bool(capture_error_message),
+        redact=redact,
+    )
     auditor.start()
     set_active(auditor)
     auditor.start_heartbeat(heartbeat_seconds)

@@ -30,6 +30,10 @@ class RecordStore(Protocol):
         """Return `(key, raw_json)` pairs for every stored died verdict. Read only."""
         ...
 
+    def list_failures(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        """Return `(key, raw_json)` pairs for every failure item. Read only."""
+        ...
+
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
         """Store a died verdict once (never overwrite). The only write the monitor makes.
 

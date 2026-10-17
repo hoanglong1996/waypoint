@@ -99,7 +99,9 @@ Per pipeline, run and environment (`waypoint:{pipeline}:{env}:{run_id}:...`, ful
 - `...:step:{NN}-{step}`: one JSON step record per finished step (counts and finish time);
 - `...:running:{NN}-{step}`: the start marker written just before each step;
 - `...:alive`: the run's heartbeat, refreshed every 15 s while its process lives (`{"v":1, ... , "beat_at"}`);
-- `...:died`: the monitor's own verdict that a run died (written by the monitor, see below).
+- `...:died`: the monitor's own verdict that a run died (written by the monitor, see below);
+- `...:failed:{NN}-{step}`: written by the pipeline when a step raised (error type, shortened message, shortened
+  stack trace; `waypoint-etl` 0.3.0 or newer). The monitor only reads it.
 
 A marker with no finish record for the same step means the step is **running** (or **stalled** past
 `STALL_SECONDS`); later planned steps of that run show **Waiting**. A planned step with no record is
@@ -111,6 +113,22 @@ records are skipped, counted, and shown as "unreadable"; a malformed flow descri
 that is valid and lists what was dropped. Endpoints: `/api/health`, `/api/config`,
 `/api/pipelines?env=`, `/api/runs?env=&pipeline=&limit=` (see
 `../specs/005-self-describing-pipeline-graph/contracts/api.md`).
+
+## Failed steps
+
+A step that raised an error is **Failed** at once (no waiting for a stall or death threshold), with its error type,
+message and stack trace in the step details (scrollable, with a Copy button). A step is Failed when its latest
+attempt failed; a retry that is running or has finished replaces it. The **run** is Failed only when the failure
+stopped the pipeline, meaning no later step was started; the steps after it show **Not reached**. If the pipeline
+caught the error and carried on, only that step is marked Failed and the run keeps its own state (a failed planned
+step does not count as finished, so such a run is Incomplete, never Completed). A Failed run is never judged Died,
+even though its heartbeat stops, and the monitor writes no died verdict for it. Priority for the card and the run:
+Running, **Failed**, Died, Stale, Incomplete, Lost data, Completed; Failed cards lead the "Needs attention" group.
+History marks Failed runs and has an "All runs / Failed only" filter.
+
+Error text is data from your pipeline, shown as plain text only. It is capped (message 500 characters, trace 8 KB)
+on both sides. Pipelines choose in `waypoint_etl.init` whether messages are stored and may pass a cleaning function
+(see the library README). No new Redis permission is needed. Older pipelines send no failure items and look as before.
 
 ## Hung or dead?
 

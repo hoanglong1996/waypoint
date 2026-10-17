@@ -127,7 +127,7 @@ export function neighbours(edges, i) {
 
 /**
  * stopped = first missing, unreached = later missing, loss, ok; affected = ok nodes downstream of a loss.
- * Live steps: running, waiting, and stalled or died (stop points like `stopped`, so later missing steps are unreached).
+ * Live steps: running, waiting, and stalled, died or failed (stop points like `stopped`, so later missing steps are unreached).
  */
 export function nodeStates(run, edges) {
   let firstMissing = -1;
@@ -137,7 +137,7 @@ export function nodeStates(run, edges) {
     const state = stepState(s);
     if (state === 'running' || state === 'waiting') {
       st[i] = state;
-    } else if (state === 'stalled' || state === 'died') {
+    } else if (state === 'stalled' || state === 'died' || state === 'failed') {
       st[i] = state;
       if (firstMissing < 0) firstMissing = i;
     } else if (state === 'missing') {

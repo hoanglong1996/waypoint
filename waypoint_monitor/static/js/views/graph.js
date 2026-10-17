@@ -14,14 +14,15 @@ import { stepItemHTML } from './step.js';
 
 const STATE_TXT = {
   ok: 'Fine', loss: 'Data loss', stopped: 'Not reported', unreached: 'Not reached',
-  running: 'Running', waiting: 'Waiting', stalled: 'Stalled', died: 'Died',
+  running: 'Running', waiting: 'Waiting', stalled: 'Stalled', died: 'Died', failed: 'Failed',
 };
 const STATE_LONG = {
   ok: 'fine', loss: 'possible data loss', stopped: 'not reported — the run stopped here', unreached: 'not reached',
   running: 'running now', waiting: 'waiting for an earlier step', stalled: 'stalled — alive but running far longer than expected, the run stopped here',
   died: 'died — the process is gone, the run stopped here',
+  failed: 'failed — the step raised an error, later steps were not reached',
 };
-const STATE_ICON = { running: I.spinner, waiting: I.hourglass, stalled: I.alert, died: I.power };
+const STATE_ICON = { running: I.spinner, waiting: I.hourglass, stalled: I.alert, died: I.power, failed: I.failed };
 const stateIcon = (s) => STATE_ICON[s] || (s === 'ok' ? I.check : s === 'loss' ? I.octagon : I.gap);
 const nameWbr = (n) => esc(n).replace(/_/g, '_<wbr>');
 const labelOf = (d) => d.label || d.name;
@@ -96,6 +97,7 @@ function build(el, o) {
     let count;
     let time = '';
     if (mode === 'run' && (st === 'running' || st === 'stalled')) count = '<span class="gnode__live">' + elapsedHTML(s) + '</span>';
+    else if (mode === 'run' && st === 'failed') count = '<span class="gnode__live">' + (s.error ? esc(s.error.type) : 'failed') + '</span>';
     else if (mode === 'run' && st === 'died') count = '<span class="gnode__live">last seen ' + (s.lastSeenAt ? hhmmss(s.lastSeenAt) : '?') + '</span>';
     else if (mode === 'ghost' || !isDone(s)) count = '<span class="gnode__count gnode__count--na">—</span>';
     else if (s.output == null) count = '<span class="gnode__count gnode__count--na">n/a <small>· returns nothing</small></span>';
@@ -153,6 +155,8 @@ function summaryText(run, ns, steps) {
   if (running >= 0) parts.push('<span class="t-run">' + I.spinner + 'running <span class="mono">' + esc(steps[running].name) + '</span></span>');
   const stalled = ns.st.indexOf('stalled');
   if (stalled >= 0) parts.push('<span class="t-warn">' + I.alert + 'stalled at <span class="mono">' + esc(steps[stalled].name) + '</span></span>');
+  const failed = ns.st.indexOf('failed');
+  if (failed >= 0) parts.push('<span class="t-bad">' + I.failed + 'failed at <span class="mono">' + esc(steps[failed].name) + '</span></span>');
   const died = ns.st.indexOf('died');
   if (died >= 0) parts.push('<span class="t-bad">' + I.power + 'died at <span class="mono">' + esc(steps[died].name) + '</span></span>');
   const stop = ns.st.indexOf('stopped');
@@ -174,7 +178,8 @@ function legendHTML(kind, run, simple) {
       '<span class="gpill gpill--running">' + I.spinner + '<span class="gpill__txt">Running</span></span>' +
       '<span class="gpill gpill--waiting">' + I.hourglass + '<span class="gpill__txt">Waiting</span></span>' +
       '<span class="gpill gpill--stalled">' + I.alert + '<span class="gpill__txt">Stalled</span></span>' +
-      '<span class="gpill gpill--died">' + I.power + '<span class="gpill__txt">Died</span></span></div>' +
+      '<span class="gpill gpill--died">' + I.power + '<span class="gpill__txt">Died</span></span>' +
+      '<span class="gpill gpill--failed">' + I.failed + '<span class="gpill__txt">Failed</span></span></div>' +
     (simple ? '' : '<div class="graph-legend__group"><span class="eyebrow">Arrows</span>' +
       '<span class="lg-item">' + ln('lg-ok') + 'items flow · thicker = more</span>' +
       '<span class="lg-item">' + ln('lg-empty') + '0 items</span>' +

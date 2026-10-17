@@ -62,6 +62,7 @@ class FakeStore:
         self.markers: Raw = []
         self.alive: Raw = []
         self.died: Raw = []
+        self.failures: Raw = []
         self.fail = False
         self.fail_write = False
         self.calls = 0
@@ -72,7 +73,7 @@ class FakeStore:
             raise StoreUnavailable("down")
 
     def _all(self) -> Raw:
-        return self.records + self.markers + self.alive + self.died
+        return self.records + self.markers + self.alive + self.died + self.failures
 
     def list_pipelines(self, env: str) -> List[str]:
         self._check()
@@ -108,6 +109,11 @@ class FakeStore:
         self._check()
         prefix = _prefix(pipeline, env)
         return [(k, v) for k, v in self.died if k.startswith(prefix)]
+
+    def list_failures(self, env: str, pipeline: str) -> Raw:
+        self._check()
+        prefix = _prefix(pipeline, env)
+        return [(k, v) for k, v in self.failures if k.startswith(prefix)]
 
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
         self.write_calls.append((key, value, alive_key))
@@ -271,3 +277,39 @@ def make_died(
         "last_seen_at": _stamp(last_seen_at),
     }
     return f"{_prefix(pipeline, env)}{run_id}:died", json.dumps(value)
+
+
+def make_failure(
+    env: str,
+    run_id: str,
+    step_index: int,
+    failed_at: datetime,
+    pipeline: str = PIPELINE,
+    step: Optional[str] = None,
+    index: Optional[int] = None,
+    started_at: Optional[datetime] = None,
+    error: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, str]:
+    """One failure item for the 0-based `step_index` of the run (or a named `step`).
+
+    `index` is the attempt index (default `step_index + 1`); use a higher one for a retry.
+    """
+    name = step or STEP_NAMES[step_index]
+    attempt = index if index is not None else step_index + 1
+    value = {
+        "v": 1,
+        "pipeline": pipeline,
+        "env": env,
+        "run_id": run_id,
+        "step": name,
+        "index": attempt,
+        "started_at": _stamp(started_at or failed_at - timedelta(seconds=5)),
+        "failed_at": _stamp(failed_at),
+        "error": error
+        or {
+            "type": "ValueError",
+            "message": "boom",
+            "traceback": '  File "x.py", line 3, in run\n    raise ValueError("boom")\nValueError: boom\n',
+        },
+    }
+    return f"{_prefix(pipeline, env)}{run_id}:failed:{attempt:02d}-{name}", json.dumps(value)

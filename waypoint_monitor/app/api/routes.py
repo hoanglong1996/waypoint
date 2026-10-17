@@ -1,13 +1,14 @@
 import json
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from app.config import Settings
 from app.domain.analysis import build_runs
+from app.domain.models import ParseResult
 from app.domain.overview import build_overview
 from app.domain.parsing import (
     PIPELINE_NAME,
@@ -15,6 +16,7 @@ from app.domain.parsing import (
     died_key,
     parse_alive,
     parse_died,
+    parse_failures,
     parse_flows,
     parse_markers,
     parse_records,
@@ -22,6 +24,20 @@ from app.domain.parsing import (
 from app.infrastructure.store import RecordStore, StoreUnavailable
 
 UNAVAILABLE = "Data store unavailable"
+
+Raw = List[Tuple[str, str]]
+
+
+class Window(NamedTuple):
+    """Everything read for one pipeline and environment in one cached window."""
+
+    at: float
+    flows: Raw
+    records: Raw
+    markers: Raw
+    alive: Raw
+    died: Raw
+    failures: Raw
 
 
 def _error(status: int, message: str, **extra: Any) -> JSONResponse:
@@ -37,25 +53,28 @@ def build_router(
     clock = clock or time.monotonic
     now = now or (lambda: datetime.now(timezone.utc))
     router = APIRouter(prefix="/api")
-    Raw = List[Tuple[str, str]]
-    cache: Dict[Tuple[str, str], Tuple[float, Raw, Raw, Raw, Raw, Raw]] = {}
+    cache: Dict[Tuple[str, str], Window] = {}
 
-    def keys_for(env: str, pipeline: str) -> Tuple[Raw, Raw, Raw, Raw, Raw]:
-        """Flows, audit records, start markers, heartbeats and verdicts, read in one cached window."""
+    def keys_for(env: str, pipeline: str) -> Window:
+        """Flows, audit records, start markers, heartbeats, verdicts and failures, in one cached window."""
         hit = cache.get((env, pipeline))
-        if hit is not None and clock() - hit[0] < settings.cache_seconds:
-            return hit[1], hit[2], hit[3], hit[4], hit[5]
+        if hit is not None and clock() - hit.at < settings.cache_seconds:
+            return hit
         try:
-            flows = store.list_flows(env, pipeline)
-            records = store.list_records(env, pipeline)
-            markers = store.list_markers(env, pipeline)
-            alive = store.list_alive(env, pipeline)
-            died = store.list_died(env, pipeline)
+            window = Window(
+                clock(),
+                store.list_flows(env, pipeline),
+                store.list_records(env, pipeline),
+                store.list_markers(env, pipeline),
+                store.list_alive(env, pipeline),
+                store.list_died(env, pipeline),
+                store.list_failures(env, pipeline),
+            )
         except StoreUnavailable:
             cache.pop((env, pipeline), None)  # never answer an unreachable store from old data
             raise
-        cache[(env, pipeline)] = (clock(), flows, records, markers, alive, died)
-        return flows, records, markers, alive, died
+        cache[(env, pipeline)] = window
+        return window
 
     def record_verdicts(env: str, pipeline: str, built: List[Dict[str, Any]]) -> None:
         """Store the verdict of each run judged Died for the first time (the monitor's only write).
@@ -87,9 +106,15 @@ def build_router(
             cache.pop((env, pipeline), None)  # the next view reads back what is stored
 
     def build(env: str, pipeline: str, moment: datetime) -> Tuple[Any, List[Dict[str, Any]]]:
-        raw_flows, raw_records, raw_markers, raw_alive, raw_died = keys_for(env, pipeline)
-        parsed = parse_records(env, pipeline, raw_records)
-        flows = parse_flows(env, pipeline, raw_flows)
+        window = keys_for(env, pipeline)
+        parsed = parse_records(env, pipeline, window.records)
+        failures, failure_unreadable = parse_failures(env, pipeline, window.failures)
+        # a damaged failure item counts as unreadable for its run, like a damaged step record
+        by_run = dict(parsed.unreadable_by_run)
+        for run_id, count in failure_unreadable.items():
+            by_run[run_id] = by_run.get(run_id, 0) + count
+        parsed = ParseResult(parsed.records, by_run, parsed.unreadable_unattributed)
+        flows = parse_flows(env, pipeline, window.flows)
         built = build_runs(
             parsed,
             env,
@@ -97,10 +122,11 @@ def build_router(
             moment,
             settings.stale_hours,
             flows=flows,
-            markers=parse_markers(env, pipeline, raw_markers),
+            markers=parse_markers(env, pipeline, window.markers),
             stall_seconds=settings.stall_seconds,
-            alive=parse_alive(env, pipeline, raw_alive),
-            verdicts=parse_died(env, pipeline, raw_died),
+            alive=parse_alive(env, pipeline, window.alive),
+            verdicts=parse_died(env, pipeline, window.died),
+            failures=failures,
             dead_seconds=settings.heartbeat_dead_seconds,
         )
         record_verdicts(env, pipeline, built)

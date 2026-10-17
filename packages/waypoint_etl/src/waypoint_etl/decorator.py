@@ -41,6 +41,9 @@ def audited_step(
     Input counts come from the call's arguments, matched to the step's inputs in the pipeline spec
     by parameter name; ``inputs={"parameter": "input_name"}`` renames. With no active auditor (no
     ``waypoint_etl.init``) the decorated function behaves exactly like the original.
+
+    If the function raises an ``Exception`` (sync or ``async``), a failure item is recorded and the
+    same exception is re-raised untouched; recording can never change or hide it.
     """
     rename = inputs or {}
 
@@ -56,7 +59,11 @@ def audited_step(
                 if auditor is None:
                     return await async_fn(*args, **kwargs)
                 index = auditor.begin(name)
-                result = await async_fn(*args, **kwargs)
+                try:
+                    result = await async_fn(*args, **kwargs)
+                except Exception as exc:
+                    auditor.fail(name, index, exc)
+                    raise
                 auditor.finish(
                     name,
                     index,
@@ -74,7 +81,11 @@ def audited_step(
             if auditor is None:
                 return fn(*args, **kwargs)
             index = auditor.begin(name)
-            result = fn(*args, **kwargs)
+            try:
+                result = fn(*args, **kwargs)
+            except Exception as exc:
+                auditor.fail(name, index, exc)
+                raise
             auditor.finish(
                 name,
                 index,

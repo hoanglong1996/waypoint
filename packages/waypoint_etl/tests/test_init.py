@@ -69,6 +69,63 @@ class TestInit(unittest.TestCase):
         assert auditor is not None
         self.assertEqual((auditor.run_id, auditor.env), ("B", "prod"))
 
+    def test_error_settings_default_to_message_on_and_no_cleaner(self) -> None:
+        waypoint_etl.init(pipeline=SPEC, redis_url=None, env="qa", store=FakeStore())
+        auditor = registry.get_active()
+        assert auditor is not None
+        self.assertTrue(auditor.capture_error_message)
+        self.assertIsNone(auditor.redact)
+
+    def test_error_settings_are_passed_to_the_auditor(self) -> None:
+        def clean(text: str) -> str:
+            return text.upper()
+
+        waypoint_etl.init(
+            pipeline=SPEC,
+            redis_url=None,
+            env="qa",
+            store=FakeStore(),
+            capture_error_message=False,
+            redact=clean,
+        )
+        auditor = registry.get_active()
+        assert auditor is not None
+        self.assertFalse(auditor.capture_error_message)
+        self.assertIs(auditor.redact, clean)
+
+    def test_a_redact_that_is_not_a_function_warns_and_is_ignored(self) -> None:
+        with patch("builtins.print") as printed:
+            ok = waypoint_etl.init(
+                pipeline=SPEC, redis_url=None, env="qa", store=FakeStore(), redact="no"  # type: ignore[arg-type]
+            )
+        self.assertTrue(ok)
+        self.assertIn("redact", str(printed.call_args_list))
+        auditor = registry.get_active()
+        assert auditor is not None
+        self.assertIsNone(auditor.redact)
+
+    def test_message_off_and_redact_reach_the_stored_failure(self) -> None:
+        for kw, expected in (
+            ({"capture_error_message": False}, None),
+            ({"redact": lambda t: t.replace("jane@x.io", "<email>")}, "bad <email>"),
+        ):
+            store = FakeStore()
+            waypoint_etl.init(
+                pipeline=SPEC, redis_url=None, env="qa", run_id="R", store=store, **kw
+            )
+
+            @waypoint_etl.audited_step("extract")
+            def fetch() -> None:
+                raise ValueError("bad " + "jane" + "@x.io")
+
+            with self.assertRaises(ValueError):
+                fetch()
+            (item,) = [r for k, r, _ in store.records if ":failed:" in k]
+            error = item["error"]
+            assert isinstance(error, dict)
+            self.assertEqual(error.get("message"), expected)
+            self.assertNotIn("jane@x.io", str(item))
+
     def test_keys_use_the_pipeline_name_and_env(self) -> None:
         store = FakeStore()
         waypoint_etl.init(pipeline=SPEC, redis_url=None, env="prod", run_id="R", store=store)

@@ -19,6 +19,7 @@ export const I = {
   refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3.5M4 5v3.5h3.5M4 13a8 8 0 0 0 14.9 3.5M20 19v-3.5h-3.5"/></svg>',
   fileX: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M10 13l4 4M14 13l-4 4"/></svg>',
   gap: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg>',
+  failed: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5a3.5 3.5 0 0 1 7 0v6.5a3.5 3.5 0 0 1-7 0Z"/><path d="M12 8v13M3.5 11l5 1.5M20.5 11l-5 1.5M3.5 19l5-1.5M20.5 19l-5-1.5M9.5 4 11 6M14.5 4 13 6"/></svg>',
   power: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>',
   spinner: '<svg class="spin" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.2-8.55"/></svg>',
   hourglass: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/></svg>',
@@ -86,6 +87,7 @@ export function envTag(env, lg) {
 /* ---------- pills (status = icon + text + colour) ---------- */
 export function statusPill(a, size) {
   const cls = size ? ' pill--' + size : '';
+  if (a.failed) return '<span class="pill pill--bad' + cls + '">' + I.failed + 'Failed</span>';
   if (a.died) return '<span class="pill pill--bad' + cls + '">' + I.power + 'Died</span>';
   if (a.running) return '<span class="pill pill--run' + cls + '">' + I.spinner + 'Running</span>';
   if (a.complete) return '<span class="pill pill--ok' + cls + '">' + I.checkCircle + 'Complete</span>';
@@ -96,6 +98,55 @@ export function elapsedHTML(s) {
   const secs = s.elapsedSeconds == null ? 0 : s.elapsedSeconds;
   return '<span class="num" data-elapsed="' + secs + '" data-fetched="' + (s.fetchedAt || Date.now()) + '">' + elapsedLabel(secs) + '</span>';
 }
+/* ---------- copy button (error text) ---------- */
+const copyTexts = new Map();
+let copyWired = false;
+
+/**
+ * A Copy button for `text`. The text stays in memory under `key` and is copied from there, never read back
+ * from the page, so nothing the error said is ever interpreted as markup.
+ */
+export function copyButtonHTML(key, text) {
+  copyTexts.set(key, text);
+  return '<button type="button" class="btn btn--sm btn--copy" data-copy="' + esc(key) + '">Copy</button>';
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  return new Promise((resolve, reject) => {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(box);
+    box.select();
+    try {
+      document.execCommand('copy') ? resolve() : reject(new Error('copy refused'));
+    } catch (e) {
+      reject(e);
+    } finally {
+      box.remove();
+    }
+  });
+}
+
+/** One delegated click handler for every Copy button; safe to call again. */
+export function wireCopy() {
+  if (copyWired || typeof document === 'undefined') return;
+  copyWired = true;
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target instanceof Element ? ev.target.closest('[data-copy]') : null;
+    if (!btn) return;
+    const text = copyTexts.get(btn.getAttribute('data-copy'));
+    if (text == null) return;
+    const idle = btn.textContent;
+    copyToClipboard(text).then(
+      () => { btn.textContent = 'Copied'; },
+      () => { btn.textContent = 'Copy failed'; },
+    ).finally(() => setTimeout(() => { btn.textContent = idle; }, 2000));
+  });
+}
+
 export function lossPill(n, size) {
   if (!n) return '';
   return '<span class="pill pill--bad pill--' + (size || 'sm') + '">' + I.octagon + (n === 1 ? 'Possible data loss' : n + ' steps with possible data loss') + '</span>';

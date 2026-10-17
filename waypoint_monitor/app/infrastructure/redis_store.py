@@ -51,6 +51,9 @@ class RedisRecordStore:
     def list_died(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         return self._scan(f"{ROOT}:{pipeline}:{env}:*:died")
 
+    def list_failures(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        return self._scan(f"{ROOT}:{pipeline}:{env}:*:failed:*")
+
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
         """`SET key value NX PX <remaining life of the heartbeat item>`; False on any failure."""
         try:

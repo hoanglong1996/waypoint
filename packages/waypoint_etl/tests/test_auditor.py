@@ -278,6 +278,11 @@ class TestStartMarker(unittest.TestCase):
             self.auditor.run("read_x", boom)
         self.assertEqual(len(markers(self.store)), 1)
         self.assertEqual(finished(self.store), [])
+        # since 0.3.0 the failure is recorded as its own item (the marker is left in place)
+        self.assertEqual(
+            [k for k, _, _ in self.store.records if ":failed:" in k],
+            ["waypoint:demo:prod:R1:failed:01-read_x"],
+        )
 
     def test_noop_store_works(self) -> None:
         a = StepAuditor(NoopStepAuditStore(), SPEC, env="", ttl_seconds=0, run_id="R")

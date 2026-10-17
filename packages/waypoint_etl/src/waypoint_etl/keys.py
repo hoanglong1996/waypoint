@@ -20,3 +20,7 @@ def marker_key(pipeline: str, env: str, run_id: str, index: int, step: str) -> s
 
 def alive_key(pipeline: str, env: str, run_id: str) -> str:
     return f"{ROOT}:{pipeline}:{env}:{run_id}:alive"
+
+
+def failed_key(pipeline: str, env: str, run_id: str, index: int, step: str) -> str:
+    return f"{ROOT}:{pipeline}:{env}:{run_id}:failed:{index:02d}-{step}"

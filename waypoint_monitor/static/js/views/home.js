@@ -7,25 +7,31 @@ import { buildRoute } from '../router.js';
 import { I, elapsedHTML, envTag } from '../ui.js';
 
 const ICON = {
-  running: I.spinner, died: I.power, stale: I.clock, incomplete: I.xCircle, lost: I.octagon, ok: I.checkCircle,
+  running: I.spinner, failed: I.failed, died: I.power, stale: I.clock, incomplete: I.xCircle, lost: I.octagon, ok: I.checkCircle,
 };
 
 function whenHTML(card, w) {
   if (w.kind === 'running') return 'running for ' + elapsedHTML({ elapsedSeconds: w.seconds, fetchedAt: card.fetchedAt });
   if (w.kind === 'stalled') return 'stalled for ' + elapsedHTML({ elapsedSeconds: w.seconds, fetchedAt: card.fetchedAt });
   if (w.kind === 'died') return 'last seen ' + elapsedHTML({ elapsedSeconds: w.seconds, fetchedAt: card.fetchedAt }) + ' ago';
+  if (w.kind === 'failed') return 'failed ' + ago(w.hours);
   return (w.kind === 'stopped' ? 'stopped ' : 'finished ') + ago(w.hours);
 }
 const whenText = (w) => {
   if (w.kind === 'running') return 'running for ' + elapsedLabel(w.seconds);
   if (w.kind === 'stalled') return 'stalled for ' + elapsedLabel(w.seconds);
   if (w.kind === 'died') return 'last seen ' + elapsedLabel(w.seconds) + ' ago';
+  if (w.kind === 'failed') return 'failed ' + ago(w.hours);
   return (w.kind === 'stopped' ? 'stopped ' : 'finished ') + ago(w.hours);
 };
 
 function reasonHTML(r) {
   if (!r) return '';
   if (r.kind === 'stale') return 'Last night’s run is missing (expected every ' + r.hours + ' h at most)';
+  if (r.kind === 'failed') {
+    return 'Failed at <code>' + esc(r.step) + '</code>: <b>' + esc(r.errorType) + '</b>' +
+      (r.message ? ' <span class="pcard__msg">' + esc(r.message) + '</span>' : '');
+  }
   if (r.kind === 'died') return 'Died at <code>' + esc(r.step) + '</code> (the process is gone)';
   if (r.kind === 'stalled') return 'Stalled at <code>' + esc(r.step) + '</code> (alive, not progressing)';
   if (r.kind === 'stopped') return 'Stopped at <code>' + esc(r.step) + '</code>';

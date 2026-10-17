@@ -21,6 +21,16 @@ class TestKeys(unittest.TestCase):
         self.assertEqual(keys.alive_key("p", "qa", "R"), "waypoint:p:qa:R:alive")
         self.assertEqual(keys.HEARTBEAT_SECONDS, 15)
 
+    def test_failed_key(self) -> None:
+        # specs/011-step-failure-errors/contracts/redis-keys.md
+        self.assertEqual(
+            keys.failed_key("callrail", "prod", "20261017T020000Z", 2, "read_x"),
+            "waypoint:callrail:prod:20261017T020000Z:failed:02-read_x",
+        )
+        self.assertEqual(
+            keys.failed_key("p", "qa", "R", 12, "load"), "waypoint:p:qa:R:failed:12-load"
+        )
+
     def test_flow_version_unchanged(self) -> None:
         self.assertEqual(keys.FLOW_VERSION, 1)
 

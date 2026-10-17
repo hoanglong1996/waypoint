@@ -8,6 +8,7 @@ from app.domain.models import (
     FlowStep,
     ParseResult,
     StartMarker,
+    StepFailure,
     StepRecord,
 )
 from app.domain.parsing import parse_run_id
@@ -47,6 +48,41 @@ def _judge_died(
     if (now - beat.beat_at).total_seconds() <= dead_seconds:
         return None
     return {"judged_at": _iso(now), "last_seen_at": _iso(beat.beat_at), "recorded": False}
+
+
+def _error_json(failure: StepFailure) -> Dict[str, Any]:
+    error: Dict[str, Any] = {"type": failure.error.type}
+    if failure.error.message is not None:
+        error["message"] = failure.error.message
+    error["traceback"] = failure.error.traceback
+    return error
+
+
+def _current_failures(
+    failures: Sequence[StepFailure],
+    reported: Mapping[str, StepRecord],
+    run_markers: Mapping[str, StartMarker],
+) -> Dict[str, StepFailure]:
+    """Steps whose latest attempt failed (specs/011-step-failure-errors/data-model.md).
+
+    Attempts are told apart by `index`, not by time: a failure stands unless a finish record or a
+    start marker of the same step has a higher index (a retry that ran or is running).
+    """
+    latest: Dict[str, StepFailure] = {}
+    for failure in failures:
+        known = latest.get(failure.step)
+        if known is None or failure.index > known.index:
+            latest[failure.step] = failure
+    current: Dict[str, StepFailure] = {}
+    for name, failure in latest.items():
+        finished = reported.get(name)
+        begun = run_markers.get(name)
+        if finished is not None and finished.index >= failure.index:
+            continue
+        if begun is not None and begun.index > failure.index:
+            continue
+        current[name] = failure
+    return current
 
 
 def _is_loss(output: Optional[int], inputs: List[Dict[str, Any]]) -> bool:
@@ -96,23 +132,44 @@ def _build_run(
     beat: Optional[AliveSignal],
     verdict: Optional[DiedVerdict],
     dead_seconds: float,
+    failures: Sequence[StepFailure] = (),
 ) -> Dict[str, Any]:
     started = parse_run_id(run_id)
     planned: List[FlowStep] = list(flow.steps) if flow else []
     planned_names = {s.name for s in planned}
-    unfinished = any(s.name not in reported for s in planned) or any(
-        name not in reported for name in run_markers
+    current = _current_failures(failures, reported, run_markers)
+    # a failure that stopped the pipeline: no other attempt of the run has a higher index
+    top = max(
+        [r.index for r in reported.values()]
+        + [m.index for m in run_markers.values()]
+        + [f.index for f in failures],
+        default=0,
     )
-    died = _judge_died(now, unfinished, beat, verdict, dead_seconds)
+    stopping = next((f for f in current.values() if f.index == top), None)
+    # a failed step is terminal, so it is not unfinished work for the heartbeat rule
+    unfinished = any(s.name not in reported and s.name not in current for s in planned) or any(
+        name not in reported and name not in current for name in run_markers
+    )
+    # Failed takes precedence over Died: the failure explains why the heartbeat stopped
+    died = (
+        None if stopping is not None else _judge_died(now, unfinished, beat, verdict, dead_seconds)
+    )
 
     def live(name: str) -> Optional[StartMarker]:
         begun = run_markers.get(name)
-        return begun if name not in reported and begun is not None else None
+        if name in reported or name in current or begun is None:
+            return None
+        return begun
+
+    def attempt(name: str) -> int:
+        if name in current:
+            return current[name].index
+        return reported[name].index if name in reported else run_markers[name].index
 
     # unplanned steps (or every step when there is no flow), in the order they ran
     extra = sorted(
-        {n for n in list(reported) + list(run_markers) if n not in planned_names},
-        key=lambda n: (reported[n].index if n in reported else run_markers[n].index, n),
+        {n for n in list(reported) + list(run_markers) + list(current) if n not in planned_names},
+        key=lambda n: (attempt(n), n),
     )
     running_index: Optional[int] = None
     for i, step in enumerate(planned):
@@ -125,6 +182,7 @@ def _build_run(
         and flow is not None
         and not reported
         and not run_markers
+        and not current
         and (now - started).total_seconds() <= stall_seconds
     )
 
@@ -162,6 +220,19 @@ def _build_run(
         elif planned_step:
             missing.append(name)
 
+    def add_failed(name: str, failure: StepFailure, planned_step: bool) -> None:
+        out_steps.append(
+            {
+                "name": name,
+                "state": "failed",
+                "started_at": _iso(failure.started_at),
+                "failed_at": _iso(failure.failed_at),
+                "error": _error_json(failure),
+            }
+        )
+        if planned_step:
+            missing.append(name)
+
     def add_done(name: str, found: StepRecord, declared: Sequence[str], planned_step: bool) -> None:
         inputs = _ordered_inputs(declared, found.inputs)
         state = "done" if planned_step or flow is None else "unplanned"
@@ -178,6 +249,9 @@ def _build_run(
             loss.append(name)
 
     for i, step in enumerate(planned):
+        if step.name in current:
+            add_failed(step.name, current[step.name], True)
+            continue
         found = reported.get(step.name)
         if found is not None:
             add_done(step.name, found, [x.name for x in step.inputs], True)
@@ -191,13 +265,19 @@ def _build_run(
             out_steps.append({"name": step.name, "state": "missing", "missing": True})
             missing.append(step.name)
     for name in extra:
+        if name in current:
+            add_failed(name, current[name], False)
+            continue
         found = reported.get(name)
         if found is not None:
             add_done(name, found, [], False)
         else:
             add_unfinished(name, run_markers[name], False)
 
-    ended = max((r.finished_at for r in reported.values()), default=started)
+    ended = max(
+        [r.finished_at for r in reported.values()] + [f.failed_at for f in current.values()],
+        default=started,
+    )
     age = max(0, int((now - ended).total_seconds()))
     running = running_step is not None or starting
     return {
@@ -210,7 +290,9 @@ def _build_run(
         "age_seconds": age,
         "stale": not running and age > stale_hours * 3600,
         "status": (
-            "running" if running else ("complete" if not missing and died is None else "incomplete")
+            "running"
+            if running
+            else ("complete" if not missing and died is None and not current else "incomplete")
         ),
         "running_step": running_step,
         "first_missing_step": missing[0] if missing else None,
@@ -218,6 +300,15 @@ def _build_run(
         "loss_steps": loss,
         "unreadable": unreadable,
         "died": died,
+        "failed": (
+            {
+                "step": stopping.step,
+                "index": stopping.index,
+                "failed_at": _iso(stopping.failed_at),
+            }
+            if stopping is not None
+            else None
+        ),
         "flow_status": flow_status,
         "flow_problems": list(flow.problems) if flow else [],
         "flow": _flow_json(flow) if flow else None,
@@ -237,6 +328,7 @@ def build_runs(
     alive: Optional[Mapping[str, AliveSignal]] = None,
     verdicts: Optional[Mapping[str, DiedVerdict]] = None,
     dead_seconds: float = 90.0,
+    failures: Sequence[StepFailure] = (),
 ) -> List[Dict[str, Any]]:
     """Group records into runs (newest first), each drawn from its own flow description.
 
@@ -250,6 +342,10 @@ def build_runs(
     whose heartbeat is older than `dead_seconds` while work is unfinished, or that has a verdict, is
     Died: its open step is `died`, later planned steps are missing and it is never running. A
     heartbeat alone never creates a run.
+
+    `failures` are the validated failure items. A step whose latest attempt failed is `failed`
+    (never running, stalled or died); a failure that no later attempt of the run follows stopped the
+    pipeline, and then `failed` names it and the run is not Died. A failure item alone creates a run.
     """
     flows = flows or {}
     alive = alive or {}
@@ -271,6 +367,10 @@ def build_runs(
         by_run.setdefault(marker.run_id, {})
     for run_id in flows:
         by_run.setdefault(run_id, {})
+    failures_by_run: Dict[str, List[StepFailure]] = {}
+    for failure in failures:
+        failures_by_run.setdefault(failure.run_id, []).append(failure)
+        by_run.setdefault(failure.run_id, {})
 
     return [
         _build_run(
@@ -287,6 +387,7 @@ def build_runs(
             alive.get(run_id),
             verdicts.get(run_id),
             dead_seconds,
+            failures_by_run.get(run_id, ()),
         )
         for run_id in sorted(by_run, reverse=True)
     ]

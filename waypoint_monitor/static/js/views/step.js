@@ -1,9 +1,24 @@
 /* One step as a timeline item (<li>). Used by the run page's list and the graph's "Selected step" panel. */
 import { sparkline } from '../chart.js';
 import { esc, fmt, hhmmss, isDone, isLoss, metric, stepOf, stepState } from '../model.js';
-import { I, deltaChip, elapsedHTML, lossPill } from '../ui.js';
+import {
+  I, copyButtonHTML, deltaChip, elapsedHTML, lossPill,
+} from '../ui.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
+
+/** The error of a failed step: type, message when stored, and the stack trace (scrollable, copyable). */
+export function errorBlockHTML(run, s, compact) {
+  const e = s.error;
+  const head = '<span class="step__error-type mono">' + esc(e.type) + '</span>' +
+    (e.message != null ? '<span class="step__error-msg">' + esc(e.message) + '</span>' : '<span class="step__error-msg faint">message not stored</span>');
+  if (compact) return '<div class="step__error step__error--compact">' + head + '</div>';
+  const copy = e.type + (e.message != null ? ': ' + e.message : '') + '\n\n' + e.traceback;
+  return '<div class="step__error" role="group" aria-label="Error">' +
+    '<div class="step__error-head"><div class="step__error-title">' + head + '</div>' +
+    copyButtonHTML(run.env + '|' + run.id + '|' + s.name, copy) + '</div>' +
+    (e.traceback ? '<pre class="step__trace" tabindex="0" aria-label="Stack trace">' + esc(e.traceback) + '</pre>' : '') + '</div>';
+}
 
 export function stepItemHTML(run, runs, cfg, i, compact) {
   const idx = runs.indexOf(run);
@@ -17,11 +32,12 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   const loss = isLoss(s);
   const live = stepState(s);
   const died = live === 'died';
+  const failed = live === 'failed';
   const isLive = live === 'running' || live === 'waiting' || live === 'stalled';
   const missing = !!s.missing;
-  const state = missing ? 'missing' : isLive || died ? live : loss ? 'loss' : 'ok';
-  const nodeInner = missing || isLive || died ? i + 1 : loss ? '!' : i + 1;
-  const statusText = missing ? 'not recorded' : isLive || died ? live : loss ? 'possible data loss' : 'ok';
+  const state = missing ? 'missing' : isLive || died || failed ? live : loss ? 'loss' : 'ok';
+  const nodeInner = failed ? I.failed : missing || isLive || died ? i + 1 : loss ? '!' : i + 1;
+  const statusText = missing ? 'not recorded' : isLive || died || failed ? live : loss ? 'possible data loss' : 'ok';
   const name = esc(def.label && def.label !== s.name ? def.label + ' · ' + s.name : s.name);
 
   html += '<li class="step step--' + state + '"><div class="step__rail" aria-hidden="true"><span class="step__node">' + nodeInner + '</span></div>';
@@ -30,6 +46,7 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   html += '<div class="step__name"><div class="step__title">' + name + '</div><div class="step__time">';
   if (missing) html += '<span>No record</span>';
   else if (live === 'waiting') html += '<span>Not started</span>';
+  else if (failed) html += '<span>Started ' + (s.startedAt ? hhmmss(s.startedAt) : '') + ' · failed ' + (s.failedAt ? hhmmss(s.failedAt) : '') + '</span>';
   else if (isLive || died) html += '<span>Started ' + (s.startedAt ? hhmmss(s.startedAt) : '') + '</span>';
   else if (!s.finishedAt) html += '<span>No finish time</span>';
   else {
@@ -40,7 +57,7 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   html += '</div></div>';
 
   html += '<div class="step__inputs" aria-label="Inputs">';
-  if (died) {
+  if (died || failed) {
     html += '<span class="chip chip--none">input not recorded</span>';
   } else if (live === 'running' || live === 'stalled') {
     html += '<span class="chip chip--none">input pending</span>';
@@ -60,6 +77,9 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   if (live === 'running') {
     html += '<div class="step__live"><span class="step__live-text">' + I.spinner + '<span>Running · ' + elapsedHTML(s) + '</span></span>' +
       '<div class="step__progress" aria-hidden="true"><i></i></div></div>';
+  } else if (failed) {
+    html += '<div class="step__live"><span class="step__live-text">' + I.failed + '<span>Failed</span></span>' +
+      '<span class="step__live-sub">the step raised an error</span></div>' + errorBlockHTML(run, s, compact);
   } else if (died) {
     html += '<div class="step__live"><span class="step__live-text">' + I.power + '<span>Died · last seen ' + (s.lastSeenAt ? hhmmss(s.lastSeenAt) : 'unknown') + '</span></span>' +
       '<span class="step__live-sub">process gone</span></div>';
