@@ -17,8 +17,9 @@ htmlcov/
 .env.*
 !.env.example
 
-OS / editor
+# OS / editor
 .DS_Store
+**/.DS_Store
 .idea/
 .vscode/
 
@@ -26,3 +27,4 @@ OS / editor
 .playwright-mcp/
 .claude/settings.local.json
 *.log
+node_modules/
