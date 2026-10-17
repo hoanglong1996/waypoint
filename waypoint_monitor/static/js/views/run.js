@@ -1,6 +1,6 @@
 /* Run page: hero, flow strip and the steps timeline of one run (the former Latest page). */
 import {
-  HEADLINE_TITLE, analyse, ago, dayLabel, esc, fmt, fmtDuration, groupLabel, headline, heroTitle, hhmm, isDone, isLoss,
+  HEADLINE_TITLE, analyse, ago, dayLabel, esc, fmt, fmtDuration, groupLabel, groupSlot, headline, heroTitle, hhmm, isDone, isLoss,
   isNewest, stepOf, stepState, metric,
 } from '../model.js';
 import {
@@ -17,17 +17,24 @@ const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
 export { stepItemHTML };
 
 export function stepsHTML(run, runs, cfg, compact) {
+  const keyOf = (d) => (d.unplanned ? '' : d.group || '');
   let group = null;
   let html = '<ol class="steps' + (compact ? ' steps--compact' : '') + '">';
   run.steps.forEach((s, i) => {
     const def = run.defs[i];
-    const g = def.unplanned ? '' : def.group || '';
+    const g = keyOf(def);
     if (g !== group) {
       group = g;
       const title = g ? groupLabel(run, g) : def.unplanned ? 'Not in this run’s flow' : '';
-      if (title) html += '<li class="steps__group" aria-hidden="true"><span class="eyebrow">' + esc(title) + '</span></li>';
+      if (title) {
+        let n = 0;
+        for (let j = i; j < run.defs.length && keyOf(run.defs[j]) === g; j++) n++;
+        html += '<li class="steps__group' + (g ? ' g-' + groupSlot(run, g) : '') + '" aria-hidden="true"><span class="eyebrow">' +
+          (g ? '<i class="gdot"></i>' : '') + esc(title) + '<span class="steps__count">' + n + (n === 1 ? ' step' : ' steps') + '</span></span></li>';
+      }
     }
-    html += stepItemHTML(run, runs, cfg, i, compact);
+    const item = stepItemHTML(run, runs, cfg, i, compact);
+    html += g ? item.replace('<li class="step ', '<li class="step in-group g-' + groupSlot(run, g) + ' ') : item;
   });
   return html + '</ol>';
 }

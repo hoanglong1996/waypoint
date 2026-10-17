@@ -439,6 +439,10 @@ svg[viewBox="0 0 24 24"] { fill: none; stroke: currentColor; stroke-width: 1.8; 
 }
 .steps__group:first-child { padding-top: 0; }
 .steps__group .eyebrow { grid-column: 2; display: flex; align-items: center; gap: var(--s-2); }
+.steps__group .eyebrow { color: var(--gc, var(--text-3)); font-weight: var(--fw-semibold); }
+.steps__group .gdot { flex: none; }
+.steps__count { color: var(--text-3); font-weight: var(--fw-regular, 400); text-transform: none; letter-spacing: 0; }
+.step.in-group .step__card { border-left: 3px solid var(--gc); }
 .steps__group .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .steps__group::before { content: ""; justify-self: center; width: 2px; height: 100%; background: var(--border); }
 .steps__group:first-child::before { background: none; }
