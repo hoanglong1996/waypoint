@@ -1,5 +1,7 @@
 /* Hand-drawn SVG charts, themed through CSS variables. */
-import { compact, dayLabel, fmt, fmtDuration, hhmm, isLoss, metric, niceMax, shortDay, stepOf } from './model.js';
+import {
+  compact, dayLabel, fmt, fmtDuration, esc, formatMetricValue, hhmm, isLoss, metric, niceMax, shortDay, stepOf,
+} from './model.js';
 import { deltaChip } from './ui.js';
 
 /** 128x36 sparkline. `values` oldest -> newest; null breaks the line. */
@@ -278,6 +280,137 @@ export function drawDuration(box, statEl, tip, series) {
     let top = sy - th - 14;
     if (top < 64) top = sy + 14;
     tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+  function hide() {
+    tip.hidden = true;
+    cross.setAttribute('visibility', 'hidden');
+  }
+  svg.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.round((px - m.l) / ((W - m.l - m.r) / Math.max(1, pts.length - 1)));
+    show(Math.max(0, Math.min(last, i)));
+  });
+  svg.addEventListener('pointerleave', hide);
+  box.onkeydown = (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    let i = cur < 0 ? last : cur;
+    i = e.key === 'Home' ? 0 : e.key === 'End' ? last : i + (e.key === 'ArrowRight' ? 1 : -1);
+    show(Math.max(0, Math.min(last, i)));
+  };
+  box.onfocus = () => show(cur < 0 ? last : cur);
+  box.onblur = hide;
+  return { show, hide };
+}
+
+/**
+ * One declared metric across runs (specs/013 contracts/ui.md). `trend` is `metricTrend(...)`: points oldest to
+ * newest (null = not reported, a gap), a dashed median line when there is one, a dotted line per limit, and a
+ * diamond marker (not colour alone) on a point over a limit. Arrow keys move between runs like the other charts.
+ */
+export function drawMetricTrend(box, statEl, tip, trend) {
+  const pts = trend.points;
+  const width = box.clientWidth || 900;
+  const W = Math.max(320, width);
+  const H = width < 600 ? 200 : 240;
+  const m = { l: 54, r: 12, t: 12, b: 26 };
+  const known = pts.map((p) => p.value).filter((v) => v != null);
+  const limits = [trend.warnAbove, trend.warnBelow].filter((v) => v != null);
+  const hi = Math.max(...known, ...limits, trend.median == null ? 0 : trend.median, 1);
+  const lo = Math.min(0, ...known, ...limits);
+  const max = niceMax(hi * 1.08);
+  const min = lo < 0 ? -niceMax(-lo * 1.08) : 0;
+  const x = (i) => m.l + (i * (W - m.l - m.r)) / Math.max(1, pts.length - 1);
+  const y = (v) => m.t + (1 - (v - min) / (max - min)) * (H - m.t - m.b);
+  const unit = trend.unit;
+
+  let g = '';
+  for (let k = 0; k <= 4; k++) {
+    const v = min + ((max - min) * k) / 4;
+    const yy = y(v).toFixed(1);
+    g += '<line class="grid-line" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/>' +
+      '<text class="axis-label" x="' + (m.l - 8) + '" y="' + yy + '" text-anchor="end" dominant-baseline="middle">' + formatMetricValue(v) + '</text>';
+  }
+  const every = Math.ceil(pts.length / (W < 600 ? 4 : 7));
+  pts.forEach((p, i) => {
+    if ((pts.length - 1 - i) % every === 0) {
+      g += '<text class="axis-label" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + shortDay(p.startedAt) + '</text>';
+    }
+  });
+
+  let lines = '';
+  // the median label sits at the right end and the limit labels at the left, so they do not overlap
+  const hline = (cls, v, text) => {
+    const yy = y(v).toFixed(1);
+    const right = cls === 'mmedian';
+    lines += '<line class="' + cls + '" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/>' +
+      '<text class="axis-label dlabel" x="' + (right ? W - m.r - 6 : m.l + 6) + '" y="' + (right ? Number(yy) + 12 : Number(yy) - 4) + '" text-anchor="' + (right ? 'end' : 'start') + '">' + text + '</text>';
+  };
+  if (trend.median != null) hline('mmedian', trend.median, 'median ' + formatMetricValue(trend.median, unit));
+  if (trend.warnAbove != null) hline('mlimit', trend.warnAbove, 'warn above ' + formatMetricValue(trend.warnAbove, unit));
+  if (trend.warnBelow != null) hline('mlimit', trend.warnBelow, 'warn below ' + formatMetricValue(trend.warnBelow, unit));
+
+  let line = '';
+  let seg = [];
+  const flush = () => {
+    if (seg.length) line += 'M' + seg.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
+    seg = [];
+  };
+  let dots = '';
+  pts.forEach((p, i) => {
+    const cx = x(i).toFixed(1);
+    if (p.value == null) {
+      flush();
+      dots += '<circle class="pt pt--gap" cx="' + cx + '" cy="' + y(min).toFixed(1) + '" r="3.5"/>';
+      return;
+    }
+    seg.push([x(i), y(p.value)]);
+    const cy = y(p.value).toFixed(1);
+    dots += p.flag
+      ? '<path class="pt pt--over" d="M' + cx + ' ' + (cy - 6) + 'L' + (Number(cx) + 6) + ' ' + cy + 'L' + cx + ' ' + (Number(cy) + 6) + 'L' + (Number(cx) - 6) + ' ' + cy + 'Z"/>'
+      : '<circle class="pt" cx="' + cx + '" cy="' + cy + '" r="2.5"/>';
+  });
+  flush();
+
+  box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="height:' + H + 'px" aria-hidden="true">' + g + lines +
+    '<path class="line" d="' + line + '"/>' + dots +
+    '<line class="cross" id="mcross" x1="0" x2="0" y1="' + m.t + '" y2="' + (H - m.b) + '" visibility="hidden"/></svg>';
+
+  const last = pts.length - 1;
+  const lp = pts[last];
+  statEl.innerHTML = trend.median != null
+    ? '<span class="trend__value num">' + esc(formatMetricValue(trend.median, unit)) + '</span><span class="trend__label">Median over the newest ' + trend.sample + ' runs that reported it</span>'
+    : '<span class="trend__label">' + esc(trend.note) + '</span>';
+  box.setAttribute('aria-label', (trend.label || 'Metric') + ' for the last ' + pts.length + ' runs. Latest ' +
+    (lp && lp.value != null ? formatMetricValue(lp.value, unit) : 'not reported') + '.' +
+    (trend.median != null ? ' Median ' + formatMetricValue(trend.median, unit) + '.' : ''));
+
+  const cross = box.querySelector('#mcross');
+  const svg = box.querySelector('svg');
+  let cur = -1;
+  function show(i) {
+    cur = i;
+    const p = pts[i];
+    const cx = x(i);
+    cross.setAttribute('x1', cx);
+    cross.setAttribute('x2', cx);
+    cross.setAttribute('visibility', 'visible');
+    tip.innerHTML = '<div class="tooltip__date">' + dayLabel(p.startedAt) + ' · ' + hhmm(p.startedAt) + '</div>' +
+      '<div class="tooltip__val num">' + (p.value == null ? '<span class="faint">not reported</span>' : esc(formatMetricValue(p.value, unit))) + '</div>' +
+      (trend.median != null ? '<div class="faint">median ' + esc(formatMetricValue(trend.median, unit)) + '</div>' : '') +
+      (p.flag ? '<div style="color:var(--warn);margin-top:4px">Over the limit (' + p.flag + ')</div>' : '');
+    tip.hidden = false;
+    const cy = p.value == null ? y(min) : y(p.value);
+    const r = svg.getBoundingClientRect();
+    const sx = r.left + (cx / W) * r.width;
+    const sy = r.top + (cy / H) * r.height;
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    tip.style.left = Math.min(window.innerWidth - tw - 8, Math.max(8, sx - tw / 2)) + 'px';
+    let top = sy - th - 14;
+    if (top < 64) top = sy + 14;
     tip.style.top = top + 'px';
   }
   function hide() {

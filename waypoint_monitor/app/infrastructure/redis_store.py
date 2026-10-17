@@ -55,6 +55,9 @@ class RedisRecordStore:
     def list_failures(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         return self._scan(f"{ROOT}:{pipeline}:{env}:*:failed:*")
 
+    def list_metrics(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        return self._scan(f"{ROOT}:{pipeline}:{env}:*:metrics:*")
+
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
         """Lengths of the warning and error lists of every run (`SCAN` for the names, one pipelined `LLEN`).
 

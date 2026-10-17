@@ -18,6 +18,18 @@ class FlowInput:
 
 
 @dataclass(frozen=True)
+class MetricDecl:
+    """A metric a step declares (specs/013): optional label (at most 40 characters), unit (at most 16)
+    and warning limits. Names match `^[a-z0-9_]{1,64}$`."""
+
+    name: str
+    label: Optional[str] = None
+    unit: Optional[str] = None
+    warn_above: Optional[float] = None
+    warn_below: Optional[float] = None
+
+
+@dataclass(frozen=True)
 class FlowStep:
     name: str
     label: Optional[str]
@@ -27,6 +39,7 @@ class FlowStep:
     returns_nothing: bool = False
     col: Optional[float] = None
     row: Optional[float] = None
+    metrics: Tuple[MetricDecl, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -144,6 +157,24 @@ class RunEvent:
     step: Optional[str]
     message: Optional[str]
     fields: Optional[Dict[str, FieldValue]]
+
+
+MetricNumber = Union[int, float]
+
+
+@dataclass(frozen=True)
+class StepMetrics:
+    """One validated metrics record (specs/013 data-model.md): the metrics of attempt `index` (int >= 1)
+    of `step`. `values` has at most 20 entries: names matching `^[a-z0-9_]{1,64}$`, values finite numbers
+    (never bool). `updated_at` is None when absent or of the wrong type."""
+
+    pipeline: str
+    run_id: str
+    env: str
+    step: str
+    index: int
+    values: Dict[str, MetricNumber]
+    updated_at: Optional[datetime] = None
 
 
 @dataclass(frozen=True)

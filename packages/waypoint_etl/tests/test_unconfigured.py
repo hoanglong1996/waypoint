@@ -82,3 +82,28 @@ class TestUnconfigured(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMetricUnconfigured(unittest.TestCase):
+    def setUp(self) -> None:
+        registry.clear()
+
+    def test_metric_before_init_returns_none_and_raises_nothing(self) -> None:
+        import waypoint_etl
+
+        waypoint_etl.metric("rows", 1)
+        waypoint_etl.metric("rows", 1, step="extract", mode="add")
+        self.assertIsNone(registry.get_active())
+
+    def test_metric_with_a_raising_store_never_changes_the_result(self) -> None:
+        import waypoint_etl
+
+        registry.set_active(StepAuditor(RaisingStore(), SPEC, env="qa", ttl_seconds=1))
+
+        @audited_step("extract")
+        def fetch() -> List[int]:
+            waypoint_etl.metric("rows", 3, mode="add")
+            return [1, 2]
+
+        self.assertEqual(fetch(), [1, 2])
+        registry.clear()

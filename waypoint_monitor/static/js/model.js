@@ -148,6 +148,94 @@ export function deltaPct(cur, prev) {
   return { kind: r === 0 ? 'flat' : r > 0 ? 'up' : 'down', pct: r };
 }
 
+/* ---------- custom step metrics (specs/013); `metric(step)` above is the output count, a different thing ---------- */
+
+/** The metrics a step carries (declared first, as the server orders them); [] for a step without any. */
+export const stepMetrics = (step) => (step && Array.isArray(step.metrics) ? step.metrics : []);
+
+/** How many of a step's metrics are over a declared limit. */
+export const metricsOver = (step) => stepMetrics(step).filter((m) => m.flag != null).length;
+
+/** The metric's declaration in a step definition (limits live in the flow), or null. */
+export const metricDecl = (def, name) => (def && def.metrics ? def.metrics.find((d) => d.name === name) || null : null);
+
+/** A value for people: 150, 12.3k, 1.2M, 0.25; `not reported` when null. The unit follows when given. */
+export function formatMetricValue(value, unit) {
+  if (value == null || !Number.isFinite(value)) return 'not reported';
+  const a = Math.abs(value);
+  let text;
+  if (a >= 1e6) text = (value / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  else if (a >= 1000) text = (value / 1000).toFixed(Number.isInteger(value / 1000) ? 0 : 1) + 'k';
+  else if (Number.isInteger(value)) text = String(value);
+  else text = String(Number(value.toPrecision(4)));
+  return text + (unit ? ' ' + unit : '');
+}
+
+/** The flag in words with its limit: `above 100`, `below 90`. */
+export function flagText(flag, decl) {
+  if (flag === 'above') return 'above ' + (decl && decl.warnAbove != null ? decl.warnAbove : 'limit');
+  if (flag === 'below') return 'below ' + (decl && decl.warnBelow != null ? decl.warnBelow : 'limit');
+  return '';
+}
+
+/** "1 metric over limit" / "3 metrics over limit". */
+export const overText = (n) => n + (n === 1 ? ' metric' : ' metrics') + ' over limit';
+
+/**
+ * The steps of the shown runs that declare at least one metric, for the History picker: the newest run's
+ * step order first, then older runs' extra steps. Each has the metrics declared by the newest run that declares it.
+ */
+export function trendMetricChoices(runs) {
+  const out = new Map();
+  runs.forEach((r) => r.defs.forEach((d) => {
+    (d.metrics || []).forEach((m) => {
+      if (!out.has(d.name)) out.set(d.name, new Map());
+      if (!out.get(d.name).has(m.name)) out.get(d.name).set(m.name, m);
+    });
+  }));
+  return [...out].map(([step, metrics]) => ({
+    step,
+    metrics: [...metrics.values()].map((m) => ({ name: m.name, label: m.label })),
+  }));
+}
+
+const median = (values) => {
+  const v = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+};
+
+/**
+ * One declared metric of one step across runs (`runs` newest first). Points are oldest to newest with a null
+ * value where the run did not report it (a gap, never zero). The median covers the newest `window` runs that
+ * reported it, and only when at least `minRuns` did. Limits, unit and label come from the newest run that
+ * declares the metric.
+ */
+export function metricTrend(runs, stepName, metricName, window = 30, minRuns = 5) {
+  const points = runs.slice().reverse().map((r) => {
+    const m = stepMetrics(stepOf(r, stepName)).find((x) => x.name === metricName);
+    const value = m && m.value != null ? m.value : null;
+    const decl = metricDecl(r.defs.find((d) => d.name === stepName), metricName);
+    return { id: r.id, startedAt: r.startedAt, value, flag: m ? m.flag : null, unit: m ? m.unit : null, decl };
+  });
+  const newest = runs.map((r) => metricDecl(r.defs.find((d) => d.name === stepName), metricName)).find((d) => d) || null;
+  const reported = runs.map((r) => {
+    const m = stepMetrics(stepOf(r, stepName)).find((x) => x.name === metricName);
+    return m && m.value != null ? m.value : null;
+  }).filter((v) => v != null).slice(0, window);
+  const enough = reported.length >= Math.max(1, minRuns);
+  return {
+    points,
+    median: enough ? median(reported) : null,
+    sample: reported.length,
+    warnAbove: newest ? newest.warnAbove : null,
+    warnBelow: newest ? newest.warnBelow : null,
+    unit: newest ? newest.unit : null,
+    label: newest ? newest.label : null,
+    note: enough ? null : 'Not enough history yet for a median (needs ' + minRuns + ' runs that reported it)',
+  };
+}
+
 /** Values of a step's metric over the newest `n` runs (runs are newest first), oldest -> newest. */
 export function series(runs, stepName, n) {
   return runs

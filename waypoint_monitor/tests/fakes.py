@@ -63,6 +63,7 @@ class FakeStore:
         self.alive: Raw = []
         self.died: Raw = []
         self.failures: Raw = []
+        self.metrics: Raw = []
         # run id -> level -> raw JSON elements, oldest first (the three event lists of a run)
         self.events: Dict[str, Dict[str, List[str]]] = {}
         self.events_denied = False  # the account may not read the event lists (NOPERM)
@@ -77,7 +78,7 @@ class FakeStore:
             raise StoreUnavailable("down")
 
     def _all(self) -> Raw:
-        return self.records + self.markers + self.alive + self.died + self.failures
+        return self.records + self.markers + self.alive + self.died + self.failures + self.metrics
 
     def list_pipelines(self, env: str) -> List[str]:
         self._check()
@@ -118,6 +119,11 @@ class FakeStore:
         self._check()
         prefix = _prefix(pipeline, env)
         return [(k, v) for k, v in self.failures if k.startswith(prefix)]
+
+    def list_metrics(self, env: str, pipeline: str) -> Raw:
+        self._check()
+        prefix = _prefix(pipeline, env)
+        return [(k, v) for k, v in self.metrics if k.startswith(prefix)]
 
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
         self._check()
@@ -379,3 +385,49 @@ def make_failure(
         },
     }
     return f"{_prefix(pipeline, env)}{run_id}:failed:{attempt:02d}-{name}", json.dumps(value)
+
+
+def make_metrics(
+    env: str,
+    run_id: str,
+    step_index: int,
+    values: Dict[str, Any],
+    pipeline: str = PIPELINE,
+    step: Optional[str] = None,
+    index: Optional[int] = None,
+    updated_at: Optional[datetime] = None,
+) -> Tuple[str, str]:
+    """One metrics record for the 0-based `step_index` of the run (or a named `step`).
+
+    `index` is the attempt index (default `step_index + 1`); use a higher one for a retry.
+    """
+    name = step or STEP_NAMES[step_index]
+    attempt = index if index is not None else step_index + 1
+    value: Dict[str, Any] = {
+        "v": 1,
+        "pipeline": pipeline,
+        "env": env,
+        "run_id": run_id,
+        "step": name,
+        "index": attempt,
+        "metrics": values,
+    }
+    if updated_at is not None:
+        value["updated_at"] = _stamp(updated_at)
+    return f"{_prefix(pipeline, env)}{run_id}:metrics:{attempt:02d}-{name}", json.dumps(value)
+
+
+def declare_metrics(
+    raw: List[Tuple[str, str]], step: str, declarations: List[Dict[str, Any]]
+) -> List[Tuple[str, str]]:
+    """The raw run with `declarations` added to `step` in its flow record."""
+    out: List[Tuple[str, str]] = []
+    for key, value in raw:
+        if key.endswith(":flow"):
+            flow = json.loads(value)
+            for entry in flow["steps"]:
+                if entry["name"] == step:
+                    entry["metrics"] = declarations
+            value = json.dumps(flow)
+        out.append((key, value))
+    return out

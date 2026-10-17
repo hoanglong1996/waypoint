@@ -108,6 +108,9 @@ Per pipeline, run and environment (`waypoint:{pipeline}:{env}:{run_id}:...`, ful
 - `...:events:info`, `...:events:warning`, `...:events:error`: lists of the events a pipeline sent with
   `waypoint_etl.log` (`waypoint-etl` 0.4.0 or newer); the finish record `...:step:{NN}-{step}` also gains `started_at`
   and `duration_ms`. The monitor only reads them (`LLEN`, `LRANGE`).
+- `...:metrics:{NN}-{step}`: the named numbers a step recorded with `waypoint_etl.metric` (`waypoint-etl` 0.5.0 or
+  newer), one JSON record per step attempt; declarations (label, unit, limits) are an optional `metrics` list on the
+  step in the `...:flow` record. Read with the same `SCAN` and `MGET`: **no new permission**.
 
 A marker with no finish record for the same step means the step is **running** (or **stalled** past
 `STALL_SECONDS`); later planned steps of that run show **Waiting**. A planned step with no record is
@@ -173,6 +176,27 @@ and is not counted again); a step's details list its newest events and link to t
 `../specs/012-duration-and-run-events/contracts/api.md`). Event text is data from your pipeline: shown as plain text
 only, capped on both sides, and the pipeline decides whether messages are stored (`capture_error_message`, `redact`).
 Events are Redis lists (`...:events:info|warning|error`) written by the library; the monitor only reads them.
+
+## Metrics
+
+A step can carry named numbers sent with `waypoint_etl.metric` (`waypoint-etl` 0.5.0). Where they show:
+
+- **Step details** (run page list, and the graph's selected step): a small table with the name (or declared label),
+  the value with its unit, and a flag in words (`above 100`, `below 90`). Declared metrics come first, in declared
+  order; one that the run did not report says `not reported`, never `0`. A running step shows the values so far and
+  updates on every refresh (up to about 8 seconds behind the call: 1 s to write, 2 s server cache, 5 s refresh).
+- **Over-limit badge**: a step with a declared metric strictly above `warn_above` or below `warn_below` shows
+  `1 metric over limit` in the list and a badge on its graph node (icon and words, not colour alone). It is
+  informational: the run's status and its place in "needs attention" do not change. `/api/runs` gives `metrics_over`
+  on the step and the run, which alerting can use later.
+- **History**: a **Metric trend** card (only when a shown run declares a metric): pick a step and one of its declared
+  metrics; runs that did not report it are gaps, a dashed line marks the median over the newest runs that reported it
+  (the same `DURATION_WINDOW_RUNS` and `DURATION_MIN_RUNS` as durations), dotted lines mark the limits and a diamond
+  marks a point over a limit.
+
+The monitor shows the metrics of a step's **latest attempt** only. Names, labels and units are shown as plain text.
+Records come from `...:metrics:{NN}-{step}` (contract: `../specs/013-step-metrics/contracts/`); a damaged one is
+skipped and counted as unreadable. `tests/seed_demo.py` writes a `metrics` demo pipeline.
 
 ## Hung or dead?
 

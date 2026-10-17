@@ -10,16 +10,19 @@ from app.domain.parsing import (
     parse_failures,
     parse_flows,
     parse_markers,
+    parse_metrics,
     parse_records,
 )
 from tests.fakes import (
     PIPELINE,
+    declare_metrics,
     flow_value,
     make_alive,
     make_died,
     make_failure,
     make_flow,
     make_marker,
+    make_metrics,
     make_run,
     split,
 )
@@ -40,6 +43,7 @@ def runs_for(
     verdicts: Optional[Dict[str, Tuple[datetime, datetime]]] = None,
     dead_seconds: float = 90.0,
     failures: Optional[List[Tuple[str, str]]] = None,
+    metrics: Optional[List[Tuple[str, str]]] = None,
 ) -> List[Dict[str, Any]]:
     raw_flows, raw_records, raw_markers = split(raw)
     alive = parse_alive(env, PIPELINE, [make_alive(env, r, at) for r, at in (beats or {}).items()])
@@ -59,6 +63,7 @@ def runs_for(
         verdicts=died,
         dead_seconds=dead_seconds,
         failures=parse_failures(env, PIPELINE, failures or [])[0],
+        metrics=parse_metrics(env, PIPELINE, metrics or [])[0],
     )
 
 
@@ -1002,7 +1007,7 @@ OLD_RUN_KEYS = {
     "status", "running_step", "first_missing_step", "missing_count", "loss_steps", "unreadable", "died",
     "failed", "flow_status", "flow_problems", "flow", "steps",
 }  # fmt: skip
-NEW_RUN_KEYS = {"duration", "bottleneck", "event_counts"}  # specs/012
+NEW_RUN_KEYS = {"duration", "bottleneck", "event_counts", "metrics_over"}  # specs/012, 013
 OLD_STEP_KEYS = {
     "done": {"name", "state", "inputs", "output", "finished_at"},
     "unplanned": {"name", "state", "inputs", "output", "finished_at"},
@@ -1096,3 +1101,145 @@ class TestOldRunsOnlyGainNewKeys(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStepMetricsInRuns(unittest.TestCase):
+    """Specs 013 US1/US3: metrics ride on the step of the attempt they were recorded for."""
+
+    def steps(self, run: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        return {s["name"]: s for s in run["steps"]}
+
+    def test_a_running_step_shows_its_metrics_before_it_finishes(self) -> None:
+        run = runs_for(
+            make_run("prod", R1, missing_from=2),
+            markers=[make_marker("prod", R1, 2, NOW - timedelta(seconds=30))],
+            metrics=[make_metrics("prod", R1, 2, {"rejected": 7, "pages": 2})],
+        )[0]
+        step = self.steps(run)["read_partners"]
+        self.assertEqual(step["state"], "running")
+        self.assertEqual(
+            [(m["name"], m["value"], m["declared"]) for m in step["metrics"]],
+            [("pages", 2, False), ("rejected", 7, False)],
+        )
+        self.assertEqual(step["metrics_over"], 0)
+
+    def test_a_done_step_shows_the_final_values(self) -> None:
+        run = runs_for(
+            make_run("prod", R1), metrics=[make_metrics("prod", R1, 1, {"rows": 1.5, "n": 3})]
+        )[0]
+        step = self.steps(run)["read_callrail_call"]
+        self.assertEqual(
+            [(m["name"], m["value"]) for m in step["metrics"]], [("n", 3), ("rows", 1.5)]
+        )
+        self.assertNotIn("metrics", self.steps(run)["read_callrail_account"])
+
+    def test_a_retried_step_shows_only_the_new_attempt(self) -> None:
+        started = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        run = runs_for(
+            make_run("prod", R1, missing_from=2),
+            failures=[
+                make_failure("prod", R1, 2, started + timedelta(seconds=9), started_at=started)
+            ],
+            metrics=[make_metrics("prod", R1, 2, {"rejected": 99})],
+        )[0]
+        failed = self.steps(run)["read_partners"]
+        self.assertEqual(failed["state"], "failed")
+        self.assertEqual(
+            failed["metrics"][0]["value"], 99
+        )  # metrics recorded before the failure stay
+        retried = runs_for(
+            make_run("prod", R1, missing_from=2),
+            failures=[
+                make_failure("prod", R1, 2, started + timedelta(seconds=9), started_at=started)
+            ],
+            markers=[make_marker("prod", R1, 3, NOW - timedelta(seconds=20), step="read_partners")],
+            metrics=[
+                make_metrics("prod", R1, 2, {"rejected": 99}),
+                make_metrics("prod", R1, 2, {"rejected": 1}, index=4, step="read_partners"),
+            ],
+        )[0]
+        step = self.steps(retried)["read_partners"]
+        self.assertEqual(step["state"], "running")
+        self.assertEqual([(m["name"], m["value"]) for m in step["metrics"]], [("rejected", 1)])
+
+    def test_a_record_of_an_older_attempt_is_ignored(self) -> None:
+        run = runs_for(
+            make_run("prod", R1),
+            metrics=[make_metrics("prod", R1, 0, {"old": 1}, index=9)],
+        )[0]
+        self.assertNotIn("metrics", self.steps(run)["read_callrail_account"])
+
+    def test_a_metrics_record_alone_creates_no_run_and_no_step(self) -> None:
+        runs = runs_for(
+            [],
+            metrics=[
+                make_metrics("prod", R1, 0, {"rows": 1}),
+                make_metrics("prod", R2, 1, {"x": 1}),
+            ],
+        )
+        self.assertEqual(runs, [])
+        run = runs_for(
+            make_run("prod", R1),
+            metrics=[make_metrics("prod", R1, 0, {"x": 1}, step="ghost", index=30)],
+        )[0]
+        self.assertNotIn("ghost", self.steps(run))
+
+    def test_a_run_without_metrics_has_none_anywhere(self) -> None:
+        run = runs_for(make_run("prod", R1))[0]
+        self.assertEqual(run["metrics_over"], 0)
+        for step in run["steps"]:
+            self.assertNotIn("metrics", step)
+            self.assertNotIn("metrics_over", step)
+
+    def test_declarations_label_unit_flag_and_counts(self) -> None:
+        raw = declare_metrics(
+            make_run("prod", R1),
+            "read_callrail_call",
+            [
+                {"name": "rejected", "label": "Rejected rows", "unit": "rows", "warn_above": 100},
+                {"name": "coverage", "unit": "%", "warn_below": 90},
+                {"name": "never", "unit": "x"},
+            ],
+        )
+        run = runs_for(
+            raw,
+            metrics=[make_metrics("prod", R1, 1, {"rejected": 150, "coverage": 95, "extra": 4})],
+        )[0]
+        step = self.steps(run)["read_callrail_call"]
+        self.assertEqual(
+            [
+                (m["name"], m["label"], m["value"], m["unit"], m["declared"], m["flag"])
+                for m in step["metrics"]
+            ],
+            [
+                ("rejected", "Rejected rows", 150, "rows", True, "above"),
+                ("coverage", None, 95, "%", True, None),
+                ("never", None, None, "x", True, None),
+                ("extra", None, 4, None, False, None),
+            ],
+        )
+        self.assertEqual(step["metrics_over"], 1)
+        self.assertEqual(run["metrics_over"], 1)
+        flow_step = [s for s in run["flow"]["steps"] if s["name"] == "read_callrail_call"][0]
+        self.assertEqual(flow_step["metrics"][0]["warn_above"], 100.0)
+        self.assertIsNone(flow_step["metrics"][0]["warn_below"])
+        self.assertNotIn("metrics", run["flow"]["steps"][0])
+
+    def test_a_flagged_metric_changes_neither_status_nor_loss(self) -> None:
+        plain = runs_for(make_run("prod", R1))[0]
+        raw = declare_metrics(
+            make_run("prod", R1), "read_callrail_call", [{"name": "bad", "warn_above": 1}]
+        )
+        flagged = runs_for(raw, metrics=[make_metrics("prod", R1, 1, {"bad": 50})])[0]
+        self.assertEqual(flagged["metrics_over"], 1)
+        for key in ("status", "loss_steps", "missing_count", "first_missing_step", "stale", "died"):
+            self.assertEqual(flagged[key], plain[key], key)
+
+    def test_a_declared_step_that_has_not_begun_carries_no_metrics(self) -> None:
+        raw = declare_metrics(
+            make_run("prod", R1, missing_from=4), "read_campaigns", [{"name": "m", "unit": "x"}]
+        )
+        run = runs_for(raw)[0]
+        step = self.steps(run)["read_campaigns"]
+        self.assertEqual(step["state"], "missing")
+        self.assertNotIn("metrics", step)

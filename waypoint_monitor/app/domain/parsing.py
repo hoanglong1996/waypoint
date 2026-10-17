@@ -11,10 +11,12 @@ from app.domain.models import (
     ErrorInfo,
     FieldValue,
     Flow,
+    MetricNumber,
     ParseResult,
     RunEvent,
     StartMarker,
     StepFailure,
+    StepMetrics,
     StepRecord,
 )
 
@@ -37,6 +39,9 @@ MAX_EVENT_TEXT = 100
 MAX_EVENT_STEP = 200
 _FIELD_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
 _EVENTS_KEY = re.compile(rf"^{ROOT}:{_P}:events:(?P<level>info|warning|error)$")
+_METRICS_KEY = re.compile(rf"^{ROOT}:{_P}:metrics:(?P<idx>\d{{2,}})-(?P<step>.+)$")
+MAX_METRICS_PER_STEP = 20
+_METRIC_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
 _ALIVE_KEY = re.compile(rf"^{ROOT}:{_P}:alive$")
 _DIED_KEY = re.compile(rf"^{ROOT}:{_P}:died$")
 _ANY_KEY = re.compile(rf"^{ROOT}:(?P<pipeline>[a-z0-9][a-z0-9_-]{{0,39}}):(?P<env>[^:]+):")
@@ -200,6 +205,70 @@ def parse_failures(
         else:
             failures.append(failure)
     return failures, unreadable
+
+
+def _validate_metrics(
+    pipeline: str, env: str, run_id: str, step: str, index: int, raw: str
+) -> Optional[StepMetrics]:
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict) or data.get("v") != 1:
+        return None
+    if (data.get("pipeline"), data.get("env"), data.get("run_id")) != (pipeline, env, run_id):
+        return None
+    if (
+        data.get("step") != step
+        or data.get("index") != index
+        or isinstance(data.get("index"), bool)
+    ):
+        return None
+    entries = data.get("metrics")
+    if not isinstance(entries, dict) or len(entries) > MAX_METRICS_PER_STEP:
+        return None
+    values: Dict[str, MetricNumber] = {}
+    for name, value in entries.items():
+        if not isinstance(name, str) or not _METRIC_NAME.match(name) or isinstance(value, bool):
+            continue
+        if not isinstance(value, (int, float)):
+            continue
+        if isinstance(value, float) and not math.isfinite(value):
+            continue
+        values[name] = value
+    return StepMetrics(
+        pipeline=pipeline,
+        run_id=run_id,
+        env=env,
+        step=step,
+        index=index,
+        values=values,
+        updated_at=_parse_time(data.get("updated_at")),
+    )
+
+
+def parse_metrics(
+    env: str, pipeline: str, raw: Iterable[Tuple[str, str]]
+) -> Tuple[List[StepMetrics], Dict[str, int]]:
+    """Validate raw `(key, json)` metrics records: the records and the unreadable count by run id.
+
+    Never raises. A record that is not valid as a whole is skipped and counted for its run; inside a
+    readable record an entry with a bad name or value is dropped. Keys that are not metrics keys of
+    this pipeline and environment are ignored.
+    """
+    records: List[StepMetrics] = []
+    unreadable: Dict[str, int] = {}
+    for key, value in raw:
+        match = _METRICS_KEY.match(key)
+        if not match or match["env"] != env or match["pipeline"] != pipeline:
+            continue
+        run_id = match["run"]
+        record = _validate_metrics(pipeline, env, run_id, match["step"], int(match["idx"]), value)
+        if record is None:
+            unreadable[run_id] = unreadable.get(run_id, 0) + 1
+        else:
+            records.append(record)
+    return records, unreadable
 
 
 def _event_fields(raw: object) -> Optional[Dict[str, FieldValue]]:

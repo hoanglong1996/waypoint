@@ -1,15 +1,20 @@
 """Parse and validate a stored flow description. Never raises; bad parts are dropped and reported."""
 
 import json
+import math
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
-from app.domain.models import Flow, FlowInput, FlowStep, GroupDef
+from app.domain.models import Flow, FlowInput, FlowStep, GroupDef, MetricDecl
 
 SUPPORTED_VERSION = 1
 MAX_STEPS = 100
 MAX_PIPELINE_LABEL = 60
 MAX_STEP_LABEL = 40
+MAX_METRIC_LABEL = 40
+MAX_METRIC_UNIT = 16
+MAX_METRICS_PER_STEP = 20
+_METRIC_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
 _STEP_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
 _GROUP_KEY = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
@@ -24,6 +29,42 @@ def _hint(value: object) -> Optional[float]:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         return None
     return float(value)
+
+
+def _limit(value: object) -> Optional[float]:
+    """A warning limit: a finite number that is not a bool, else None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if math.isfinite(value) else None
+
+
+def _metric_decls(step: str, raw: object, problems: List[str]) -> Tuple[MetricDecl, ...]:
+    """The valid metric declarations of a step; each bad one is dropped and reported."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        problems.append(f"the metric declarations of '{step}' were malformed and dropped")
+        return ()
+    out: List[MetricDecl] = []
+    for item in raw:
+        name = item.get("name") if isinstance(item, dict) else None
+        bad = not isinstance(name, str) or not _METRIC_NAME.match(name)
+        bad = bad or any(name == d.name for d in out) or len(out) >= MAX_METRICS_PER_STEP
+        limits = {k: item.get(k) for k in ("warn_above", "warn_below")} if not bad else {}
+        bad = bad or any(v is not None and _limit(v) is None for v in limits.values())
+        if bad:
+            problems.append(f"a metric declaration of '{step}' was dropped")
+            continue
+        out.append(
+            MetricDecl(
+                name=str(name),
+                label=_label(item.get("label"), MAX_METRIC_LABEL),
+                unit=_label(item.get("unit"), MAX_METRIC_UNIT),
+                warn_above=_limit(limits["warn_above"]),
+                warn_below=_limit(limits["warn_below"]),
+            )
+        )
+    return tuple(out)
 
 
 def _drop_cycles(steps: List[FlowStep], problems: List[str]) -> List[FlowStep]:
@@ -56,7 +97,14 @@ def _drop_cycles(steps: List[FlowStep], problems: List[str]) -> List[FlowStep]:
         kept = tuple(i for i in step.inputs if (step.name, i.name, i.source) not in dropped)
         out.append(
             FlowStep(
-                step.name, step.label, step.group, kept, step.returns_nothing, step.col, step.row
+                step.name,
+                step.label,
+                step.group,
+                kept,
+                step.returns_nothing,
+                step.col,
+                step.row,
+                step.metrics,
             )
         )
     return out
@@ -135,6 +183,7 @@ def parse_flow(pipeline: str, env: str, run_id: str, raw: str) -> Tuple[str, Opt
                 returns_nothing=item.get("returns_nothing") is True,
                 col=_hint(item.get("col")),
                 row=_hint(item.get("row")),
+                metrics=_metric_decls(name, item.get("metrics"), problems),
             )
         )
     if not steps:

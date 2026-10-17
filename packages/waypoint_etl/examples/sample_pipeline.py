@@ -7,14 +7,18 @@ import os
 from typing import List
 
 import waypoint_etl
-from waypoint_etl import PipelineSpec, StepSpec, audited_step
+from waypoint_etl import Metric, PipelineSpec, StepSpec, audited_step
 
 SAMPLE = PipelineSpec(
     name="sample",
     label="Sample",
     steps=(
         StepSpec("extract"),
-        StepSpec("clean", inputs=(("rows", "extract"),)),
+        StepSpec(
+            "clean",
+            inputs=(("rows", "extract"),),
+            metrics=(Metric("rejected", label="Rejected rows", unit="rows", warn_above=100),),
+        ),
         StepSpec("load", inputs=(("rows", "clean"),), returns_nothing=True),
     ),
 )
@@ -27,7 +31,12 @@ def extract() -> List[int]:
 
 @audited_step("clean")
 def clean(rows: List[int]) -> List[int]:
-    return [r for r in rows if r % 2 == 0]
+    kept = [r for r in rows if r % 2 == 0]
+    waypoint_etl.metric(
+        "rejected", len(rows) - len(kept), mode="add"
+    )  # a named number on this step
+    waypoint_etl.metric("peak_batch", len(rows), mode="max")
+    return kept
 
 
 @audited_step("load")

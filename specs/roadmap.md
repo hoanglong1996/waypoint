@@ -9,7 +9,7 @@ trả lời đủ ba câu hỏi: *step nào hỏng và vì sao*, *chạy mất b
 | 2 | Thời lượng (duration) ✅ | không (tận dụng được #1) | Monitor + UI, SDK ít thay đổi |
 | 3 | Log/event của run ✅ | #1 (lỗi là một loại event) | SDK + Monitor + UI |
 | 4 | Freshness/SLA theo từng pipeline | #2 (dùng duration cho "chạy quá lâu") | SDK (spec) + Monitor + UI |
-| 5 | Metric tuỳ chọn theo step | #3 (dùng chung kênh ghi của event) | SDK + Monitor + UI |
+| 5 | Metric tuỳ chọn theo step ✅ | #3 (dùng chung kênh ghi của event) | SDK + Monitor + UI |
 | 6 | Alerting (Slack/webhook/email) | #1, #4 (cần trạng thái Failed và Late) | Monitor + cấu hình |
 | 7 | Map step / fan-out *(làm sau)* | #1, #2, #3, #5 (thêm chiều `item_key` vào các record đó) | SDK + Monitor + UI, đổi định dạng record |
 
@@ -223,28 +223,28 @@ khi không có run nào xuất hiện.
 retry, số trang đã đọc...) để chẩn đoán sâu hơn, không lưu nội dung dữ liệu.
 
 ### SDK
-- [ ] API `waypoint_etl.metric(name, value, *, step=None, mode="set")` với `mode` là `set`, `add` (cộng dồn)
+- [x] API `waypoint_etl.metric(name, value, *, step=None, mode="set")` với `mode` là `set`, `add` (cộng dồn)
       hoặc `max`. Có thể dùng ngay trong step đang chạy mà không cần truyền `step` (lấy step hiện tại).
-- [ ] Giá trị chỉ là **số** (int/float). Tên hợp lệ theo mẫu giống tên step; giới hạn số metric mỗi step
+- [x] Giá trị chỉ là **số** (int/float). Tên hợp lệ theo mẫu giống tên step; giới hạn số metric mỗi step
       (ví dụ 20) và độ dài tên.
-- [ ] Lưu trong record của step (hoặc key riêng
+- [x] Lưu trong record của step (hoặc key riêng
       `waypoint:{pipeline}:{env}:{run_id}:metrics:{NN}-{step}`), gộp khi ghi để không tăng số lần gọi Redis
       quá nhiều; step đang chạy cũng thấy được metric hiện có.
-- [ ] Cho phép khai báo trước trong `StepSpec(metrics=(Metric("rejected", unit="rows", warn_above=100),))`
+- [x] Cho phép khai báo trước trong `StepSpec(metrics=(Metric("rejected", unit="rows", warn_above=100),))`
       để có nhãn, đơn vị và ngưỡng cảnh báo tuỳ chọn.
-- [ ] No-op và không raise khi chưa `init`, init lỗi, hoặc Redis hỏng. An toàn khi đa luồng.
-- [ ] Test: ba chế độ ghi, giới hạn, đa luồng, tương thích với record không có metric.
+- [x] No-op và không raise khi chưa `init`, init lỗi, hoặc Redis hỏng. An toàn khi đa luồng.
+- [x] Test: ba chế độ ghi, giới hạn, đa luồng, tương thích với record không có metric.
 
 ### Monitor
-- [ ] Parse metric, bỏ qua và đếm "unreadable" khi hỏng. Trả trong `/api/runs` theo từng step.
-- [ ] Đánh dấu metric vượt ngưỡng `warn_above`/`warn_below` đã khai báo (hiển thị cảnh báo, và là đầu vào
+- [x] Parse metric, bỏ qua và đếm "unreadable" khi hỏng. Trả trong `/api/runs` theo từng step.
+- [x] Đánh dấu metric vượt ngưỡng `warn_above`/`warn_below` đã khai báo (hiển thị cảnh báo, và là đầu vào
       của alerting #6).
-- [ ] Với History: trung vị theo cửa sổ cho từng metric đã khai báo, để vẽ xu hướng.
+- [x] Với History: trung vị theo cửa sổ cho từng metric đã khai báo, để vẽ xu hướng (tính ở front end từ `/api/runs`).
 
 ### UI
-- [ ] Drawer của step: bảng metric (tên, giá trị, đơn vị, cờ vượt ngưỡng).
-- [ ] Graph/List: một badge nhỏ khi step có metric vượt ngưỡng.
-- [ ] History: biểu đồ xu hướng cho metric đã khai báo, chọn metric trong danh sách.
+- [x] Drawer của step: bảng metric (tên, giá trị, đơn vị, cờ vượt ngưỡng).
+- [x] Graph/List: một badge nhỏ khi step có metric vượt ngưỡng.
+- [x] History: biểu đồ xu hướng cho metric đã khai báo, chọn metric trong danh sách.
 
 ### Tiêu chí hoàn thành
 - Pipeline gọi `waypoint_etl.metric("rejected", 42)` thì giá trị xuất hiện trong drawer của step, kể cả khi
@@ -371,7 +371,7 @@ Chỉ làm map step khi có **một trong các dấu hiệu**:
    cùng tồn tại?
 7. **Key `meta` sống lâu hơn run:** có chấp nhận thêm một key ngoài TTL của run (để phát hiện "không bao giờ
    chạy") không? Nếu không thì Late chỉ áp dụng khi còn ít nhất một run trong Redis.
-8. **Metric: lưu ở đâu?** Trong record của step (ít key hơn) hay key riêng (cập nhật được khi step đang chạy)?
+8. ✅ *Đã quyết định (spec 013):* **Metric: lưu ở đâu?** Key riêng theo từng lần chạy của step (`...:metrics:{NN}-{step}`), vì record của step chỉ được ghi khi step xong và key riêng đọc được khi đang chạy; không cần thêm quyền Redis.
 9. **Alerting cần ghi vào Redis:** có chấp nhận cấp thêm quyền `SET` cho key `waypoint:alerts:*` không? Nếu
    không thì trạng thái "đã báo" chỉ nằm trong bộ nhớ và có thể báo lại sau khi khởi động lại.
 10. **Email:** có thật sự cần SMTP không, hay Slack và webhook là đủ cho giai đoạn đầu?

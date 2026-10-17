@@ -113,6 +113,35 @@ outside.
   and `redact=` (above) also cover events: with capture off the message and text values are dropped (numbers stay),
   with `redact` every message and text value is cleaned first. Store back ends other than Redis need a
   `push_events(items, ttl_seconds)` method (`items` are `(key, values, cap)` triples) to receive events.
+- **Metrics** (0.5.0): record a few named numbers on the step you are in, for example rows rejected or retries:
+
+  ```python
+  waypoint_etl.metric("rejected", 42)                  # set (replace); the default
+  waypoint_etl.metric("retries", 1, mode="add")        # accumulate
+  waypoint_etl.metric("peak_batch", n, mode="max")     # keep the largest
+  waypoint_etl.metric("rows", 10, step="load")         # name the step outside it
+  ```
+
+  Names are `[a-z0-9_]{1,64}`, values finite numbers (not `bool`, not text), at most 20 names per step. Anything else is
+  dropped with one warning and never raises; so is a call before `init`, after a failed `init` or with Redis down.
+  Calls are merged in memory under a lock (exact totals from many threads) and a background thread rewrites the step's
+  record `waypoint:{pipeline}:{env}:{run_id}:metrics:{NN}-{step}` at most once a second, so a tight loop costs a
+  dictionary update. The monitor shows them while the step runs and after; a retried step starts again from zero.
+  Metrics are merged in the process that called `init`: a worker process that did not call it records nothing. No new
+  Redis permission is needed. Declare a metric on the step to give it a label, a unit and a warning limit:
+
+  ```python
+  from waypoint_etl import Metric, StepSpec
+  StepSpec("load", inputs=(("rows", "clean"),), metrics=(
+      Metric("rejected", label="Rejected rows", unit="rows", warn_above=100),
+      Metric("coverage", unit="%", warn_below=90),
+  ))
+  ```
+
+  Names of letters, digits and `_` (unique in the step), labels up to 40 characters, units up to 16, limits finite
+  numbers with `warn_below <= warn_above`; a bad declaration makes the spec invalid (auditing is then off, with a
+  warning). A value strictly above `warn_above` or below `warn_below` is flagged in the monitor (display only). Declared
+  metrics also get a trend chart in History. The declaration travels in the flow record; older monitors ignore it.
 - **Heartbeat** (0.2.0): after `init`, a daemon thread refreshes `waypoint:{pipeline}:{env}:{run_id}:alive`
   (`{"v":1, "pipeline", "env", "run_id", "beat_at"}`, same TTL as the run) right away and then every
   `heartbeat_seconds` (15). It keeps beating while a step is blocked and stops when the process dies, so the

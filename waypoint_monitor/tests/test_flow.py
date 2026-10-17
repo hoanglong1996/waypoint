@@ -103,3 +103,89 @@ class TestParseFlow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMetricDeclarations(unittest.TestCase):
+    def test_declarations_are_read_into_the_step(self) -> None:
+        status, flow = parse(
+            [
+                step(
+                    "load",
+                    metrics=[
+                        {
+                            "name": "rejected",
+                            "label": " Rejected rows ",
+                            "unit": "rows",
+                            "warn_above": 100,
+                        },
+                        {"name": "cov", "warn_below": 90.5},
+                        {"name": "plain"},
+                    ],
+                ),
+                step("other"),
+            ]
+        )
+        self.assertEqual(status, "ok")
+        self.assertEqual(flow.problems, ())
+        rejected, cov, plain = flow.steps[0].metrics
+        self.assertEqual(
+            (
+                rejected.name,
+                rejected.label,
+                rejected.unit,
+                rejected.warn_above,
+                rejected.warn_below,
+            ),
+            ("rejected", "Rejected rows", "rows", 100.0, None),
+        )
+        self.assertEqual((cov.warn_below, cov.warn_above, cov.unit), (90.5, None, None))
+        self.assertEqual((plain.label, plain.unit), (None, None))
+        self.assertEqual(flow.steps[1].metrics, ())
+
+    def test_label_and_unit_are_cut(self) -> None:
+        _, flow = parse([step("a", metrics=[{"name": "m", "label": "L" * 60, "unit": "U" * 30}])])
+        self.assertEqual(len(flow.steps[0].metrics[0].label), 40)
+        self.assertEqual(len(flow.steps[0].metrics[0].unit), 16)
+
+    def test_bad_declarations_are_dropped_and_reported_without_failing_the_flow(self) -> None:
+        bad = [
+            {"name": "Bad"},
+            {"name": ""},
+            {"name": 5},
+            "text",
+            {"name": "warn", "warn_above": "9"},
+            {"name": "warn2", "warn_below": True},
+            {"name": "warn3", "warn_above": float("inf")},
+            {"name": "dup"},
+            {"name": "dup", "unit": "x"},
+            {"name": "good", "warn_above": 5},
+        ]
+        status, flow = parse([step("a", metrics=bad), step("b")])
+        self.assertEqual(status, "ok")
+        self.assertEqual([m.name for m in flow.steps[0].metrics], ["dup", "good"])
+        self.assertEqual(sum("metric declaration" in p for p in flow.problems), 8)
+        self.assertTrue(all("'a'" in p for p in flow.problems))
+
+    def test_more_than_twenty_are_cut(self) -> None:
+        status, flow = parse([step("a", metrics=[{"name": f"m{i}"} for i in range(25)])])
+        self.assertEqual(len(flow.steps[0].metrics), 20)
+        self.assertEqual(len(flow.problems), 5)
+
+    def test_metrics_not_a_list_is_dropped(self) -> None:
+        status, flow = parse([step("a", metrics={"name": "m"})])
+        self.assertEqual(status, "ok")
+        self.assertEqual(flow.steps[0].metrics, ())
+        self.assertEqual(len(flow.problems), 1)
+
+    def test_a_flow_without_metrics_is_unchanged(self) -> None:
+        status, flow = parse(callrail_flow_steps())
+        self.assertEqual(status, "ok")
+        self.assertEqual(flow.problems, ())
+        self.assertTrue(all(s.metrics == () for s in flow.steps))
+
+    def test_declarations_survive_cycle_repair(self) -> None:
+        a = step("a", "b", metrics=[{"name": "m"}])
+        b = step("b", "a")
+        _, flow = parse([b, a])
+        self.assertTrue(any("cycle" in p for p in flow.problems))
+        self.assertEqual([s.metrics for s in flow.steps if s.name == "a"][0][0].name, "m")

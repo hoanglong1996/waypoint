@@ -1183,3 +1183,24 @@ a.ctxbar__name:hover { text-decoration: underline; }
 @media (max-width: 860px) {
   .pill--slow { white-space: normal; height: auto; min-height: 22px; padding-top: 2px; padding-bottom: 2px; text-align: left; line-height: 1.25; }
 }
+
+/* Step metrics (specs/013-step-metrics): the table in a step, the over-limit badge, the History trend */
+.xmetric { grid-column: 1 / -1; width: 100%; margin-top: var(--s-2); overflow-x: auto; }
+.xmetric__table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.xmetric__table thead th { text-align: left; font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; padding: 0 var(--s-3) 4px 0; }
+.xmetric__table tbody th { text-align: left; font-weight: var(--fw-medium); color: var(--text-2); padding: 4px var(--s-3) 4px 0; border-top: 1px solid var(--border); overflow-wrap: break-word; width: 55%; }
+.xmetric__table td { padding: 4px var(--s-3) 4px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.xmetric__none { color: var(--text-3); font-style: italic; }
+.xmetric__flag { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); font-weight: var(--fw-semibold); font-size: var(--fs-xs); }
+.xmetric__flag svg { width: 13px; height: 13px; stroke-width: 2.2; flex: none; }
+.xmetric__row--over th, .xmetric__row--over td { background: var(--warn-bg); }
+.pill--metric { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+.pill--metric svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.gpill--metric { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+.trend--metric .trend__pick { flex-wrap: wrap; }
+.chart .mlimit { stroke: var(--warn); stroke-width: 1.2; stroke-dasharray: 2 3; }
+.chart .mmedian { stroke: var(--text-3); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.chart .pt--over { fill: var(--warn); stroke: var(--surface); stroke-width: 1.5; }
+@media (max-width: 600px) {
+  .xmetric__table td { white-space: normal; }
+}

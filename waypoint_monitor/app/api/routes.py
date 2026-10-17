@@ -23,6 +23,7 @@ from app.domain.parsing import (
     parse_failures,
     parse_flows,
     parse_markers,
+    parse_metrics,
     parse_records,
 )
 from app.domain.timeline import derive_events, dropped, merge, public, recorded_entries, select
@@ -45,6 +46,7 @@ class Window(NamedTuple):
     died: Raw
     failures: Raw
     event_counts: Dict[str, Dict[str, int]]
+    metrics: Raw
 
 
 def _error(status: int, message: str, **extra: Any) -> JSONResponse:
@@ -77,6 +79,7 @@ def build_router(
                 store.list_died(env, pipeline),
                 store.list_failures(env, pipeline),
                 store.list_event_counts(env, pipeline),
+                store.list_metrics(env, pipeline),
             )
         except StoreUnavailable:
             cache.pop((env, pipeline), None)  # never answer an unreachable store from old data
@@ -123,6 +126,9 @@ def build_router(
         by_run = dict(parsed.unreadable_by_run)
         for run_id, count in failure_unreadable.items():
             by_run[run_id] = by_run.get(run_id, 0) + count
+        metric_records, metric_unreadable = parse_metrics(env, pipeline, window.metrics)
+        for run_id, count in metric_unreadable.items():
+            by_run[run_id] = by_run.get(run_id, 0) + count
         parsed = ParseResult(parsed.records, by_run, parsed.unreadable_unattributed)
         flows = parse_flows(env, pipeline, window.flows)
         built = build_runs(
@@ -138,6 +144,7 @@ def build_router(
             verdicts=parse_died(env, pipeline, window.died),
             failures=failures,
             event_counts=window.event_counts,
+            metrics=metric_records,
             dead_seconds=settings.heartbeat_dead_seconds,
         )
         record_verdicts(env, pipeline, built)

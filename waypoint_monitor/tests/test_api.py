@@ -9,11 +9,13 @@ from app.config import Settings
 from app.main import create_app
 from tests.fakes import (
     FakeStore,
+    declare_metrics,
     flow_value,
     make_alive,
     make_died,
     make_failure,
     make_marker,
+    make_metrics,
     make_run,
 )
 
@@ -104,6 +106,7 @@ class TestRuns(unittest.TestCase):
                 "duration",  # specs/012
                 "bottleneck",
                 "event_counts",
+                "metrics_over",
             },
         )
 
@@ -1184,3 +1187,70 @@ class TestOlderPipelinesAndMonitors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMetricsApi(unittest.TestCase):
+    """Specs 013 contracts/api.md."""
+
+    def test_metrics_served_on_the_step_with_flags_and_counts(self) -> None:
+        store = FakeStore(
+            declare_metrics(
+                make_run("prod", R1),
+                "read_callrail_call",
+                [{"name": "rejected", "label": "Rejected", "unit": "rows", "warn_above": 100}],
+            )
+        )
+        store.metrics = [make_metrics("prod", R1, 1, {"rejected": 150, "retries": 3})]
+        run = _first_run(client_for(store))
+        step = [s for s in run["steps"] if s["name"] == "read_callrail_call"][0]
+        self.assertEqual(
+            step["metrics"][0],
+            {
+                "name": "rejected",
+                "label": "Rejected",
+                "value": 150,
+                "unit": "rows",
+                "declared": True,
+                "flag": "above",
+                "updated_at": None,
+            },
+        )
+        self.assertEqual(step["metrics"][1]["name"], "retries")
+        self.assertEqual((step["metrics_over"], run["metrics_over"]), (1, 1))
+        self.assertEqual(run["status"], "complete")
+
+    def test_runs_without_metrics_have_no_metric_keys_on_steps(self) -> None:
+        run = _first_run(client_for(FakeStore(make_run("prod", R1))))
+        self.assertEqual(run["metrics_over"], 0)
+        self.assertTrue(all("metrics" not in s and "metrics_over" not in s for s in run["steps"]))
+
+    def test_a_damaged_record_adds_to_unreadable_and_the_rest_is_served(self) -> None:
+        store = FakeStore(make_run("prod", R1))
+        good = make_metrics("prod", R1, 1, {"rows": 2})
+        bad_key, _ = make_metrics("prod", R1, 2, {"rows": 2})
+        store.metrics = [good, (bad_key, "{nope")]
+        client = client_for(store)
+        body = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+        run = body["runs"][0]
+        self.assertEqual(run["unreadable"], 1)
+        self.assertEqual(body["unreadable_total"], 1)
+        step = [s for s in run["steps"] if s["name"] == "read_callrail_call"][0]
+        self.assertEqual(step["metrics"][0]["value"], 2)
+
+    def test_store_down_is_still_503_and_the_window_includes_metrics(self) -> None:
+        store = FakeStore(make_run("prod", R1))
+        store.fail = True
+        response = client_for(store).get(
+            "/api/runs", params={"env": "prod", "pipeline": "callrail"}
+        )
+        self.assertEqual(response.status_code, 503)
+        store.fail = False
+        store.metrics = [make_metrics("prod", R1, 0, {"x": 1})]
+        again = client_for(store).get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+        self.assertEqual(again.json()["runs"][0]["steps"][0]["metrics"][0]["value"], 1)
+
+    def test_the_monitor_makes_no_write_for_metrics(self) -> None:
+        store = FakeStore(make_run("prod", R1))
+        store.metrics = [make_metrics("prod", R1, 0, {"x": 1})]
+        client_for(store).get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+        self.assertEqual(store.write_calls, [])

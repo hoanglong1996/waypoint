@@ -51,3 +51,14 @@ class TestKeys(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMetricsKey(unittest.TestCase):
+    def test_exact_key_and_padding(self) -> None:
+        from waypoint_etl.keys import metrics_key
+
+        self.assertEqual(
+            metrics_key("demo", "qa", "20261017T020301Z", 7, "load"),
+            "waypoint:demo:qa:20261017T020301Z:metrics:07-load",
+        )
+        self.assertTrue(metrics_key("demo", "qa", "r", 100, "x").endswith(":metrics:100-x"))

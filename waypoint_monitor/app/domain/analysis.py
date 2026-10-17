@@ -7,6 +7,7 @@ from app.domain.durations import (
     finished_timing,
     run_duration,
 )
+from app.domain.metrics import count_over, step_metrics
 from app.domain.models import (
     AliveSignal,
     DiedVerdict,
@@ -15,6 +16,7 @@ from app.domain.models import (
     ParseResult,
     StartMarker,
     StepFailure,
+    StepMetrics,
     StepRecord,
 )
 from app.domain.parsing import parse_run_id
@@ -117,6 +119,22 @@ def _flow_json(flow: Flow) -> Dict[str, Any]:
                 "returns_nothing": s.returns_nothing,
                 "col": s.col,
                 "row": s.row,
+                **(
+                    {
+                        "metrics": [
+                            {
+                                "name": m.name,
+                                "label": m.label,
+                                "unit": m.unit,
+                                "warn_above": m.warn_above,
+                                "warn_below": m.warn_below,
+                            }
+                            for m in s.metrics
+                        ]
+                    }
+                    if s.metrics
+                    else {}
+                ),
             }
             for s in flow.steps
         ],
@@ -140,6 +158,7 @@ def _build_run(
     dead_seconds: float,
     failures: Sequence[StepFailure] = (),
     counts: Optional[Mapping[str, int]] = None,
+    metrics: Sequence[StepMetrics] = (),
 ) -> Dict[str, Any]:
     started = parse_run_id(run_id)
     planned: List[FlowStep] = list(flow.steps) if flow else []
@@ -201,6 +220,15 @@ def _build_run(
     )
 
     out_steps: List[Dict[str, Any]] = []
+    declared_metrics = {s.name: s.metrics for s in planned}
+
+    def attach_metrics(entry: Dict[str, Any], name: str, attempt_index: int) -> None:
+        """Add `metrics` and `metrics_over` to a step that has begun, only when it has metrics."""
+        found = step_metrics(metrics, name, attempt_index, declared_metrics.get(name, ()))
+        if found:
+            entry["metrics"] = found
+            entry["metrics_over"] = count_over(found)
+
     loss: List[str] = []
     missing: List[str] = []
     running_step: Optional[str] = None
@@ -216,6 +244,7 @@ def _build_run(
                     "last_seen_at": died["last_seen_at"],
                 }
             )
+            attach_metrics(out_steps[-1], name, begun.index)
             if planned_step:
                 missing.append(name)
             return
@@ -229,6 +258,7 @@ def _build_run(
                 "elapsed_seconds": elapsed,
             }
         )
+        attach_metrics(out_steps[-1], name, begun.index)
         if state == "running":
             running_step = name
         elif planned_step:
@@ -247,6 +277,7 @@ def _build_run(
                 "duration_approx": timing.approx,
             }
         )
+        attach_metrics(out_steps[-1], name, failure.index)
         if planned_step:
             missing.append(name)
 
@@ -265,6 +296,7 @@ def _build_run(
         }
         if timing.started_at is not None:
             step_json["started_at"] = _iso(timing.started_at)
+        attach_metrics(step_json, name, found.index)
         out_steps.append(step_json)
         if planned_step and _is_loss(found.output, inputs):
             loss.append(name)
@@ -317,6 +349,7 @@ def _build_run(
         "stale": not running and age > stale_hours * 3600,
         "status": status,
         "duration": run_duration(started, ended, now, running, status == "complete"),
+        "metrics_over": sum(int(x.get("metrics_over", 0)) for x in out_steps),
         "event_counts": {
             "warning": int((counts or {}).get("warning", 0)),
             "error": int((counts or {}).get("error", 0)),
@@ -360,6 +393,7 @@ def build_runs(
     dead_seconds: float = 90.0,
     failures: Sequence[StepFailure] = (),
     event_counts: Optional[Mapping[str, Mapping[str, int]]] = None,
+    metrics: Sequence[StepMetrics] = (),
 ) -> List[Dict[str, Any]]:
     """Group records into runs (newest first), each drawn from its own flow description.
 
@@ -403,6 +437,10 @@ def build_runs(
         failures_by_run.setdefault(failure.run_id, []).append(failure)
         by_run.setdefault(failure.run_id, {})
 
+    metrics_by_run: Dict[str, List[StepMetrics]] = {}
+    for record in metrics:
+        metrics_by_run.setdefault(record.run_id, []).append(record)
+
     return [
         _build_run(
             run_id,
@@ -420,6 +458,7 @@ def build_runs(
             dead_seconds,
             failures_by_run.get(run_id, ()),
             (event_counts or {}).get(run_id),
+            metrics_by_run.get(run_id, ()),
         )
         for run_id in sorted(by_run, reverse=True)
     ]

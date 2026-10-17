@@ -1,7 +1,7 @@
 """The one active auditor of this process, set by ``init`` and read by ``audited_step``."""
 
 import atexit
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from waypoint_etl.auditor import StepAuditor
 from waypoint_etl.keys import HEARTBEAT_SECONDS
@@ -116,6 +116,24 @@ def log(message: str, *, level: str = "info", step: Optional[str] = None, **fiel
         return
 
 
+def metric(
+    name: str, value: Union[int, float], *, step: Optional[str] = None, mode: str = "set"
+) -> None:
+    """Record a named number on a step: ``waypoint_etl.metric("rejected", 42, mode="add")``.
+
+    ``mode`` is ``"set"`` (replace, the default), ``"add"`` (accumulate) or ``"max"`` (keep the largest).
+    Inside a running step ``step`` may be left out. Only finite numbers are accepted; a bad name, value
+    or mode, or a 21st name on one step, is dropped with a warning. Does nothing, and never raises or
+    waits on the network, before ``init``, after a failed ``init`` or when Redis is unreachable.
+    """
+    try:
+        active = _active
+        if active is not None:
+            active.record_metric(name, value, step, mode)
+    except Exception:
+        return
+
+
 def warn(message: str, *, step: Optional[str] = None, **fields: object) -> None:
     """``log`` at level ``warning``."""
     log(message, level="warning", step=step, **fields)
@@ -133,6 +151,7 @@ __all__ = [
     "get_active",
     "init",
     "log",
+    "metric",
     "set_active",
     "warn",
 ]

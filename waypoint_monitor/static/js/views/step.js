@@ -1,9 +1,9 @@
 /* One step as a timeline item (<li>). Used by the run page's list and the graph's "Selected step" panel. */
 import { sparkline } from '../chart.js';
 import { stepEventsHTML } from './events.js';
-import { esc, fmt, hhmmss, isDone, isLoss, metric, stepOf, stepState } from '../model.js';
+import { esc, fmt, hhmmss, isDone, isLoss, metric, metricsOver, stepOf, stepState } from '../model.js';
 import {
-  I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, slowestTag,
+  I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, metricBadgeHTML, metricsTableHTML, slowestTag,
 } from '../ui.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -59,6 +59,7 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   }
   if (run.bottleneck === s.name) html += slowestTag();
   if (loss) html += lossPill(1, 'sm');
+  html += metricBadgeHTML(metricsOver(s));
   if (unplanned) html += '<span class="pill pill--neutral pill--sm" title="Reported, but not in this run’s flow description">not in flow</span>';
   html += '</div></div>';
 
@@ -109,6 +110,8 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
     }
     html += '</div>';
   }
+
+  if (!missing && live !== 'waiting') html += metricsTableHTML(s, def);
 
   if (!compact) {
     const vals = hist.map((r) => metric(stepOf(r, s.name)));

@@ -14,7 +14,10 @@ with author events (500 info events of which 100 were dropped, warnings and erro
 ten finished runs hours apart (specs/012-duration-and-run-events): seven of about 10 minutes with exact
 step durations, one that took 35 minutes (flagged Slower than usual), one from an older library
 (no step start times) and one whose last step failed. A name you give is written as a complete run
-with that name as its label.
+with that name as its label. `metrics` writes twelve finished runs (specs/013-step-metrics): the
+`clean` step declares `rejected` (rows, warn above 100) and `coverage` (%, warn below 90) and also sends an
+undeclared `retries`; `rejected` rises from 40 to 150 so the newest runs are over the limit, one run did not
+report it, and the newest run is still running with a metric growing in its open step.
 """
 
 import json
@@ -52,6 +55,7 @@ DEFAULTS = {
     "crashed": ("Crashed pipeline", "died"),
     "history": ("History demo", "history"),
     "events": ("Events demo", "events"),
+    "metrics": ("Metrics demo", "metrics"),
 }
 
 
@@ -202,6 +206,69 @@ def seed_history(client: redis.Redis, env: str, name: str, label: str) -> List[s
     return written
 
 
+def seed_metrics(client: redis.Redis, env: str, name: str, label: str) -> List[str]:
+    """Twelve runs, newest first one hour back, with step metrics: see the module docstring."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    ttl = 86400
+    written: List[str] = []
+    declared = [
+        {"name": "rejected", "label": "Rejected rows", "unit": "rows", "warn_above": 100},
+        {"name": "coverage", "unit": "%", "warn_below": 90},
+    ]
+    steps = [dict(s, **({"metrics": declared} if s["name"] == "clean" else {})) for s in STEPS]
+    for hours in range(1, 13):
+        start = (now - timedelta(hours=hours)).replace(minute=0, second=0)
+        run_id = start.strftime("%Y%m%dT%H%M%SZ")
+        root = f"waypoint:{name}:{env}:{run_id}"
+        rejected = 40 + (12 - hours) * 10  # 150 for the newest finished run, 40 for the oldest
+        running = hours == 1
+
+        def put(key: str, value: dict) -> None:  # type: ignore[type-arg]
+            client.setex(key, ttl, json.dumps(value))
+            written.append(key)
+
+        put(
+            f"{root}:flow",
+            {
+                "v": 1, "pipeline": name, "env": env, "run_id": run_id, "label": label,
+                "groups": GROUPS, "steps": steps,
+            },
+        )  # fmt: skip
+        clock = start
+        for index, step in enumerate(STEPS, start=1):
+            began, clock = clock, clock + timedelta(seconds=60 * index)
+            inputs, output = COUNTS[step["name"]]  # type: ignore[index]
+            if running and step["name"] == "clean":
+                put(
+                    f"{root}:running:{index:02d}-clean",
+                    {"pipeline": name, "run_id": run_id, "env": env, "step": "clean",
+                     "index": index, "started_at": _stamp(now - timedelta(seconds=40))},
+                )  # fmt: skip
+                break
+            put(
+                f"{root}:step:{index:02d}-{step['name']}",
+                {
+                    "pipeline": name, "run_id": run_id, "env": env, "step": step["name"],
+                    "index": index, "inputs": {} if inputs is None else {"rows": inputs},
+                    "output": output, "finished_at": _stamp(clock),
+                    "started_at": _stamp(began), "duration_ms": 60_000 * index,
+                },
+            )  # fmt: skip
+        values = {"rejected": rejected, "coverage": 96 - hours % 3, "retries": hours % 4}
+        if hours == 5:
+            values.pop("rejected")  # one run did not report it: a gap in the trend
+        if running:
+            values = {"rejected": 130, "retries": 2}  # still growing in the open step
+        put(
+            f"{root}:metrics:02-clean",
+            {
+                "v": 1, "pipeline": name, "env": env, "run_id": run_id, "step": "clean",
+                "index": 2, "updated_at": _stamp(now), "metrics": values,
+            },
+        )  # fmt: skip
+    return written
+
+
 def seed_events(client: redis.Redis, env: str, name: str, label: str) -> List[str]:
     """One finished run (seed() with outcome complete) plus author events in the three event lists."""
     written = seed(client, env, name, label, "complete")
@@ -260,6 +327,8 @@ def main() -> None:
             written += seed_history(client, env, name, label)
         elif outcome == "events":
             written += seed_events(client, env, name, label)
+        elif outcome == "metrics":
+            written += seed_metrics(client, env, name, label)
         else:
             written += seed(client, env, name, label, outcome)
     print("\n".join(written))

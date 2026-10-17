@@ -27,6 +27,7 @@ export async function loadConfig() {
     staleHours: c.stale_hours,
     stallSeconds: c.stall_seconds,
     durationMinRuns: c.duration_min_runs || 5,
+    durationWindowRuns: c.duration_window_runs || 30,
   };
 }
 
@@ -80,7 +81,24 @@ export function mapOverview(body) {
   };
 }
 
+/** A step's metrics (specs/013 contracts/api.md); an old server sends none. Names, labels and units stay text. */
+export function mapMetrics(list) {
+  return (Array.isArray(list) ? list : []).map((m) => ({
+    name: String(m.name),
+    label: typeof m.label === 'string' ? m.label : null,
+    value: typeof m.value === 'number' ? m.value : null,
+    unit: typeof m.unit === 'string' ? m.unit : null,
+    declared: !!m.declared,
+    flag: m.flag === 'above' || m.flag === 'below' ? m.flag : null,
+    updatedAt: m.updated_at ? new Date(m.updated_at) : null,
+  }));
+}
+
 function mapStep(s) {
+  return { ...mapStepBase(s), metrics: mapMetrics(s.metrics), metricsOver: s.metrics_over || 0 };
+}
+
+function mapStepBase(s) {
   if (s.missing) return { name: s.name, state: 'missing', missing: true };
   if (s.state === 'failed') {
     // The step raised: no counts. Keep when it began and failed, and what the error said (text, never HTML).
@@ -153,6 +171,13 @@ function mapFlow(f) {
       returnsNothing: !!s.returns_nothing,
       col: typeof s.col === 'number' ? s.col : null,
       row: typeof s.row === 'number' ? s.row : null,
+      metrics: (s.metrics || []).map((m) => ({
+        name: String(m.name),
+        label: typeof m.label === 'string' ? m.label : null,
+        unit: typeof m.unit === 'string' ? m.unit : null,
+        warnAbove: typeof m.warn_above === 'number' ? m.warn_above : null,
+        warnBelow: typeof m.warn_below === 'number' ? m.warn_below : null,
+      })),
     })),
   };
 }
@@ -167,7 +192,7 @@ export function defsFor(flow, steps) {
     const d = byName.get(s.name);
     if (d) return d;
     return {
-      name: s.name, label: s.name, group: null, inputs: [], returnsNothing: false, col: null, row: null,
+      name: s.name, label: s.name, group: null, inputs: [], returnsNothing: false, col: null, row: null, metrics: [],
       unplanned: !!flow, noFlow: !flow,
     };
   });
@@ -187,6 +212,7 @@ export function mapRun(r) {
       ? { seconds: r.duration.seconds == null ? null : r.duration.seconds, running: !!r.duration.running, complete: !!r.duration.complete, slow: !!r.duration.slow }
       : null,
     bottleneck: r.bottleneck || null,
+    metricsOver: r.metrics_over || 0,
     eventCounts: { warning: (r.event_counts && r.event_counts.warning) || 0, error: (r.event_counts && r.event_counts.error) || 0 },
     ageSeconds: r.age_seconds,
     stale: r.stale,

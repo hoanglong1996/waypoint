@@ -1,7 +1,7 @@
 /* History view: step trend chart and the runs list. A run opens as its own page (views/run.js). */
-import { drawDuration, drawTrend } from '../chart.js';
+import { drawDuration, drawMetricTrend, drawTrend } from '../chart.js';
 import {
-  HEADLINE_TITLE, analyse, dayLabel, durationSeries, esc, filterRuns, fmt, fmtDuration, headline, hhmm, runRoute,
+  HEADLINE_TITLE, analyse, dayLabel, durationSeries, esc, filterRuns, fmt, fmtDuration, headline, hhmm, metricTrend, runRoute, trendMetricChoices,
 } from '../model.js';
 import { buildRoute } from '../router.js';
 import {
@@ -9,6 +9,8 @@ import {
 } from '../ui.js';
 
 let trendStep = null;
+let metricStep = null; // the Metric trend card: the chosen step and metric (specs/013)
+let metricName = null;
 let show = 'all'; // the run list filter: 'all' or 'failed' (client side; the trend always uses every run)
 let ctx = { runs: [], cfg: null, typical: null };
 
@@ -34,6 +36,36 @@ export function envBarHTML(info, count) {
       ? 'Showing <b>' + count + '</b> ' + esc(info.applied) + ' run' + (count === 1 ? '' : 's') + '. The trend and the runs list use this environment.'
       : 'No ' + esc(info.applied) + ' runs for this pipeline.') + '</p></section>'
   );
+}
+
+/** Keeps the chosen step and metric when they still exist, else the first declared one. */
+function pickMetric(choices) {
+  if (!choices.some((c) => c.step === metricStep)) metricStep = choices.length ? choices[0].step : null;
+  const chosen = choices.find((c) => c.step === metricStep);
+  if (chosen && !chosen.metrics.some((m) => m.name === metricName)) metricName = chosen.metrics[0].name;
+  return chosen || null;
+}
+
+function metricOptionsHTML(chosen) {
+  return chosen.metrics
+    .map((m) => '<option value="' + esc(m.name) + '"' + (m.name === metricName ? ' selected' : '') + '>' + esc(m.label || m.name) + '</option>')
+    .join('');
+}
+
+/** The Metric trend card; '' when no shown run declares a metric. */
+export function metricCardHTML(choices) {
+  if (!choices.length) return '';
+  const chosen = pickMetric(choices);
+  const steps = choices
+    .map((c) => '<option value="' + esc(c.step) + '"' + (c.step === metricStep ? ' selected' : '') + '>' + esc(c.step) + '</option>')
+    .join('');
+  return '<section class="card trend trend--metric" aria-labelledby="mtrend-title"><div class="trend__head">' +
+    '<div class="trend__pick"><h2 class="section-title" id="mtrend-title">Metric trend</h2>' +
+    '<label for="mtrend-step">Step</label><select id="mtrend-step" class="select">' + steps + '</select>' +
+    '<label for="mtrend-metric">Metric</label><select id="mtrend-metric" class="select">' + metricOptionsHTML(chosen) + '</select></div>' +
+    '<div class="trend__stat" id="mtrend-stat"></div></div>' +
+    '<div class="chart" id="mtrend-chart" tabindex="0" role="img" aria-roledescription="line chart"></div>' +
+    '<div class="chart__legend"><span><i class="lg-dot"></i>value per run</span><span><i class="lg-diamond"></i>over a limit</span><span><i class="lg-dot lg-dot--gap"></i>not reported</span><span>Dashed line: median · dotted line: warning limit</span></div></section>';
 }
 
 /** "All runs / Failed only": narrows the runs list to the runs a failed step stopped. */
@@ -69,6 +101,7 @@ export function renderHistory(el, runs, cfg, envInfo, typical = null) {
     return;
   }
   const choices = trendSteps(runs);
+  const metricChoices = trendMetricChoices(runs);
   if (!choices.some((s) => s.name === trendStep)) trendStep = choices.length ? choices[0].name : null;
   const opts = choices
     .map((s) => '<option value="' + esc(s.name) + '"' + (s.name === trendStep ? ' selected' : '') + '>' + esc(s.name) + '</option>')
@@ -101,6 +134,7 @@ export function renderHistory(el, runs, cfg, envInfo, typical = null) {
     '<div class="trend__stat" id="trend-stat"></div></div>' +
     '<div class="chart" id="chart" tabindex="0" role="img" aria-roledescription="line chart"></div>' +
     '<div class="chart__legend"><span><i class="lg-dot"></i>value per run</span><span><i class="lg-dot lg-dot--bad"></i>0 with input (possible loss)</span><span><i class="lg-dot lg-dot--gap"></i>step not recorded</span><span>Use ← → to move between runs</span></div></section>' +
+    metricCardHTML(metricChoices) +
     '<section class="card trend trend--duration" aria-labelledby="dur-title"><div class="trend__head">' +
     '<div class="trend__pick"><h2 class="section-title" id="dur-title">Run duration</h2></div>' +
     '<div class="trend__stat" id="dur-stat"></div></div>' +
@@ -123,6 +157,20 @@ export function renderHistory(el, runs, cfg, envInfo, typical = null) {
     trendStep = e.target.value;
     redrawTrend();
   });
+  const stepPick = $('mtrend-step');
+  if (stepPick) {
+    stepPick.addEventListener('change', (e) => {
+      metricStep = e.target.value;
+      metricName = null;
+      const chosen = pickMetric(metricChoices);
+      $('mtrend-metric').innerHTML = metricOptionsHTML(chosen);
+      redrawTrend();
+    });
+    $('mtrend-metric').addEventListener('change', (e) => {
+      metricName = e.target.value;
+      redrawTrend();
+    });
+  }
   redrawTrend();
 }
 
@@ -130,6 +178,12 @@ export function redrawTrend() {
   const dbox = $('dur-chart');
   if (dbox && ctx.runs.length) {
     drawDuration(dbox, $('dur-stat'), $('tooltip'), durationSeries(ctx.runs, ctx.typical, ctx.cfg ? ctx.cfg.durationMinRuns : 5));
+  }
+  const mbox = $('mtrend-chart');
+  if (mbox && ctx.runs.length && metricStep && metricName) {
+    const window = ctx.cfg && ctx.cfg.durationWindowRuns ? ctx.cfg.durationWindowRuns : 30;
+    const minRuns = ctx.cfg && ctx.cfg.durationMinRuns ? ctx.cfg.durationMinRuns : 5;
+    drawMetricTrend(mbox, $('mtrend-stat'), $('tooltip'), metricTrend(ctx.runs, metricStep, metricName, window, minRuns));
   }
   const box = $('chart');
   if (!box || !ctx.runs.length) return;

@@ -5,7 +5,7 @@ import {
   pickLayout, readingOrder, simpleLayout,
 } from '../graph-model.js';
 import {
-  esc, fmt, fmtDuration, groupKeys, groupLabel, groupSlot, hasCounts, hhmmss, isDone, stepState,
+  esc, fmt, fmtDuration, groupKeys, groupLabel, groupSlot, hasCounts, hhmmss, isDone, metricsOver, overText, stepState,
 } from '../model.js';
 import {
   I, elapsedHTML, noticeFor, problemsHTML,
@@ -105,6 +105,7 @@ function build(el, o) {
     if (mode === 'run' && isDone(s)) time = '<span class="gnode__time num">' + hhmmss(s.finishedAt) + '</span>';
     const gname = def.group ? groupLabel(run, def.group) : '';
     const slowest = mode === 'run' && run.bottleneck === def.name;
+    const over = mode === 'run' && s ? metricsOver(s) : 0;
     const dur = mode === 'run' && s && s.durationSeconds != null && (isDone(s) || st === 'failed')
       ? '<span class="gnode__dur num" title="' + (s.durationApprox ? 'Estimated from the previous step' : 'Duration') + '">' + esc(fmtDuration(s.durationSeconds, { approx: s.durationApprox })) + '</span>'
       : '';
@@ -112,12 +113,14 @@ function build(el, o) {
       (mode === 'ghost' ? 'No data.' : 'State: ' + STATE_LONG[st] + '. ' + (isDone(s) ? 'Output ' + (s.output == null ? 'n/a' : fmt(s.output)) + '.' : '')) +
       (s && s.durationSeconds != null && mode === 'run' ? ' Took ' + fmtDuration(s.durationSeconds, { approx: s.durationApprox }) + '.' : '') +
       (slowest ? ' Slowest step of the run.' : '') +
+      (over ? ' ' + overText(over) + '.' : '') +
       (aff ? ' Downstream of a data-loss step.' : '');
     return '<button type="button" class="gnode gnode--' + st + (aff ? ' is-affected' : '') + '" data-i="' + i + '" style="' + style + '" aria-label="' + esc(aria) + '"' + (mode !== 'run' ? ' tabindex="-1"' : '') + '>' +
       '<span class="gnode__head">' +
         (mode === 'run' ? '<span class="gpill gpill--' + st + '">' + stateIcon(st) + '<span class="gpill__txt">' + STATE_TXT[st] + '</span></span>' : '') +
         (aff ? '<span class="gpill gpill--affected" title="Downstream of a data-loss step">' + I.down + '<span class="gpill__txt">affected</span></span>' : '') +
         (slowest ? '<span class="gpill gpill--slowest" title="Took the largest share of the run">' + I.stopwatch + '<span class="gpill__txt">Slowest</span></span>' : '') +
+        (over ? '<span class="gpill gpill--metric" title="' + esc(overText(over)) + '">' + I.alert + '<span class="gpill__txt">' + over + (L.kind === 'compact' ? '' : ' over limit') + '</span></span>' : '') +
       '</span>' +
       '<span class="gnode__label"><i class="gdot g-' + slot + '" aria-hidden="true"></i>' + esc(labelOf(def)) + '</span>' +
       '<span class="gnode__namerow"><span class="gnode__name">' + nameWbr(def.name) + '</span>' + (L.kind !== 'compact' ? dur : '') + '</span>' +

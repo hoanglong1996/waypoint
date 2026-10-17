@@ -110,6 +110,7 @@ waypoint_etl.init(
 | `init` called per partner/loop | Replaces config, new run each time (prints warning) |
 | Non-str or unlisted `env` | Breaks the key, or the monitor never shows it |
 | Putting data values in `waypoint_etl.log(...)` text | Event messages and text values are stored as written (300 and 100 characters at most). Send names and counts (`waypoint_etl.log("Loaded batch", rows=n)`). `capture_error_message=False` or `redact=` in `init` cover events as well as errors. From 0.4.0; the call does nothing before `init` or with Redis down, so it is safe anywhere |
+| Sending text or booleans through `waypoint_etl.metric(...)` | A metric is a finite number only (`int` or `float`, not `bool`); the name is `[a-z0-9_]{1,64}`, at most 20 per step. Anything else is dropped with a warning. Use `mode="add"` to accumulate in a loop and `mode="max"` to keep the largest. Optional: declare it on the step with `Metric(name, label=, unit=, warn_above=, warn_below=)` for a unit and a warning flag. From 0.5.0; the call does nothing before `init` or with Redis down. Metrics are merged in the process that called `init` |
 | Expecting exceptions to stay invisible | From 0.3.0 a raising step writes a failure item (type, shortened message, frames-only trace) and the exception is re-raised untouched; shown as Failed. Messages can hold data: pass `capture_error_message=False` or `redact=` to `init` when they might |
 | Parallel steps | SDK assumes steps run one after another per run |
 

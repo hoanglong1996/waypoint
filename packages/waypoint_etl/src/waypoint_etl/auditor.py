@@ -9,7 +9,7 @@ import itertools
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Mapping, Optional, TypeVar
+from typing import Callable, Dict, List, Mapping, Optional, Set, TypeVar, Union
 
 from waypoint_etl.errors import build_error
 from waypoint_etl.events import EventWriter, build_event, current_step
@@ -23,7 +23,8 @@ from waypoint_etl.keys import (
     marker_key,
     step_key,
 )
-from waypoint_etl.spec import PipelineSpec, validate_spec
+from waypoint_etl.metrics import MetricState, MetricWriter
+from waypoint_etl.spec import Metric, PipelineSpec, validate_spec
 from waypoint_etl.stores import StepAuditStore
 
 T = TypeVar("T")
@@ -46,6 +47,19 @@ def _stamp(now: datetime) -> str:
     return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _metric_value(metric: Metric) -> Dict[str, object]:
+    value: Dict[str, object] = {"name": metric.name}
+    for field, optional in (
+        ("label", metric.label),
+        ("unit", metric.unit),
+        ("warn_above", metric.warn_above),
+        ("warn_below", metric.warn_below),
+    ):
+        if optional is not None:
+            value[field] = optional
+    return value
+
+
 def _flow_value(spec: PipelineSpec, env: str, run_id: str) -> Dict[str, object]:
     steps: List[Dict[str, object]] = []
     for s in spec.steps:
@@ -63,6 +77,8 @@ def _flow_value(spec: PipelineSpec, env: str, run_id: str) -> Dict[str, object]:
                 entry[field] = optional
         if s.returns_nothing:
             entry["returns_nothing"] = True
+        if s.metrics:
+            entry["metrics"] = [_metric_value(m) for m in s.metrics]
         steps.append(entry)
     value: Dict[str, object] = {
         "v": FLOW_VERSION,
@@ -104,6 +120,10 @@ class StepAuditor:
         self._event_lock = threading.Lock()
         self._events: Optional[EventWriter] = None
         self._events_warned = False
+        self._latest_index: Dict[str, int] = {}
+        self._metric_state = MetricState()
+        self._metric_writer: Optional[MetricWriter] = None
+        self._metric_warned: Set[str] = set()
         self._heartbeat: Optional[Heartbeat] = None
         self._started = False
         self._spec_ok = True
@@ -143,16 +163,68 @@ class StepAuditor:
         """Stop the heartbeat and deliver queued events. Safe to call more than once."""
         if self._heartbeat is not None:
             self._heartbeat.stop()
+        started = time.monotonic()
         if self._events is not None:
             self._events.stop()
+        if self._metric_writer is not None:
+            self._metric_writer.stop(max(0.0, 2.0 - (time.monotonic() - started)))
 
     def flush_events(self, timeout: float = 2.0) -> None:
-        """Write what is queued, waiting at most ``timeout`` seconds. Never raises."""
+        """Write what is queued (events and metrics), waiting at most ``timeout`` seconds in all.
+
+        Never raises.
+        """
+        started = time.monotonic()
         try:
             if self._events is not None:
                 self._events.flush(timeout)
         except Exception:
+            pass
+        try:
+            if self._metric_writer is not None:
+                self._metric_writer.flush(max(0.0, timeout - (time.monotonic() - started)))
+        except Exception:
             return
+
+    def record_metric(
+        self,
+        name: str,
+        value: Union[int, float],
+        step: Optional[str] = None,
+        mode: str = "set",
+    ) -> None:
+        """Merge one metric call into the step attempt it belongs to. Never raises, never blocks."""
+        try:
+            named = step or current_step.get() or self.current_open_step()
+            if named is None:
+                return
+            index = self._latest_index.get(named)
+            if index is None:
+                self._warn_metric(f"step:{named}", f"step {named!r} has not started in this run")
+                return
+            reason = self._metric_state.apply((index, named), name, value, mode)
+            if reason is not None:
+                self._warn_metric(f"{reason}:{name}", f"metric {name!r} dropped ({reason})")
+                return
+            if self._metric_writer is None:
+                self._metric_writer = MetricWriter(
+                    self.store,
+                    self._metric_state,
+                    self.spec.name,
+                    self.env,
+                    self.run_id,
+                    self.ttl_seconds,
+                )
+            self._metric_writer.notify()
+        except Exception:
+            return
+
+    def _warn_metric(self, key: str, text: str) -> None:
+        """One warning per distinct problem (bounded to 100 kept)."""
+        if key in self._metric_warned or len(self._metric_warned) >= 100:
+            return
+        self._metric_warned.add(key)
+        print(f"Warning: Waypoint metric: {text}")
 
     def current_open_step(self) -> Optional[str]:
         """The one step that has begun and not ended, else None (steps are sequential)."""
@@ -222,6 +294,7 @@ class StepAuditor:
         self._begun[index] = started_at
         self._begun_mono[index] = time.monotonic()
         self._open[index] = name
+        self._latest_index[name] = index
         if self._spec_ok and name not in {s.name for s in self.spec.steps}:
             print(f"Warning: step {name} is not in pipeline spec {pipeline}")
         try:

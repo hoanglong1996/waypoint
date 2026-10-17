@@ -308,3 +308,27 @@ class TestEventReads(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestListMetrics(unittest.TestCase):
+    def test_scan_pattern_and_mget_only(self) -> None:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        key = "waypoint:demo:prod:20261015T020000Z:metrics:01-load"
+        client.scan_iter.return_value = iter([key, key + "x"])
+        client.mget.return_value = ["{}", None]
+        self.assertEqual(store.list_metrics("prod", "demo"), [(key, "{}")])
+        client.scan_iter.assert_called_once_with(match="waypoint:demo:prod:*:metrics:*", count=500)
+        called = {c[0] for c in client.method_calls}
+        self.assertTrue(called <= {"scan_iter", "mget"}, called)
+
+    def test_unreachable_store_raises_store_unavailable(self) -> None:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        client.scan_iter.side_effect = redis.ConnectionError("down")
+        with self.assertRaises(StoreUnavailable):
+            store.list_metrics("prod", "demo")

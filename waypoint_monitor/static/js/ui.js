@@ -58,7 +58,9 @@ export function stepsHeadHTML(name, hint) {
   return '<div class="section-head section-head--steps"><h2 class="section-title">Steps</h2>' +
     (hint ? '<span class="faint section-hint">' + hint + '</span>' : '') + viewToggleHTML(name) + '</div>';
 }
-import { ago, deltaPct, elapsedLabel, esc, fmt, fmtDuration, slowText } from './model.js';
+import {
+  ago, deltaPct, elapsedLabel, esc, flagText, fmt, fmtDuration, formatMetricValue, metricDecl, overText, slowText, stepMetrics,
+} from './model.js';
 import { buildRoute } from './router.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -296,4 +298,35 @@ export function countChipsHTML({ warnings = 0, errors = 0 } = {}) {
   if (warnings > 0) parts.push(chip(warnings, 'warning', 'warnings', 'warning', I.alert));
   if (errors > 0) parts.push(chip(errors, 'error', 'errors', 'error', I.xCircle));
   return parts.length ? '<span class="evcounts">' + parts.join('') + '</span>' : '';
+}
+
+/* ---------- custom step metrics (specs/013 contracts/ui.md) ---------- */
+
+/** "1 metric over limit": a warning icon and the words, so colour is never the only cue. */
+export function metricBadgeHTML(n) {
+  if (!n) return '';
+  return '<span class="pill pill--metric pill--sm" title="' + esc(overText(n)) + '">' + I.alert + esc(overText(n)) + '</span>';
+}
+
+/**
+ * The metric table of a step: name (label when declared), value with unit, and a text flag with its limit.
+ * Declared metrics come first as the server orders them; a declared metric that was not reported says so
+ * instead of showing 0. Everything is escaped. '' when the step has no metrics.
+ */
+export function metricsTableHTML(step, def) {
+  const list = stepMetrics(step);
+  if (!list.length) return '';
+  const rows = list.map((m) => {
+    const decl = metricDecl(def, m.name);
+    const title = m.label && m.label !== m.name ? ' title="' + esc(m.name) + '"' : '';
+    const unit = m.unit || (decl && decl.unit) || null;
+    const value = m.value == null
+      ? '<span class="xmetric__none">not reported</span>'
+      : '<span class="num" title="' + esc(String(m.value)) + '">' + esc(formatMetricValue(m.value, unit)) + '</span>';
+    const flag = m.flag
+      ? '<span class="xmetric__flag">' + I.alert + esc(flagText(m.flag, decl)) + '</span>'
+      : '';
+    return '<tr' + (m.flag ? ' class="xmetric__row--over"' : '') + '><th scope="row"' + title + '>' + esc(m.label || m.name) + '</th><td>' + value + '</td><td>' + flag + '</td></tr>';
+  }).join('');
+  return '<div class="xmetric" role="group" aria-label="Metrics"><table class="xmetric__table"><thead><tr><th scope="col">Metric</th><th scope="col">Value</th><th scope="col"><span class="sr-only">Limit</span></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }

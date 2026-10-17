@@ -9,10 +9,11 @@ from app.domain.parsing import (
     parse_failures,
     parse_flows,
     parse_markers,
+    parse_metrics,
     parse_records,
     pipeline_of_key,
 )
-from tests.fakes import PIPELINE, make_failure, make_marker, make_run, split
+from tests.fakes import PIPELINE, make_failure, make_marker, make_metrics, make_run, split
 
 RUN = "20261015T020000Z"
 
@@ -490,3 +491,90 @@ class TestParseEvents(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestParseMetrics(unittest.TestCase):
+    def raw(self, **changes: object) -> list:  # type: ignore[type-arg]
+        key, value = make_metrics("prod", RUN, 1, {"rows": 4, "ratio": 0.5})
+        data = json.loads(value)
+        data.update(changes)
+        data = {k: v for k, v in data.items() if v is not DROP}
+        return [(key, json.dumps(data))]
+
+    def test_valid_record(self) -> None:
+        records, unreadable = parse_metrics("prod", PIPELINE, self.raw())
+        self.assertEqual(unreadable, {})
+        self.assertEqual(len(records), 1)
+        r = records[0]
+        self.assertEqual((r.step, r.index, r.run_id), ("read_callrail_call", 2, RUN))
+        self.assertEqual(r.values, {"rows": 4, "ratio": 0.5})
+        self.assertIsNone(r.updated_at)
+
+    def test_updated_at_parsed_and_wrong_type_is_absent(self) -> None:
+        stamp = datetime(2026, 10, 15, 2, 5, 12, tzinfo=timezone.utc)
+        key, value = make_metrics("prod", RUN, 1, {"a": 1}, updated_at=stamp)
+        self.assertEqual(parse_metrics("prod", PIPELINE, [(key, value)])[0][0].updated_at, stamp)
+        self.assertIsNone(parse_metrics("prod", PIPELINE, self.raw(updated_at=5))[0][0].updated_at)
+
+    def test_a_bad_record_counts_one_unreadable_for_its_run(self) -> None:
+        bad = {
+            "wrong version": {"v": 2},
+            "missing version": {"v": DROP},
+            "wrong pipeline": {"pipeline": "other"},
+            "wrong env": {"env": "qa"},
+            "wrong run": {"run_id": "20250101T000000Z"},
+            "wrong step": {"step": "mystery"},
+            "wrong index": {"index": 9},
+            "bool index": {"index": True},
+            "metrics not object": {"metrics": [1]},
+            "metrics missing": {"metrics": DROP},
+            "too many": {"metrics": {f"m{i}": 1 for i in range(21)}},
+        }
+        for label, change in bad.items():
+            with self.subTest(label):
+                records, unreadable = parse_metrics("prod", PIPELINE, self.raw(**change))
+                self.assertEqual(records, [])
+                self.assertEqual(unreadable, {RUN: 1})
+        key = self.raw()[0][0]
+        for text in ("{not json", "[1]", '"x"'):
+            with self.subTest(text):
+                self.assertEqual(parse_metrics("prod", PIPELINE, [(key, text)])[1], {RUN: 1})
+
+    def test_bad_entries_are_dropped_inside_a_readable_record(self) -> None:
+        metrics = {
+            "ok": 1,
+            "Bad": 2,
+            "x" * 65: 3,
+            "flag": True,
+            "text": "1",
+            "none": None,
+            "nan": float("nan"),
+            "inf": float("inf"),
+            "neg": -2.5,
+        }
+        raw = self.raw(metrics=metrics)
+        records, unreadable = parse_metrics("prod", PIPELINE, raw)
+        self.assertEqual(unreadable, {})
+        self.assertEqual(records[0].values, {"ok": 1, "neg": -2.5})
+
+    def test_foreign_and_malformed_keys_are_ignored(self) -> None:
+        key, value = make_metrics("prod", RUN, 1, {"a": 1})
+        other = [
+            (key.replace(":prod:", ":qa:"), value),
+            (key.replace("waypoint:callrail", "waypoint:other"), value),
+            (key.replace(RUN, "nope"), value),
+            (key.replace(":metrics:", ":step:"), value),
+            ("waypoint:callrail:prod:" + RUN + ":events:info", value),
+        ]
+        self.assertEqual(parse_metrics("prod", PIPELINE, other), ([], {}))
+
+    def test_other_key_patterns_do_not_match_metrics_keys(self) -> None:
+        key, value = make_metrics("prod", RUN, 1, {"a": 1})
+        self.assertEqual(parse_records("prod", PIPELINE, [(key, value)]).records, [])
+        self.assertEqual(parse_markers("prod", PIPELINE, [(key, value)]), [])
+        self.assertEqual(parse_failures("prod", PIPELINE, [(key, value)]), ([], {}))
+        self.assertEqual(parse_events("prod", PIPELINE, [(key, [value])])[0], [])
+        self.assertEqual(pipeline_of_key("prod", key), PIPELINE)
+
+
+DROP = object()

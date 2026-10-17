@@ -34,6 +34,10 @@ class RecordStore(Protocol):
         """Return `(key, raw_json)` pairs for every failure item. Read only."""
         ...
 
+    def list_metrics(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        """Return `(key, raw_json)` pairs for every step metrics record. Read only."""
+        ...
+
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
         """Return `{run_id: {"warning": n, "error": m}}` from the lengths of the event lists. Read only.
 
