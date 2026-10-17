@@ -5,7 +5,9 @@ import {
 import {
   appliedEnv, dayLabel, elapsedLabel, envChoices, findRun, hhmm, overviewSignature, retryIn, runSignature, updatedLabel,
 } from './model.js';
-import { buildRoute, parseRoute, routeTitle } from './router.js';
+import {
+  buildRoute, parseRoute, routeTitle, withoutPanel,
+} from './router.js';
 import {
   I, banner, errorHTML, getStepsView, historySkeletonHTML, notFoundHTML, runNotFoundHTML, setStepsView, skeletonHTML,
 } from './ui.js';
@@ -14,6 +16,7 @@ import { redrawTrend, renderHistory } from './views/history.js';
 import { homeErrorHTML, homeSkeletonHTML, renderHome } from './views/home.js';
 import { refreshEvents } from './views/events.js';
 import { renderRun } from './views/run.js';
+import { mountItem, refreshItem } from './views/item.js';
 
 const $ = (id) => document.getElementById(id);
 const DEFAULT_RETRY = 30;
@@ -77,6 +80,14 @@ function currentView() {
     if (state.status === 'ok' && !run) return { kind: 'runnotfound', id: r.id, env: r.env, card };
     return { kind: 'run', id: r.id, env: r.env, card, run };
   }
+  if (r.name === 'item') {
+    // an item page needs its run, like a run page does (specs/014)
+    const card = cardOf(r.id);
+    if (state.status === 'ok' && !card) return { kind: 'notfound', id: r.id };
+    const run = state.status === 'ok' ? findRun(state.runs, r.env, r.runId) : null;
+    if (state.status === 'ok' && !run) return { kind: 'runnotfound', id: r.id, env: r.env, card };
+    return { kind: 'item', id: r.id, env: r.env, card, run };
+  }
   if (r.name === 'notfound' && r.id) {
     // A malformed run address of a pipeline that exists is a missing run, not a missing pipeline.
     if (state.status !== 'ok') return { kind: 'history', id: r.id, card: null };
@@ -88,7 +99,7 @@ function currentView() {
 
 function showView(kind) {
   const shown = kind === 'runnotfound' ? 'notfound' : kind;
-  ['home', 'history', 'run', 'notfound'].forEach((v) => {
+  ['home', 'history', 'run', 'item', 'notfound'].forEach((v) => {
     $('view-' + v).hidden = v !== shown;
   });
 }
@@ -96,14 +107,14 @@ function showView(kind) {
 /* ---------- header: brand · live · theme, plus the context bar on pipeline pages ---------- */
 function syncHeader(view) {
   const bar = $('ctxbar');
-  const onPipe = view.kind === 'history' || view.kind === 'run' || view.kind === 'runnotfound';
+  const onPipe = view.kind === 'history' || view.kind === 'run' || view.kind === 'item' || view.kind === 'runnotfound';
   bar.hidden = !onPipe;
   if (!onPipe) return;
   const label = view.card ? view.card.label : view.id;
   const name = $('ctx-name');
   name.textContent = label;
   name.title = label;
-  const isRun = view.kind === 'run' || view.kind === 'runnotfound';
+  const isRun = view.kind === 'run' || view.kind === 'item' || view.kind === 'runnotfound';
   if (isRun) {
     // the pipeline name is the back control: its history, with the environment of the run
     name.href = buildRoute({ name: 'pipeline', id: view.id, page: 'history', env: view.env || null });
@@ -112,9 +123,10 @@ function syncHeader(view) {
     name.href = buildRoute({ name: 'pipeline', id: view.id, page: 'history', env: state.route.env });
     name.setAttribute('aria-current', 'page');
   }
-  const run = view.kind === 'run' ? $('ctx-run') : null;
-  $('ctx-chev').hidden = view.kind !== 'run';
-  $('ctx-run').hidden = view.kind !== 'run';
+  const onRun = view.kind === 'run' || view.kind === 'item';
+  const run = onRun ? $('ctx-run') : null;
+  $('ctx-chev').hidden = !onRun;
+  $('ctx-run').hidden = !onRun;
   if (run) run.textContent = view.run ? runLabel(view.run) : 'Run';
 }
 
@@ -137,7 +149,7 @@ function renderBanners(view) {
   const l = view.card.latest;
   // The stale warning is about the pipeline's newest run: on a run page only when that run is it.
   const showStale = view.kind === 'history'
-    || (view.kind === 'run' && view.run && l.runId === view.run.id && l.env === view.run.env);
+    || ((view.kind === 'run' || view.kind === 'item') && view.run && l.runId === view.run.id && l.env === view.run.env);
   if (l.stale && showStale) {
     const ageH = l.ageSeconds / 3600;
     el.innerHTML += banner(
@@ -146,7 +158,7 @@ function renderBanners(view) {
       'alert',
     );
   }
-  if (state.unreadableTotal && (view.kind === 'history' || view.kind === 'run')) {
+  if (state.unreadableTotal && (view.kind === 'history' || view.kind === 'run' || view.kind === 'item')) {
     el.innerHTML += banner(
       'info', I.fileX, 'Some records could not be read',
       state.unreadableTotal + ' step records were malformed and skipped. Counts below come from the records that could be read.',
@@ -176,6 +188,7 @@ function render() {
   const label = view.card && view.card.label;
   if (view.kind === 'history') document.title = routeTitle({ name: 'pipeline', id: view.id, page: 'history' }, label);
   else if (view.kind === 'run') document.title = routeTitle({ name: 'run', id: view.id, env: view.env }, label, view.run ? runLabel(view.run) : null);
+  else if (view.kind === 'item') document.title = routeTitle(state.route, label);
   else if (view.kind === 'runnotfound') document.title = 'Run not found · Waypoint Monitor';
   else document.title = routeTitle({ name: view.kind, id: view.id });
   syncHeader(view);
@@ -193,9 +206,11 @@ function render() {
   }
   const home = $('view-home');
   const runEl = $('view-run');
+  const itemEl = $('view-item');
   const history = $('view-history');
   if (state.status === 'loading') {
-    if (view.kind === 'home') home.innerHTML = homeSkeletonHTML();
+    if (view.kind === 'item') itemEl.innerHTML = '<div class="mp-card mp-pad" role="status">Loading item…</div>';
+    else if (view.kind === 'home') home.innerHTML = homeSkeletonHTML();
     else if (view.kind === 'run') {
       runEl.innerHTML = skeletonHTML(6, cfg ? getStepsView() : 'list');
       if (cfg && getStepsView() === 'graph') mountGraph($('run-graph'), { cfg, mode: 'skeleton' });
@@ -204,12 +219,18 @@ function render() {
   }
   if (state.status === 'error') {
     if (view.kind === 'home') home.innerHTML = homeErrorHTML(errorHTML(retry));
-    else (view.kind === 'run' ? runEl : history).innerHTML = errorHTML(retry);
+    else (view.kind === 'run' ? runEl : view.kind === 'item' ? itemEl : history).innerHTML = errorHTML(retry);
     syncLive();
     return;
   }
   if (view.kind === 'home') {
     renderHome(home, state.overview.cards, cfg, state.lastOkAt);
+    return;
+  }
+  if (view.kind === 'item') {
+    mountItem(itemEl, {
+      run: view.run, route: state.route, cfg, label: view.card ? view.card.label : view.id, runLabel: runLabel(view.run),
+    });
     return;
   }
   if (view.kind === 'run') {
@@ -273,7 +294,7 @@ async function refresh() {
     const overview = await loadOverview();
     if (gen !== state.gen) return;
     let data = { runs: [], unreadableTotal: 0, typical: null };
-    const card = route.name === 'pipeline' || route.name === 'run' ? overview.cards.find((c) => c.name === route.id) : null;
+    const card = route.name === 'pipeline' || route.name === 'run' || route.name === 'item' ? overview.cards.find((c) => c.name === route.id) : null;
     if (card && route.name === 'pipeline') {
       // one environment; one that has no runs is not asked for
       const env = appliedEnv(card, route.env);
@@ -288,7 +309,7 @@ async function refresh() {
     if (gen !== state.gen) return;
     // A reload every few seconds must not restart spinners or drop focus, so redraw only when
     // something other than elapsed time / same-minute age changed.
-    const sig = location.hash + '|' + overviewSignature(overview.cards) + '|' + overview.unreadableTotal + '|' + runSignature(data.runs) + '|' + data.unreadableTotal + '|' + JSON.stringify(data.typical);
+    const sig = signatureOf(overview, data);
     const unchanged = state.status === 'ok' && sig === state.signature;
     state.overview = overview;
     state.runs = data.runs;
@@ -296,8 +317,10 @@ async function refresh() {
     state.typical = data.typical;
     state.status = 'ok';
     state.lastOkAt = Date.now();
-    if (unchanged) syncLive();
-    else {
+    if (unchanged) {
+      syncLive();
+      if (route.name === 'item') refreshItem(); // a running item moves on between two redraws of the page
+    } else {
       state.signature = sig;
       render();
     }
@@ -313,6 +336,11 @@ async function refresh() {
     render();
     schedule(state.cfg ? state.cfg.retrySeconds : DEFAULT_RETRY);
   }
+}
+
+/** What is drawn, as one string: the address (without the map panel's own values), the overview and the runs. */
+function signatureOf(overview, data) {
+  return withoutPanel(location.hash) + '|' + overviewSignature(overview.cards) + '|' + overview.unreadableTotal + '|' + runSignature(data.runs) + '|' + data.unreadableTotal + '|' + JSON.stringify(data.typical);
 }
 
 /** Load for the current address. `quiet` keeps what is drawn until the new data arrives (environment filter). */
@@ -333,6 +361,16 @@ window.addEventListener('hashchange', () => {
   state.route = parseRoute(location.hash);
   const route = state.route;
   const sameHistory = before.name === 'pipeline' && route.name === 'pipeline' && before.id === route.id;
+  // A run page and one of its item pages share the same data: just redraw (the item page starts at the top).
+  const runPage = (x) => x.name === 'run' || x.name === 'item';
+  if (state.status === 'ok' && runPage(before) && runPage(route) && (before.name === 'item' || route.name === 'item')
+    && before.id === route.id && before.env === route.env && before.runId === route.runId) {
+    if (route.name === 'item') window.scrollTo(0, 0);
+    render();
+    // the page now shows this address: the next reload must not redraw it (that would drop the focus the page restored)
+    state.signature = signatureOf(state.overview, { runs: state.runs, unreadableTotal: state.unreadableTotal, typical: state.typical });
+    return;
+  }
   // Same run, only the tab or the events filters changed: the data is loaded, so just redraw.
   if (state.status === 'ok' && before.name === 'run' && route.name === 'run' && before.id === route.id
     && before.env === route.env && before.runId === route.runId) {

@@ -40,5 +40,64 @@ class TestSecondPipeline(unittest.TestCase):
         self.assertNotIn("callrail", repr(store.writes))
 
 
+class ManyStore(Store):
+    """A store with ``write_many``: a pipeline with no map step must never call it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.many_calls = 0
+
+    def write_many(self, items: object, ttl_seconds: int) -> None:
+        self.many_calls += 1
+
+
+class TestNoMapStep(unittest.TestCase):
+    """Specs 014 FR-028: a pipeline that never calls the map scopes behaves as in 0.5.0."""
+
+    def test_a_sequential_run_writes_no_map_or_item_keys(self) -> None:
+        store = ManyStore()
+        auditor = StepAuditor(store, SAMPLE, env="qa", ttl_seconds=60, run_id="20261016T020000Z")
+        rows = auditor.run("extract", lambda: [1, 2, 3])
+        rows = auditor.run("clean", lambda r: r[:2], rows, inputs={"rows": rows})
+        auditor.run("load", lambda r: None, rows, inputs={"rows": rows})
+        auditor.stop()
+        keys = [k for k, _, _ in store.writes]
+        self.assertEqual(
+            keys,
+            [
+                "waypoint:sample:qa:20261016T020000Z:flow",
+                "waypoint:sample:qa:20261016T020000Z:running:01-extract",
+                "waypoint:sample:qa:20261016T020000Z:step:01-extract",
+                "waypoint:sample:qa:20261016T020000Z:running:02-clean",
+                "waypoint:sample:qa:20261016T020000Z:step:02-clean",
+                "waypoint:sample:qa:20261016T020000Z:running:03-load",
+                "waypoint:sample:qa:20261016T020000Z:step:03-load",
+            ],
+        )
+        self.assertEqual(store.many_calls, 0)
+
+    def test_the_step_record_is_the_same_shape_as_before(self) -> None:
+        store = ManyStore()
+        auditor = StepAuditor(store, SAMPLE, env="qa", ttl_seconds=60, run_id="R1")
+        auditor.run("extract", lambda: [1, 2, 3])
+        record = [r for k, r, _ in store.writes if ":step:" in k][0]
+        self.assertEqual(
+            sorted(record),
+            [
+                "duration_ms",
+                "env",
+                "finished_at",
+                "index",
+                "inputs",
+                "output",
+                "pipeline",
+                "run_id",
+                "started_at",
+                "step",
+            ],
+        )
+        self.assertEqual((record["inputs"], record["output"]), ({}, 3))
+
+
 if __name__ == "__main__":
     unittest.main()

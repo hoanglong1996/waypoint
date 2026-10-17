@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import redis
 
@@ -57,6 +57,26 @@ class RedisRecordStore:
 
     def list_metrics(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         return self._scan(f"{ROOT}:{pipeline}:{env}:*:metrics:*")
+
+    def list_maps(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        return self._scan(f"{ROOT}:{pipeline}:{env}:*:map:*")
+
+    def list_items(
+        self, env: str, pipeline: str, run_id: str, map_name: str
+    ) -> List[Tuple[str, str]]:
+        """`SCAN` the item records of one run and map step, then `MGET` them (read only)."""
+        return self._scan(f"{ROOT}:{pipeline}:{env}:{run_id}:item:{map_name}:*")
+
+    def read_item(
+        self, env: str, pipeline: str, run_id: str, map_name: str, key: str
+    ) -> Optional[str]:
+        """One item record with `MGET` (the monitor account has no plain `GET`); None when absent."""
+        name = f"{ROOT}:{pipeline}:{env}:{run_id}:item:{map_name}:{key}"
+        try:
+            values: List[Any] = list(self.client.mget([name]))  # type: ignore[arg-type]
+        except redis.RedisError as exc:
+            raise StoreUnavailable(str(exc)) from exc
+        return str(values[0]) if values and values[0] is not None else None
 
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
         """Lengths of the warning and error lists of every run (`SCAN` for the names, one pipelined `LLEN`).

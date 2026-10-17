@@ -6,7 +6,7 @@ from unittest import mock
 
 from waypoint_etl.auditor import StepAuditor, count_items
 from waypoint_etl.keys import START_MARKER_TTL_SECONDS
-from waypoint_etl.spec import GroupSpec, PipelineSpec, StepSpec, validate_spec
+from waypoint_etl.spec import GroupSpec, MapStepSpec, Metric, PipelineSpec, StepSpec, validate_spec
 from waypoint_etl.stores import NoopStepAuditStore
 
 SPEC = PipelineSpec(
@@ -335,6 +335,104 @@ class TestFinishTimes(unittest.TestCase):
         record = finished(store)[0][1]
         self.assertIn("started_at", record)
         self.assertIn("duration_ms", record)
+
+
+class TestMapFlow(unittest.TestCase):
+    """Specs 014 contracts/redis-keys.md "Extended: flow record"."""
+
+    MAP_SPEC = PipelineSpec(
+        name="demo",
+        steps=(
+            StepSpec("b"),
+            MapStepSpec(
+                "accounts",
+                over="b",
+                max_concurrency=5,
+                label="Accounts",
+                group=None,
+                inputs=(("accounts", "b"),),
+                steps=(
+                    StepSpec("fetch"),
+                    StepSpec(
+                        "transform",
+                        inputs=(("rows", "fetch"),),
+                        metrics=(Metric("rejected", unit="rows", warn_above=100),),
+                    ),
+                ),
+            ),
+            StepSpec("publish", inputs=(("done", "accounts"),)),
+        ),
+    )
+
+    def test_a_map_step_is_written_with_its_item_flow(self) -> None:
+        store = FakeStore()
+        StepAuditor(store, self.MAP_SPEC, env="prod", ttl_seconds=60, run_id="R1").start()
+        _, value, _ = store.records[0]
+        self.assertEqual(value["v"], 1)  # the flow version is unchanged
+        steps = value["steps"]
+        assert isinstance(steps, list)
+        self.assertEqual(steps[0], {"name": "b", "inputs": []})
+        self.assertEqual(
+            steps[1],
+            {
+                "name": "accounts",
+                "kind": "map",
+                "inputs": [{"name": "accounts", "from": "b"}],
+                "over": "b",
+                "max_concurrency": 5,
+                "label": "Accounts",
+                "steps": [
+                    {"name": "fetch", "inputs": []},
+                    {
+                        "name": "transform",
+                        "inputs": [{"name": "rows", "from": "fetch"}],
+                        "metrics": [{"name": "rejected", "unit": "rows", "warn_above": 100}],
+                    },
+                ],
+            },
+        )
+        self.assertEqual(
+            steps[2], {"name": "publish", "inputs": [{"name": "done", "from": "accounts"}]}
+        )
+        json.dumps(value)
+
+    def test_optional_map_fields_are_left_out_when_unset(self) -> None:
+        spec = PipelineSpec(name="demo", steps=(MapStepSpec("m", steps=(StepSpec("x"),)),))
+        store = FakeStore()
+        StepAuditor(store, spec, env="prod", ttl_seconds=60, run_id="R1").start()
+        steps = store.records[0][1]["steps"]
+        self.assertEqual(
+            steps,
+            [{"name": "m", "kind": "map", "inputs": [], "steps": [{"name": "x", "inputs": []}]}],
+        )
+
+    def test_a_pipeline_without_a_map_step_writes_the_same_bytes_as_before(self) -> None:
+        store = FakeStore()
+        StepAuditor(store, SPEC, env="prod", ttl_seconds=60, run_id="R1").start()
+        self.assertEqual(
+            json.dumps(store.records[0][1]),
+            '{"v": 1, "pipeline": "demo", "env": "prod", "run_id": "R1", '
+            '"steps": [{"name": "read_x", "inputs": [], "label": "X", "group": "g"}, '
+            '{"name": "merge", "inputs": [{"name": "a", "from": "read_x"}, '
+            '{"name": "b", "from": "read_x"}], "returns_nothing": true}], '
+            '"label": "Demo", "groups": [{"key": "g", "label": "Group"}]}',
+        )
+
+    def test_step_spec_finds_top_level_and_inner_steps(self) -> None:
+        a = StepAuditor(FakeStore(), self.MAP_SPEC, env="prod", ttl_seconds=60, run_id="R1")
+        self.assertEqual(a.step_spec("b"), self.MAP_SPEC.steps[0])
+        self.assertIsInstance(a.step_spec("accounts"), MapStepSpec)
+        inner = a.step_spec("transform")
+        assert isinstance(inner, StepSpec)
+        self.assertEqual(inner.inputs, (("rows", "fetch"),))
+        self.assertIsNone(a.step_spec("nope"))
+
+    def test_an_inner_step_name_is_not_an_unplanned_step_warning(self) -> None:
+        a = StepAuditor(FakeStore(), self.MAP_SPEC, env="prod", ttl_seconds=60, run_id="R1")
+        with mock.patch("builtins.print") as printed:
+            a.run("b", lambda: None)
+        printed.assert_not_called()
+        self.assertIn("fetch", a._known_steps)
 
 
 if __name__ == "__main__":

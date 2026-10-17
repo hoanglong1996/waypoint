@@ -83,7 +83,7 @@ The SDK is installed straight from this repository by git tag. It is not on PyPI
 pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.5.0#subdirectory=packages/waypoint_etl"
 ```
 
-(Step errors shown as **Failed**, with their stack trace, need `waypoint-etl` 0.3.0 or newer. Exact step durations and `waypoint_etl.log` events need 0.4.0 or newer; durations and the run timeline also work for older pipelines, with estimated step times. `waypoint_etl.metric` numbers per step, with optional units and warning limits, need 0.5.0 or newer. The monitor works with any version.)
+(Step errors shown as **Failed**, with their stack trace, need `waypoint-etl` 0.3.0 or newer. Exact step durations and `waypoint_etl.log` events need 0.4.0 or newer; durations and the run timeline also work for older pipelines, with estimated step times. `waypoint_etl.metric` numbers per step, with optional units and warning limits, need 0.5.0 or newer. Loops tracked as a map step (`map_step`, `item`) need 0.6.0 or newer. The monitor works with any version.)
 
 In `requirements.txt`, use the same line without `pip install`. Requires Python 3.10+.
 

@@ -1,0 +1,1427 @@
+{
+ "events": {
+  "dropped": 0,
+  "env": "prod",
+  "events": [
+   {
+    "fields": null,
+    "id": "d:run_started::0",
+    "kind": "run_started",
+    "level": "info",
+    "message": "Run started",
+    "source": "monitor",
+    "step": null,
+    "ts": "2026-10-15T02:00:00.000Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_callrail_account:0",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_callrail_account started",
+    "source": "monitor",
+    "step": "read_callrail_account",
+    "ts": "2026-10-15T02:00:00.000Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 5,
+     "output": 10
+    },
+    "id": "d:step_finished:read_callrail_account:0",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_callrail_account finished",
+    "source": "monitor",
+    "step": "read_callrail_account",
+    "ts": "2026-10-15T02:00:05.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_callrail_call:1",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_callrail_call started",
+    "source": "monitor",
+    "step": "read_callrail_call",
+    "ts": "2026-10-15T02:00:05.999Z"
+   },
+   {
+    "fields": null,
+    "id": "r:warning:1",
+    "kind": "custom",
+    "level": "warning",
+    "message": "slow",
+    "source": "pipeline",
+    "step": "read_partners",
+    "ts": "2026-10-15T02:00:09.100Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 7,
+     "output": 1284
+    },
+    "id": "d:step_finished:read_callrail_call:1",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_callrail_call finished",
+    "source": "monitor",
+    "step": "read_callrail_call",
+    "ts": "2026-10-15T02:00:12.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_partners:2",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_partners started",
+    "source": "monitor",
+    "step": "read_partners",
+    "ts": "2026-10-15T02:00:12.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 3,
+     "output": 6
+    },
+    "id": "d:step_finished:read_partners:2",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_partners finished",
+    "source": "monitor",
+    "step": "read_partners",
+    "ts": "2026-10-15T02:00:15.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_instances:3",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_instances started",
+    "source": "monitor",
+    "step": "read_instances",
+    "ts": "2026-10-15T02:00:15.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 4,
+     "output": 14
+    },
+    "id": "d:step_finished:read_instances:3",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_instances finished",
+    "source": "monitor",
+    "step": "read_instances",
+    "ts": "2026-10-15T02:00:19.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_campaigns:4",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_campaigns started",
+    "source": "monitor",
+    "step": "read_campaigns",
+    "ts": "2026-10-15T02:00:19.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 6,
+     "output": 92
+    },
+    "id": "d:step_finished:read_campaigns:4",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_campaigns finished",
+    "source": "monitor",
+    "step": "read_campaigns",
+    "ts": "2026-10-15T02:00:25.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:read_gads_clickview:5",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step read_gads_clickview started",
+    "source": "monitor",
+    "step": "read_gads_clickview",
+    "ts": "2026-10-15T02:00:25.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 9,
+     "output": 3410
+    },
+    "id": "d:step_finished:read_gads_clickview:5",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step read_gads_clickview finished",
+    "source": "monitor",
+    "step": "read_gads_clickview",
+    "ts": "2026-10-15T02:00:34.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:merge_calls_clickview:6",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step merge_calls_clickview started",
+    "source": "monitor",
+    "step": "merge_calls_clickview",
+    "ts": "2026-10-15T02:00:34.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 11,
+     "output": 1284
+    },
+    "id": "d:step_finished:merge_calls_clickview:6",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step merge_calls_clickview finished",
+    "source": "monitor",
+    "step": "merge_calls_clickview",
+    "ts": "2026-10-15T02:00:45.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:record_call_statistics:7",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step record_call_statistics started",
+    "source": "monitor",
+    "step": "record_call_statistics",
+    "ts": "2026-10-15T02:00:45.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 2
+    },
+    "id": "d:step_finished:record_call_statistics:7",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step record_call_statistics finished",
+    "source": "monitor",
+    "step": "record_call_statistics",
+    "ts": "2026-10-15T02:00:47.999Z"
+   },
+   {
+    "fields": null,
+    "id": "d:step_started:save_call_statistics:8",
+    "kind": "step_started",
+    "level": "info",
+    "message": "Step save_call_statistics started",
+    "source": "monitor",
+    "step": "save_call_statistics",
+    "ts": "2026-10-15T02:00:47.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 2
+    },
+    "id": "d:step_finished:save_call_statistics:8",
+    "kind": "step_finished",
+    "level": "info",
+    "message": "Step save_call_statistics finished",
+    "source": "monitor",
+    "step": "save_call_statistics",
+    "ts": "2026-10-15T02:00:49.999Z"
+   },
+   {
+    "fields": {
+     "duration_seconds": 49
+    },
+    "id": "d:run_finished::0",
+    "kind": "run_finished",
+    "level": "info",
+    "message": "Run finished",
+    "source": "monitor",
+    "step": null,
+    "ts": "2026-10-15T02:00:49.999Z"
+   }
+  ],
+  "generated_at": "2026-10-15T03:00:00Z",
+  "has_more": false,
+  "matched": 21,
+  "offset": 0,
+  "pipeline": "callrail",
+  "recorded": 1,
+  "run_id": "20261015T020000Z",
+  "total": 21,
+  "unreadable": 0
+ },
+ "runs": {
+  "env": "prod",
+  "generated_at": "2026-10-15T03:00:00Z",
+  "pipeline": "callrail",
+  "runs": [
+   {
+    "age_seconds": 3551,
+    "died": null,
+    "duration": {
+     "complete": true,
+     "running": false,
+     "seconds": 49,
+     "slow": false
+    },
+    "duration_seconds": 49,
+    "ended_at": "2026-10-15T02:00:49Z",
+    "env": "prod",
+    "event_counts": {
+     "error": 0,
+     "warning": 1
+    },
+    "failed": null,
+    "first_missing_step": null,
+    "flow": {
+     "groups": [
+      {
+       "key": "callrail",
+       "label": "CallRail"
+      },
+      {
+       "key": "gads",
+       "label": "Google Ads"
+      },
+      {
+       "key": "merge",
+       "label": "Merge"
+      },
+      {
+       "key": "persist",
+       "label": "Persist"
+      }
+     ],
+     "label": "CallRail",
+     "steps": [
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [],
+       "label": "Accounts",
+       "name": "read_callrail_account",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [
+        {
+         "from": "read_callrail_account",
+         "name": "accounts"
+        }
+       ],
+       "label": "Calls",
+       "name": "read_callrail_call",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [],
+       "label": "Partners",
+       "name": "read_partners",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_partners",
+         "name": "partners"
+        }
+       ],
+       "label": "Instances",
+       "name": "read_instances",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Campaigns",
+       "name": "read_campaigns",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Click views",
+       "name": "read_gads_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "merge",
+       "inputs": [
+        {
+         "from": "read_callrail_call",
+         "name": "calls"
+        },
+        {
+         "from": "read_campaigns",
+         "name": "campaigns"
+        },
+        {
+         "from": "read_gads_clickview",
+         "name": "clickview"
+        }
+       ],
+       "label": "Merged calls",
+       "metrics": [
+        {
+         "label": null,
+         "name": "rejected",
+         "unit": "rows",
+         "warn_above": 10.0,
+         "warn_below": null
+        }
+       ],
+       "name": "merge_calls_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Record stats",
+       "name": "record_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Save stats",
+       "name": "save_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      }
+     ]
+    },
+    "flow_problems": [],
+    "flow_status": "ok",
+    "loss_steps": [],
+    "metrics_over": 1,
+    "missing_count": 0,
+    "pipeline": "callrail",
+    "run_id": "20261015T020000Z",
+    "running_step": null,
+    "stale": false,
+    "started_at": "2026-10-15T02:00:00Z",
+    "status": "complete",
+    "steps": [
+     {
+      "duration_approx": false,
+      "duration_seconds": 5,
+      "finished_at": "2026-10-15T02:00:05Z",
+      "inputs": [],
+      "name": "read_callrail_account",
+      "output": 10,
+      "started_at": "2026-10-15T02:00:00Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 7,
+      "finished_at": "2026-10-15T02:00:12Z",
+      "inputs": [
+       {
+        "name": "accounts",
+        "value": 10
+       }
+      ],
+      "name": "read_callrail_call",
+      "output": 1284,
+      "started_at": "2026-10-15T02:00:05Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 3,
+      "finished_at": "2026-10-15T02:00:15Z",
+      "inputs": [],
+      "name": "read_partners",
+      "output": 6,
+      "started_at": "2026-10-15T02:00:12Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 4,
+      "finished_at": "2026-10-15T02:00:19Z",
+      "inputs": [
+       {
+        "name": "partners",
+        "value": 6
+       }
+      ],
+      "name": "read_instances",
+      "output": 14,
+      "started_at": "2026-10-15T02:00:15Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 6,
+      "finished_at": "2026-10-15T02:00:25Z",
+      "inputs": [
+       {
+        "name": "instances",
+        "value": 14
+       }
+      ],
+      "name": "read_campaigns",
+      "output": 92,
+      "started_at": "2026-10-15T02:00:19Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 9,
+      "finished_at": "2026-10-15T02:00:34Z",
+      "inputs": [
+       {
+        "name": "instances",
+        "value": 14
+       }
+      ],
+      "name": "read_gads_clickview",
+      "output": 3410,
+      "started_at": "2026-10-15T02:00:25Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 11,
+      "finished_at": "2026-10-15T02:00:45Z",
+      "inputs": [
+       {
+        "name": "calls",
+        "value": 1284
+       },
+       {
+        "name": "campaigns",
+        "value": 92
+       },
+       {
+        "name": "clickview",
+        "value": 3410
+       }
+      ],
+      "metrics": [
+       {
+        "declared": true,
+        "flag": "above",
+        "label": null,
+        "name": "rejected",
+        "unit": "rows",
+        "updated_at": null,
+        "value": 42
+       },
+       {
+        "declared": false,
+        "flag": null,
+        "label": null,
+        "name": "retries",
+        "unit": null,
+        "updated_at": null,
+        "value": 1
+       }
+      ],
+      "metrics_over": 1,
+      "name": "merge_calls_clickview",
+      "output": 1284,
+      "started_at": "2026-10-15T02:00:34Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 2,
+      "finished_at": "2026-10-15T02:00:47Z",
+      "inputs": [
+       {
+        "name": "call_statistics",
+        "value": 1284
+       }
+      ],
+      "name": "record_call_statistics",
+      "output": null,
+      "started_at": "2026-10-15T02:00:45Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 2,
+      "finished_at": "2026-10-15T02:00:49Z",
+      "inputs": [
+       {
+        "name": "call_statistics",
+        "value": 1284
+       }
+      ],
+      "name": "save_call_statistics",
+      "output": null,
+      "started_at": "2026-10-15T02:00:47Z",
+      "state": "done"
+     }
+    ],
+    "unreadable": 0
+   },
+   {
+    "age_seconds": 4176,
+    "died": null,
+    "duration": {
+     "complete": false,
+     "running": true,
+     "seconds": 4200,
+     "slow": false
+    },
+    "duration_seconds": 24,
+    "ended_at": "2026-10-15T01:50:24Z",
+    "env": "prod",
+    "event_counts": {
+     "error": 0,
+     "warning": 0
+    },
+    "failed": null,
+    "first_missing_step": null,
+    "flow": {
+     "groups": [
+      {
+       "key": "callrail",
+       "label": "CallRail"
+      },
+      {
+       "key": "gads",
+       "label": "Google Ads"
+      },
+      {
+       "key": "merge",
+       "label": "Merge"
+      },
+      {
+       "key": "persist",
+       "label": "Persist"
+      }
+     ],
+     "label": "CallRail",
+     "steps": [
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [],
+       "label": "Accounts",
+       "name": "read_callrail_account",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [
+        {
+         "from": "read_callrail_account",
+         "name": "accounts"
+        }
+       ],
+       "label": "Calls",
+       "name": "read_callrail_call",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [],
+       "label": "Partners",
+       "name": "read_partners",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_partners",
+         "name": "partners"
+        }
+       ],
+       "label": "Instances",
+       "name": "read_instances",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Campaigns",
+       "name": "read_campaigns",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Click views",
+       "name": "read_gads_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "merge",
+       "inputs": [
+        {
+         "from": "read_callrail_call",
+         "name": "calls"
+        },
+        {
+         "from": "read_campaigns",
+         "name": "campaigns"
+        },
+        {
+         "from": "read_gads_clickview",
+         "name": "clickview"
+        }
+       ],
+       "label": "Merged calls",
+       "name": "merge_calls_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Record stats",
+       "name": "record_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Save stats",
+       "name": "save_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      }
+     ]
+    },
+    "flow_problems": [],
+    "flow_status": "ok",
+    "loss_steps": [],
+    "metrics_over": 0,
+    "missing_count": 0,
+    "pipeline": "callrail",
+    "run_id": "20261015T015000Z",
+    "running_step": "read_instances",
+    "stale": false,
+    "started_at": "2026-10-15T01:50:00Z",
+    "status": "running",
+    "steps": [
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-15T01:50:08Z",
+      "inputs": [],
+      "name": "read_callrail_account",
+      "output": 10,
+      "started_at": "2026-10-15T01:50:00Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-15T01:50:16Z",
+      "inputs": [
+       {
+        "name": "accounts",
+        "value": 10
+       }
+      ],
+      "name": "read_callrail_call",
+      "output": 1284,
+      "started_at": "2026-10-15T01:50:08Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-15T01:50:24Z",
+      "inputs": [],
+      "name": "read_partners",
+      "output": 6,
+      "started_at": "2026-10-15T01:50:16Z",
+      "state": "done"
+     },
+     {
+      "elapsed_seconds": 40,
+      "name": "read_instances",
+      "started_at": "2026-10-15T02:59:20Z",
+      "state": "running"
+     },
+     {
+      "name": "read_campaigns",
+      "state": "waiting"
+     },
+     {
+      "name": "read_gads_clickview",
+      "state": "waiting"
+     },
+     {
+      "name": "merge_calls_clickview",
+      "state": "waiting"
+     },
+     {
+      "name": "record_call_statistics",
+      "state": "waiting"
+     },
+     {
+      "name": "save_call_statistics",
+      "state": "waiting"
+     }
+    ],
+    "unreadable": 0
+   },
+   {
+    "age_seconds": 89968,
+    "died": null,
+    "duration": {
+     "complete": false,
+     "running": false,
+     "seconds": 32,
+     "slow": false
+    },
+    "duration_seconds": 32,
+    "ended_at": "2026-10-14T02:00:32Z",
+    "env": "prod",
+    "event_counts": {
+     "error": 0,
+     "warning": 0
+    },
+    "failed": {
+     "failed_at": "2026-10-13T06:00:00Z",
+     "index": 5,
+     "step": "read_campaigns"
+    },
+    "first_missing_step": "read_campaigns",
+    "flow": {
+     "groups": [
+      {
+       "key": "callrail",
+       "label": "CallRail"
+      },
+      {
+       "key": "gads",
+       "label": "Google Ads"
+      },
+      {
+       "key": "merge",
+       "label": "Merge"
+      },
+      {
+       "key": "persist",
+       "label": "Persist"
+      }
+     ],
+     "label": "CallRail",
+     "steps": [
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [],
+       "label": "Accounts",
+       "name": "read_callrail_account",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [
+        {
+         "from": "read_callrail_account",
+         "name": "accounts"
+        }
+       ],
+       "label": "Calls",
+       "name": "read_callrail_call",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [],
+       "label": "Partners",
+       "name": "read_partners",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_partners",
+         "name": "partners"
+        }
+       ],
+       "label": "Instances",
+       "name": "read_instances",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Campaigns",
+       "name": "read_campaigns",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Click views",
+       "name": "read_gads_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "merge",
+       "inputs": [
+        {
+         "from": "read_callrail_call",
+         "name": "calls"
+        },
+        {
+         "from": "read_campaigns",
+         "name": "campaigns"
+        },
+        {
+         "from": "read_gads_clickview",
+         "name": "clickview"
+        }
+       ],
+       "label": "Merged calls",
+       "name": "merge_calls_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Record stats",
+       "name": "record_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Save stats",
+       "name": "save_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      }
+     ]
+    },
+    "flow_problems": [],
+    "flow_status": "ok",
+    "loss_steps": [],
+    "metrics_over": 0,
+    "missing_count": 5,
+    "pipeline": "callrail",
+    "run_id": "20261014T020000Z",
+    "running_step": null,
+    "stale": false,
+    "started_at": "2026-10-14T02:00:00Z",
+    "status": "incomplete",
+    "steps": [
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-14T02:00:08Z",
+      "inputs": [],
+      "name": "read_callrail_account",
+      "output": 10,
+      "started_at": "2026-10-14T02:00:00Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-14T02:00:16Z",
+      "inputs": [
+       {
+        "name": "accounts",
+        "value": 10
+       }
+      ],
+      "name": "read_callrail_call",
+      "output": 1284,
+      "started_at": "2026-10-14T02:00:08Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-14T02:00:24Z",
+      "inputs": [],
+      "name": "read_partners",
+      "output": 6,
+      "started_at": "2026-10-14T02:00:16Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-14T02:00:32Z",
+      "inputs": [
+       {
+        "name": "partners",
+        "value": 6
+       }
+      ],
+      "name": "read_instances",
+      "output": 14,
+      "started_at": "2026-10-14T02:00:24Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": false,
+      "duration_seconds": 5,
+      "error": {
+       "message": "boom",
+       "traceback": "  File \"x.py\", line 3, in run\n    raise ValueError(\"boom\")\nValueError: boom\n",
+       "type": "ValueError"
+      },
+      "failed_at": "2026-10-13T06:00:00Z",
+      "name": "read_campaigns",
+      "started_at": "2026-10-13T05:59:55Z",
+      "state": "failed"
+     },
+     {
+      "missing": true,
+      "name": "read_gads_clickview",
+      "state": "missing"
+     },
+     {
+      "missing": true,
+      "name": "merge_calls_clickview",
+      "state": "missing"
+     },
+     {
+      "missing": true,
+      "name": "record_call_statistics",
+      "state": "missing"
+     },
+     {
+      "missing": true,
+      "name": "save_call_statistics",
+      "state": "missing"
+     }
+    ],
+    "unreadable": 0
+   },
+   {
+    "age_seconds": 176328,
+    "died": null,
+    "duration": {
+     "complete": true,
+     "running": false,
+     "seconds": 72,
+     "slow": false
+    },
+    "duration_seconds": 72,
+    "ended_at": "2026-10-13T02:01:12Z",
+    "env": "prod",
+    "event_counts": {
+     "error": 0,
+     "warning": 0
+    },
+    "failed": null,
+    "first_missing_step": null,
+    "flow": {
+     "groups": [
+      {
+       "key": "callrail",
+       "label": "CallRail"
+      },
+      {
+       "key": "gads",
+       "label": "Google Ads"
+      },
+      {
+       "key": "merge",
+       "label": "Merge"
+      },
+      {
+       "key": "persist",
+       "label": "Persist"
+      }
+     ],
+     "label": "CallRail",
+     "steps": [
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [],
+       "label": "Accounts",
+       "name": "read_callrail_account",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "callrail",
+       "inputs": [
+        {
+         "from": "read_callrail_account",
+         "name": "accounts"
+        }
+       ],
+       "label": "Calls",
+       "name": "read_callrail_call",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [],
+       "label": "Partners",
+       "name": "read_partners",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_partners",
+         "name": "partners"
+        }
+       ],
+       "label": "Instances",
+       "name": "read_instances",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Campaigns",
+       "name": "read_campaigns",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "gads",
+       "inputs": [
+        {
+         "from": "read_instances",
+         "name": "instances"
+        }
+       ],
+       "label": "Click views",
+       "name": "read_gads_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "merge",
+       "inputs": [
+        {
+         "from": "read_callrail_call",
+         "name": "calls"
+        },
+        {
+         "from": "read_campaigns",
+         "name": "campaigns"
+        },
+        {
+         "from": "read_gads_clickview",
+         "name": "clickview"
+        }
+       ],
+       "label": "Merged calls",
+       "name": "merge_calls_clickview",
+       "returns_nothing": false,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Record stats",
+       "name": "record_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      },
+      {
+       "col": null,
+       "group": "persist",
+       "inputs": [
+        {
+         "from": "merge_calls_clickview",
+         "name": "call_statistics"
+        }
+       ],
+       "label": "Save stats",
+       "name": "save_call_statistics",
+       "returns_nothing": true,
+       "row": null
+      }
+     ]
+    },
+    "flow_problems": [],
+    "flow_status": "ok",
+    "loss_steps": [],
+    "metrics_over": 0,
+    "missing_count": 0,
+    "pipeline": "callrail",
+    "run_id": "20261013T020000Z",
+    "running_step": null,
+    "stale": true,
+    "started_at": "2026-10-13T02:00:00Z",
+    "status": "complete",
+    "steps": [
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:08Z",
+      "inputs": [],
+      "name": "read_callrail_account",
+      "output": 10,
+      "started_at": "2026-10-13T02:00:00Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:16Z",
+      "inputs": [
+       {
+        "name": "accounts",
+        "value": 10
+       }
+      ],
+      "name": "read_callrail_call",
+      "output": 1284,
+      "started_at": "2026-10-13T02:00:08Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:24Z",
+      "inputs": [],
+      "name": "read_partners",
+      "output": 6,
+      "started_at": "2026-10-13T02:00:16Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:32Z",
+      "inputs": [
+       {
+        "name": "partners",
+        "value": 6
+       }
+      ],
+      "name": "read_instances",
+      "output": 14,
+      "started_at": "2026-10-13T02:00:24Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:40Z",
+      "inputs": [
+       {
+        "name": "instances",
+        "value": 14
+       }
+      ],
+      "name": "read_campaigns",
+      "output": 92,
+      "started_at": "2026-10-13T02:00:32Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:48Z",
+      "inputs": [
+       {
+        "name": "instances",
+        "value": 14
+       }
+      ],
+      "name": "read_gads_clickview",
+      "output": 3410,
+      "started_at": "2026-10-13T02:00:40Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:00:56Z",
+      "inputs": [
+       {
+        "name": "calls",
+        "value": 1284
+       },
+       {
+        "name": "campaigns",
+        "value": 92
+       },
+       {
+        "name": "clickview",
+        "value": 3410
+       }
+      ],
+      "name": "merge_calls_clickview",
+      "output": 1284,
+      "started_at": "2026-10-13T02:00:48Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:01:04Z",
+      "inputs": [
+       {
+        "name": "call_statistics",
+        "value": 1284
+       }
+      ],
+      "name": "record_call_statistics",
+      "output": null,
+      "started_at": "2026-10-13T02:00:56Z",
+      "state": "done"
+     },
+     {
+      "duration_approx": true,
+      "duration_seconds": 8,
+      "finished_at": "2026-10-13T02:01:12Z",
+      "inputs": [
+       {
+        "name": "call_statistics",
+        "value": 1284
+       }
+      ],
+      "name": "save_call_statistics",
+      "output": null,
+      "started_at": "2026-10-13T02:01:04Z",
+      "state": "done"
+     }
+    ],
+    "unreadable": 0
+   }
+  ],
+  "typical": null,
+  "unreadable_total": 0
+ }
+}

@@ -9,18 +9,22 @@ from app.domain.parsing import (
     parse_died,
     parse_failures,
     parse_flows,
+    parse_maps,
     parse_markers,
     parse_metrics,
     parse_records,
+    parse_run_id,
 )
 from tests.fakes import (
     PIPELINE,
     declare_metrics,
     flow_value,
+    make_aggregate,
     make_alive,
     make_died,
     make_failure,
     make_flow,
+    make_map_run,
     make_marker,
     make_metrics,
     make_run,
@@ -44,6 +48,7 @@ def runs_for(
     dead_seconds: float = 90.0,
     failures: Optional[List[Tuple[str, str]]] = None,
     metrics: Optional[List[Tuple[str, str]]] = None,
+    maps: Optional[List[Tuple[str, str]]] = None,
 ) -> List[Dict[str, Any]]:
     raw_flows, raw_records, raw_markers = split(raw)
     alive = parse_alive(env, PIPELINE, [make_alive(env, r, at) for r, at in (beats or {}).items()])
@@ -64,6 +69,7 @@ def runs_for(
         dead_seconds=dead_seconds,
         failures=parse_failures(env, PIPELINE, failures or [])[0],
         metrics=parse_metrics(env, PIPELINE, metrics or [])[0],
+        maps=parse_maps(env, PIPELINE, maps or [])[0],
     )
 
 
@@ -919,6 +925,10 @@ class TestRunsWithoutFailureItems(unittest.TestCase):
 class TestDurations(unittest.TestCase):
     """Specs 012-duration-and-run-events: step and run durations in the built run."""
 
+    def run_pair(self, **args: Any) -> Dict[str, Any]:
+        raw, kw = make_run_pair(**args)
+        return self.run_for(raw, **kw)
+
     def step(self, run: Dict[str, Any], name: str) -> Dict[str, Any]:
         return next(s for s in run["steps"] if s["name"] == name)
 
@@ -1236,3 +1246,166 @@ class TestStepMetricsInRuns(unittest.TestCase):
         step = self.steps(run)["read_campaigns"]
         self.assertEqual(step["state"], "missing")
         self.assertNotIn("metrics", step)
+
+
+class TestMapSteps(unittest.TestCase):
+    """Specs/014 research R6: the map step's state and the synthetic failure."""
+
+    NOW_MAP = datetime(2026, 10, 15, 2, 1, 0, tzinfo=timezone.utc)
+
+    def run_for(self, raw: List[Tuple[str, str]], **kw: Any) -> Dict[str, Any]:
+        return runs_for(raw, now=kw.pop("now", self.NOW_MAP), **kw)[0]
+
+    def run_pair(self, **args: Any) -> Dict[str, Any]:
+        raw, kw = make_run_pair(**args)
+        return self.run_for(raw, **kw)
+
+    def step(self, run: Dict[str, Any], name: str = "accounts") -> Dict[str, Any]:
+        return next(s for s in run["steps"] if s["name"] == name)
+
+    def test_a_finished_map_with_no_failed_item_is_done_with_its_summary(self) -> None:
+        run = self.run_pair(done=10)
+        step = self.step(run)
+        self.assertEqual(step["state"], "done")
+        self.assertEqual(step["map"]["state"], "done")
+        self.assertEqual(step["map"]["counts"]["done"], 10)
+        self.assertEqual(run["status"], "complete")
+        self.assertNotIn("map", self.step(run, "publish"))
+        self.assertNotIn("map", self.step(run, "list_accounts"))
+
+    def test_the_flow_carries_the_map_declaration_and_no_inner_steps_at_the_top(self) -> None:
+        run = self.run_pair(done=10)
+        flow_step = next(s for s in run["flow"]["steps"] if s["name"] == "accounts")
+        self.assertEqual(flow_step["map"]["over"], "list_accounts")
+        self.assertEqual(flow_step["map"]["max_concurrency"], 5)
+        self.assertEqual(
+            [s["name"] for s in flow_step["map"]["steps"]], ["fetch", "transform", "load"]
+        )
+        self.assertEqual(flow_step["map"]["steps"][1]["metrics"][0]["warn_above"], 100.0)
+        self.assertEqual(
+            [s["name"] for s in run["flow"]["steps"]], ["list_accounts", "accounts", "publish"]
+        )
+        self.assertEqual(
+            [s["name"] for s in run["steps"]], ["list_accounts", "accounts", "publish"]
+        )
+        self.assertTrue(
+            all("map" not in s for s in run["flow"]["steps"] if s["name"] != "accounts")
+        )
+
+    def test_failed_items_after_the_block_ended_fail_the_step_through_the_synthetic_failure(
+        self,
+    ) -> None:
+        run = self.run_pair(done=9, failed=1)
+        step = self.step(run)
+        self.assertEqual(step["state"], "failed")
+        self.assertEqual(step["error"]["type"], "ItemsFailed")
+        self.assertEqual(step["error"]["message"], "1 of 10 items failed")
+        self.assertEqual(step["error"]["traceback"], "")
+        self.assertEqual(step["map"]["state"], "failed")
+        # the pipeline went on to publish, so the run did not stop there but is not complete either
+        self.assertEqual(run["status"], "incomplete")
+        self.assertIsNone(run["failed"])
+        self.assertEqual(self.step(run, "publish")["state"], "done")
+        self.assertEqual(run["missing_count"], 1)
+
+    def test_a_map_failing_as_the_last_step_stops_the_run(self) -> None:
+        run = self.run_pair(done=9, failed=1, steps_done=2)
+        self.assertEqual(run["status"], "incomplete")
+        self.assertEqual(run["failed"]["step"], "accounts")
+        self.assertEqual(self.step(run)["state"], "failed")
+
+    def test_an_open_block_stays_running_even_with_failed_items(self) -> None:
+        raw, kw = make_run_pair(running=4, done=5, failed=1, steps_done=1, open_block=True)
+        run = self.run_for(raw, **kw)
+        step = self.step(run)
+        self.assertEqual(step["state"], "running")
+        self.assertEqual(step["map"]["state"], "running")
+        self.assertEqual(step["map"]["counts"]["failed"], 1)
+        self.assertEqual(run["status"], "running")
+        self.assertNotIn("error", step)
+
+    def test_a_real_failure_item_replaces_the_synthetic_one(self) -> None:
+        raw, kw = make_run_pair(done=9, failed=1, steps_done=1, open_block=True)
+        kw["failures"] = [
+            make_failure(
+                "prod", R1, 1, self.NOW_MAP, step="accounts", index=2,
+                started_at=self.NOW_MAP - timedelta(seconds=30),
+            )
+        ]  # fmt: skip
+        step = self.step(self.run_for(raw, **kw))
+        self.assertEqual(step["state"], "failed")
+        self.assertEqual(step["error"]["type"], "ValueError")
+        self.assertEqual(step["map"]["state"], "failed")
+
+    def test_no_aggregate_means_an_ordinary_step(self) -> None:
+        raw = make_map_run("prod", R1)
+        run = self.run_for(raw)
+        self.assertNotIn("map", self.step(run))
+        self.assertEqual(self.step(run)["state"], "done")
+        self.assertEqual(run["status"], "complete")
+
+    def test_an_aggregate_of_an_older_attempt_is_not_attached(self) -> None:
+        raw = make_map_run("prod", R1)
+        agg = make_aggregate("prod", R1, index=7, done=3, failed=1)
+        run = self.run_for(raw, maps=[agg])
+        self.assertNotIn("map", self.step(run))
+        self.assertEqual(self.step(run)["state"], "done")
+
+    def test_a_stalled_or_died_map_step_reports_the_run_state(self) -> None:
+        raw, kw = make_run_pair(running=2, done=3, steps_done=1, open_block=True)
+        started = parse_run_id(R1) + timedelta(seconds=8)
+        stalled = self.run_for(raw, now=started + timedelta(seconds=2000), **kw)
+        self.assertEqual(self.step(stalled)["state"], "stalled")
+        self.assertEqual(self.step(stalled)["map"]["state"], "stalled")
+        kw["beats"] = {R1: started + timedelta(seconds=5)}
+        died = self.run_for(raw, now=started + timedelta(seconds=200), **kw)
+        self.assertEqual(self.step(died)["state"], "died")
+        self.assertEqual(self.step(died)["map"]["state"], "died")
+
+    def test_zero_items_and_a_block_with_nothing_started(self) -> None:
+        done = self.step(self.run_pair())
+        self.assertEqual((done["state"], done["map"]["state"]), ("done", "done"))
+        self.assertEqual(done["map"]["counts"]["started"], 0)
+        raw, kw = make_run_pair(steps_done=1, open_block=True)
+        open_ = self.step(self.run_for(raw, **kw))
+        self.assertEqual((open_["state"], open_["map"]["state"]), ("running", "running"))
+
+    def test_the_summary_takes_loop_seconds_and_the_min_items_setting(self) -> None:
+        raw, kw = make_run_pair(done=4, durations_ms=[1000, 2000, 3000, 4000])
+        step = self.step(self.run_for(raw, **kw))
+        self.assertEqual(step["map"]["loop_seconds"], 8)
+        self.assertFalse(step["map"]["duration"]["enough"])
+
+    def test_history_and_overview_fields_treat_it_like_any_failed_step(self) -> None:
+        run = self.run_pair(done=9, failed=1)
+        self.assertIn("accounts", [s["name"] for s in run["steps"] if s["state"] == "failed"])
+        self.assertNotIn("accounts", run["loss_steps"])
+
+
+def make_run_pair(
+    done: int = 0,
+    running: int = 0,
+    failed: int = 0,
+    steps_done: int = 3,
+    open_block: bool = False,
+    durations_ms: Optional[List[int]] = None,
+) -> Tuple[List[Tuple[str, str]], Dict[str, Any]]:
+    """The raw records of a map run plus the keyword arguments for `runs_for`: a finished or open block."""
+    raw = make_map_run("prod", R1, steps_done=steps_done)
+    started = parse_run_id(R1) + timedelta(seconds=8)
+    aggregate = make_aggregate(
+        "prod",
+        R1,
+        index=2,
+        done=done,
+        running=running,
+        failed=failed,
+        ended=not open_block,
+        started_at=started,
+        durations_ms=durations_ms if durations_ms is not None else [3000] * done,
+    )
+    kw: Dict[str, Any] = {"maps": [aggregate]}
+    if open_block:
+        raw = [p for p in raw if ":step:02-" not in p[0] and ":step:03-" not in p[0]]
+        kw["markers"] = [make_marker("prod", R1, 1, started, step="accounts")]
+    return raw, kw

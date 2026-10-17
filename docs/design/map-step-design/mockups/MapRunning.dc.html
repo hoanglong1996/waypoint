@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map step panel · running</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+.app{--bg:#f6f7f9;--surface:#fff;--surface-2:#f2f4f7;--border:#e3e6eb;--border-strong:#cdd2da;--text:#0e1116;--text-2:#4a5261;--text-3:#636b7a;--accent:#3e4cc9;--accent-soft:#eef0fd;--focus:#3e4cc9;--ok:#137a3a;--ok-bg:#e7f5ec;--ok-border:#b5e0c4;--warn:#8f5300;--warn-bg:#fff3df;--warn-border:#f1cf94;--bad:#b0222a;--bad-bg:#fdecec;--bad-border:#f2bfc2;--neutral:#4a5261;--neutral-bg:#eef0f3;--neutral-border:#d8dce3;--edge:#8a93a3;--map:#6a3fc4;--map-bg:rgba(115,73,204,.07);--shadow-1:0 1px 2px rgba(16,24,40,.05);background:var(--bg);color:var(--text);font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#0a0c0f;--surface:#111418;--surface-2:#181c22;--border:#232931;--border-strong:#323943;--text:#e8eaee;--text-2:#aab1bd;--text-3:#8b93a1;--accent:#949cff;--accent-soft:rgba(148,156,255,.13);--focus:#a9b0ff;--ok:#4fd789;--ok-bg:rgba(79,215,137,.12);--ok-border:rgba(79,215,137,.32);--warn:#f3b34c;--warn-bg:rgba(243,179,76,.12);--warn-border:rgba(243,179,76,.34);--bad:#ff8086;--bad-bg:rgba(255,128,134,.12);--bad-border:rgba(255,128,134,.34);--neutral:#aab1bd;--neutral-bg:#1c2128;--neutral-border:#2c333d;--edge:#6b7482;--map:#b9a2ff;--map-bg:rgba(185,162,255,.08);--shadow-1:none}
+.mono,code,.key{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:12px;height:12px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-1);box-sizing:border-box}
+.pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--neutral-border);background:var(--neutral-bg);color:var(--neutral);font-size:12px;font-weight:600;white-space:nowrap;box-sizing:border-box;line-height:1}
+.pill.sm{height:20px;font-size:11px;padding:0 7px}
+.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-border)}
+.pill.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-border)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-border)}
+.pill.run{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.pill.dash{border-style:dashed}
+.tag{display:inline-flex;align-items:center;gap:5px;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border-strong);border-radius:4px;padding:0 6px;height:20px;box-sizing:border-box;white-space:nowrap}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ctx{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--text-3)}
+.graph{display:flex;align-items:center;overflow-x:auto;padding:14px 16px 22px}
+.snode{flex:none;width:118px;box-sizing:border-box;border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;font-family:inherit;color:var(--text);text-align:left;box-shadow:var(--shadow-1);font-size:11px}
+.snode b{font-size:13px;font-weight:600}
+.snode.dim{border-style:dashed;background:transparent;color:var(--text-2);box-shadow:none}
+.arr{flex:none;width:36px;display:flex;align-items:center}
+.arr i{flex:1;border-top:2px solid var(--edge)}
+.arr s{width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:7px solid var(--edge)}
+.arr.dim i{border-top-style:dashed;opacity:.6}
+.arr.dim s{opacity:.6}
+.mapnode{position:relative;flex:none;width:228px;box-sizing:border-box;text-align:left;font-family:inherit;font-size:12px;color:var(--text);background:var(--surface);border:1.5px solid var(--border-strong);border-radius:10px;padding:10px 12px 8px;display:flex;flex-direction:column;gap:6px;cursor:pointer;margin:0 10px 10px 0;box-shadow:5px 5px 0 -1.5px var(--surface),5px 5px 0 0 var(--border-strong),10px 10px 0 -1.5px var(--surface),10px 10px 0 0 var(--border-strong)}
+.mapnode[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:3px}
+.mn-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.maptag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--map);background:var(--map-bg);border-radius:4px;padding:2px 6px}
+.mn-name{font-size:14px;font-weight:600;overflow-wrap:anywhere;line-height:1.3}
+.mn-flow{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;color:var(--text-3)}
+.mn-prog{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.mn-prog b{color:var(--text);font-weight:600}
+.mn-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;font-size:11.5px;color:var(--text-2)}
+.mapnode[aria-expanded="true"] .mn-foot{color:var(--accent);font-weight:600}
+.mapnode[aria-expanded="true"] .mn-foot .ic{transform:rotate(180deg)}
+.panel{border-top:3px solid var(--accent);overflow:hidden}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px 10px}
+.ph h2{margin:2px 0 0;font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.xbtn{width:36px;height:36px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0;flex:none}
+.sum{display:flex;flex-wrap:wrap;align-items:center;gap:8px 0;padding:0 20px 16px;font-size:13px;color:var(--text-2)}
+.sum>*{display:inline-flex;align-items:center;gap:5px;padding:0 14px;border-left:1px solid var(--border)}
+.sum>*:first-child{padding-left:0;border-left:0}
+.sum b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.linkbtn{font:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:4px;text-decoration:underline;text-underline-offset:3px}
+.stripw{background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 20px 14px}
+.strip{display:flex;align-items:stretch;margin-top:8px}
+.sbox{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.sbox.busy{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.sbox-h{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sbox-n{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;font-weight:600}
+.cnts{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.cnt{display:inline-flex;align-items:center;gap:4px}
+.cnt b{color:var(--text);font-weight:600}
+.cnt.ok .ic{color:var(--ok)}
+.cnt.run .ic{color:var(--accent)}
+.sarr{flex:none;width:30px;display:flex;align-items:center;justify-content:center;color:var(--edge)}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:14px 20px 8px}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);flex:1 1 200px;max-width:260px;color:var(--text-3);box-sizing:border-box}
+.search input{border:0;outline:0;background:transparent;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;color:var(--text);flex:1;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.chip .n{font-variant-numeric:tabular-nums;color:var(--text-3);font-size:12px}
+.chip[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+.chip[aria-pressed="true"] .n{color:inherit;opacity:.8}
+.chip .on{display:none}
+.chip[aria-pressed="true"] .on{display:inline}
+.chip[disabled]{opacity:.5;cursor:default}
+.vsep{width:1px;height:22px;background:var(--border-strong)}
+.sort{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:13px;color:var(--text-2)}
+.sel{height:32px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);font:inherit;font-size:13px;padding:0 8px}
+.btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.count{margin:0;padding:0 20px 10px;font-size:12px;color:var(--text-2)}
+.rhead,.row{display:grid;grid-template-columns:minmax(0,1.5fr) 108px 110px minmax(0,1.5fr) 104px 150px 16px;align-items:center;gap:12px;padding-left:20px;padding-right:20px}
+.rhead{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2);background:var(--surface-2);height:32px;border-top:1px solid var(--border)}
+.items{list-style:none;margin:0;padding:0}
+.row{min-height:46px;padding-top:8px;padding-bottom:8px;border-top:1px solid var(--border);font-size:13px;box-sizing:border-box}
+.row:hover{background:var(--surface-2)}
+.row .key{font-size:13px;font-weight:500;overflow-wrap:anywhere;min-width:0}
+.c-st,.c-dur{display:flex;align-items:center;gap:6px}
+.c-dur{font-variant-numeric:tabular-nums}
+.c-dur.live{color:var(--accent);font-weight:500}
+.c-where{min-width:0;overflow-wrap:anywhere;color:var(--text-2)}
+.c-io{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;color:var(--text-2)}
+.c-flags{display:flex;flex-wrap:wrap;gap:4px}
+.c-go{color:var(--text-3)}
+.mi,.brk{display:none}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);flex:none}
+.more{display:flex;justify-content:center;padding:14px 20px 18px;border-top:1px solid var(--border)}
+@media (max-width:720px){
+.wrap{padding:0 16px}
+.rhead{display:none}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:10px 16px}
+.row .key{flex:1 1 0;order:1}
+.c-st{order:2}
+.brk{display:block;flex-basis:100%;height:0;order:3}
+.c-where{order:4;flex-basis:100%;font-size:12px}
+.c-where:empty{display:none}
+.c-dur{order:5;font-size:12px}
+.c-io{order:6}
+.c-flags{order:7}
+.c-go{display:none}
+.mi{display:inline}
+.sum>*{padding:0 10px}
+.ph,.sum,.tools,.count{padding-left:16px;padding-right:16px}
+.stripw{padding:12px 16px}
+.strip{flex-direction:column}
+.sarr{width:auto;height:22px;transform:rotate(90deg)}
+.search{max-width:none;flex-basis:100%}
+.sort{margin-left:0}
+}
+</style>
+</helmet>
+<div class="app {{themeCls}}">
+<main class="wrap" style="padding-top: 24px; padding-bottom: 48px; display: flex; flex-direction: column; gap: 14px">
+<nav class="ctx" aria-label="Where this sits"><span>Google Ads</span><span aria-hidden="true">›</span><span>Sat, Oct 17, 15:02</span><span aria-hidden="true">›</span><span style="color: var(--text)">Steps · Graph</span><span class="tag" style="margin-left: 8px">existing run page — only the map node and panel are new</span></nav>
+
+<section class="card" aria-label="Pipeline graph">
+<div class="graph">
+<div class="snode"><span class="pill sm ok" style="align-self: flex-start">Fine</span><b>Extract</b><span class="mono" style="color: var(--text-3)">10 out</span></div>
+<span class="arr"><i></i><s></s></span>
+<div class="snode"><span class="pill sm ok" style="align-self: flex-start">Fine</span><b>Prepare</b><span class="mono" style="color: var(--text-3)">10 out</span></div>
+<span class="arr"><i></i><s></s></span>
+<button class="mapnode" type="button" aria-expanded="true" aria-controls="map-panel" aria-label="Accounts, map step, running: 6 done, 4 running, 0 failed. Hide items">
+<span class="mn-top"><span class="pill sm run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>6</b> done · <b>4</b> running · <b>0</b> failed</span>
+<span class="mn-foot"><span>Hide items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button>
+<span class="arr dim"><i></i><s></s></span>
+<div class="snode dim"><span class="pill sm" style="align-self: flex-start">Waiting</span><b>Merge</b><span class="mono">—</span></div>
+<span class="arr dim"><i></i><s></s></span>
+<div class="snode dim"><span class="pill sm" style="align-self: flex-start">Waiting</span><b>Load</b><span class="mono">—</span></div>
+</div>
+</section>
+
+<section id="map-panel" class="card panel" aria-labelledby="mp-title">
+<div class="ph">
+<div>
+<div class="eyebrow" style="display: flex; align-items: center; gap: 6px; color: var(--map)"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map step</div>
+<h2 id="mp-title">Accounts <span class="mono" style="font-size: 13px; font-weight: 500; color: var(--text-3)">accounts</span></h2>
+</div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2)"><span class="ldot"></span>Live · refreshes every 5 s</span><button class="xbtn" type="button" aria-label="Close items panel (Escape)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></div>
+</div>
+
+<div class="sum">
+<span><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></span>
+<span>loop <b>24 s</b> so far</span>
+<span>median <b>≈3.8 s</b></span>
+<span>p95 <b>≈4.4 s</b></span>
+<span>slowest <a class="linkbtn" href="ItemRunning.dc.html"><span class="mono">acct-6</span> (4.4 s)</a></span>
+<span>rows in <b>402</b> → out <b>297</b></span>
+<span><span class="tag">concurrency limit 5</span></span>
+</div>
+
+<div class="stripw">
+<div class="eyebrow">Item flow · counts across every item</div>
+<div class="strip">
+<div class="sbox busy"><div class="sbox-h"><span class="sbox-n">fetch</span><span class="tag">1</span></div><div class="cnts"><span class="cnt ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg><b>8</b> done</span><span class="cnt run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg><b>2</b> running</span></div></div>
+<span class="sarr" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"></path></svg></span>
+<div class="sbox"><div class="sbox-h"><span class="sbox-n">transform</span><span class="tag">2</span></div><div class="cnts"><span class="cnt ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg><b>7</b> done</span><span class="cnt run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg><b>1</b> running</span></div></div>
+<span class="sarr" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"></path></svg></span>
+<div class="sbox"><div class="sbox-h"><span class="sbox-n">load</span><span class="tag">3</span></div><div class="cnts"><span class="cnt ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg><b>6</b> done</span><span class="cnt run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg><b>1</b> running</span></div></div>
+</div>
+</div>
+
+<div class="tools">
+<div class="search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><label class="sr" for="mr-q">Search items by key</label><input id="mr-q" type="search" placeholder="Search key…"></div>
+<div class="chips" role="group" aria-label="Filter items by status">
+<button class="chip" type="button" aria-pressed="true"><svg class="ic s on" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>All <span class="n">10</span></button>
+<button class="chip" type="button" aria-pressed="false" disabled>Failed <span class="n">0</span></button>
+<button class="chip" type="button" aria-pressed="false">Running <span class="n">4</span></button>
+<button class="chip" type="button" aria-pressed="false">Done <span class="n">6</span></button>
+<span class="vsep" aria-hidden="true"></span>
+<button class="chip" type="button" aria-pressed="false" disabled><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7"></circle><path d="M12 14v-3M10 3h4M12 3v4"></path></svg>Slow <span class="n">0</span></button>
+</div>
+<div class="sort"><label for="mr-sort">Sort</label><select id="mr-sort" class="sel"><option>Order started</option><option>Duration</option><option>Key</option></select><button class="btn" type="button" aria-label="Sort direction: ascending. Switch to descending">↑ Asc</button></div>
+</div>
+
+<p class="count" role="status" aria-live="polite">10 items · sorted by order started ↑</p>
+
+<div class="rhead" aria-hidden="true"><span>Item key</span><span>Status</span><span>Duration</span><span>Where</span><span>In → out</span><span>Flags</span><span></span></div>
+<ul class="items" aria-label="Items">
+<sc-for list="{{rows}}" as="it" hint-placeholder-count="10">
+<li><a class="row" href="{{it.href}}">
+<span class="key">{{it.key}}</span>
+<span class="c-st">
+<sc-if value="{{it.isDone}}"><span class="pill sm ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span></sc-if>
+<sc-if value="{{it.isRun}}"><span class="pill sm run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></sc-if>
+</span>
+<span class="brk"></span>
+<span class="c-where">{{it.where}}</span>
+<span class="c-dur {{it.durCls}}"><sc-if value="{{it.isRun}}"><span class="ldot"></span></sc-if><svg class="ic s mi" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7"></circle><path d="M12 14v-3M10 3h4M12 3v4"></path></svg>{{it.durTxt}}</span>
+<span class="c-io">{{it.io}}</span>
+<span class="c-flags"></span>
+<svg class="ic c-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+</a></li>
+</sc-for>
+</ul>
+<div class="more"><button class="btn" type="button" disabled style="opacity: .55; cursor: default">Show more</button></div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+const data = [
+['acct-1', 'done', '3.4 s', '52 → 52', ''],
+['acct-2', 'done', '3.9 s', '47 → 47', ''],
+['acct-3', 'done', '4.1 s', '48 → 48', ''],
+['acct-4', 'done', '3.2 s', '50 → 50', ''],
+['acct-5', 'done', '3.7 s', '44 → 44', ''],
+['acct-6', 'done', '4.4 s', '49 → 49', ''],
+['acct-7', 'run', 'running 5 s', '51 → …', 'at load'],
+['acct-8', 'run', 'running 3 s', '46 → …', 'at transform'],
+['acct-9', 'run', 'running 1 s', '— → …', 'at fetch'],
+['acct-10', 'run', 'running 0.4 s', '— → …', 'at fetch']
+];
+return {
+themeCls: (this.props.theme ?? 'light') === 'dark' ? 'dark' : '',
+rows: data.map(([key, st, durTxt, io, where]) => ({ key, isDone: st === 'done', isRun: st === 'run', durTxt, io, where, durCls: st === 'run' ? 'live' : '', href: st === 'run' ? 'ItemRunning.dc.html' : 'ItemFailed.dc.html' }))
+};
+}
+}
+</script>
+</body>
+</html>

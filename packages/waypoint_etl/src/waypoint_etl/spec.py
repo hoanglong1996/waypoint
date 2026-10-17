@@ -3,9 +3,10 @@
 import math
 import re
 from dataclasses import dataclass
-from typing import Optional, Set, Tuple
+from typing import Optional, Set, Tuple, Union
 
 from waypoint_etl.keys import (
+    MAX_INNER_STEPS,
     MAX_METRIC_LABEL,
     MAX_METRIC_NAME,
     MAX_METRIC_UNIT,
@@ -51,9 +52,27 @@ class StepSpec:
 
 
 @dataclass(frozen=True)
-class PipelineSpec:
+class MapStepSpec:
+    """A step that runs a linear item flow of inner steps once per item (specs/014).
+
+    ``over`` names the earlier step that supplies the items; ``max_concurrency`` is informational.
+    """
+
     name: str
     steps: Tuple[StepSpec, ...]
+    over: Optional[str] = None
+    max_concurrency: Optional[int] = None
+    label: Optional[str] = None
+    group: Optional[str] = None
+    col: Optional[float] = None
+    row: Optional[float] = None
+    inputs: Tuple[Tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class PipelineSpec:
+    name: str
+    steps: Tuple[Union[StepSpec, MapStepSpec], ...]
     label: Optional[str] = None
     groups: Tuple[GroupSpec, ...] = ()
 
@@ -90,33 +109,87 @@ def _validate_metrics(step: StepSpec) -> None:
             raise ValueError(f"warn_below of {where} is above its warn_above")
 
 
+def _validate_step(step: StepSpec, groups: Set[str], producers: Set[str], where: str) -> None:
+    """The rules every step shares; ``producers`` are the names its inputs may come from."""
+    if not isinstance(step.name, str) or not _STEP_NAME.match(step.name):
+        raise ValueError(f"step name {step.name!r} must match [a-z0-9_]+ (max 64)")
+    if step.label is not None and len(step.label) > MAX_STEP_LABEL:
+        raise ValueError(f"label of step {step.name!r} longer than {MAX_STEP_LABEL} chars")
+    if step.group is not None and step.group not in groups:
+        raise ValueError(f"step {step.name!r} uses undeclared group {step.group!r}")
+    for _, producer in step.inputs:
+        if producer not in producers:
+            raise ValueError(
+                f"input of step {step.name!r} comes from {producer!r}, "
+                f"which is not an earlier step{where}"
+            )
+    for hint in (step.col, step.row):
+        if hint is not None and hint < 0:
+            raise ValueError(f"layout hint of step {step.name!r} must be >= 0")
+
+
+def _validate_map(step: MapStepSpec, groups: Set[str], top: Set[str], every: Set[str]) -> None:
+    """A map step: its own fields, then its item flow. Inner names join ``every`` (all names)."""
+    _validate_step(
+        StepSpec(
+            step.name,
+            inputs=step.inputs,
+            label=step.label,
+            group=step.group,
+            col=step.col,
+            row=step.row,
+        ),
+        groups,
+        top,
+        "",
+    )
+    where = f" (map step {step.name!r})"
+    if step.over is not None and step.over not in top:
+        raise ValueError(
+            f"map step {step.name!r} is over {step.over!r}, which is not an earlier step"
+        )
+    limit = step.max_concurrency
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 1):
+        raise ValueError(f"max_concurrency of map step {step.name!r} must be a whole number >= 1")
+    if not isinstance(step.steps, tuple) or not 1 <= len(step.steps) <= MAX_INNER_STEPS:
+        raise ValueError(
+            f"map step {step.name!r} needs between 1 and {MAX_INNER_STEPS} inner steps"
+        )
+    inner_seen: Set[str] = set()
+    for inner in step.steps:
+        if isinstance(inner, MapStepSpec):
+            raise ValueError(f"map step {step.name!r} cannot contain map step {inner.name!r}")
+        _validate_step(inner, groups, top | inner_seen, where)
+        if inner.name in every or inner.name in inner_seen:
+            raise ValueError(f"duplicate step {inner.name!r}{where}")
+        _validate_metrics(inner)
+        inner_seen.add(inner.name)
+    every |= inner_seen
+
+
 def validate_spec(spec: PipelineSpec) -> None:
     """Raise ValueError naming the first problem."""
     if not _PIPELINE_NAME.match(spec.name):
         raise ValueError(f"pipeline name {spec.name!r} must match [a-z0-9][a-z0-9_-]{{0,39}}")
     if spec.label is not None and len(spec.label) > MAX_PIPELINE_LABEL:
         raise ValueError(f"pipeline label longer than {MAX_PIPELINE_LABEL} chars")
-    if not 1 <= len(spec.steps) <= MAX_STEPS:
+    inner_total = sum(len(s.steps) for s in spec.steps if isinstance(s, MapStepSpec))
+    if not 1 <= len(spec.steps) or len(spec.steps) + inner_total > MAX_STEPS:
         raise ValueError(f"a pipeline needs between 1 and {MAX_STEPS} steps")
     groups = {g.key for g in spec.groups}
-    seen: Set[str] = set()
+    seen: Set[str] = set()  # top-level steps declared so far
+    every: Set[str] = set()  # every step name, inner steps included
     for step in spec.steps:
-        if not _STEP_NAME.match(step.name):
-            raise ValueError(f"step name {step.name!r} must match [a-z0-9_]+ (max 64)")
-        if step.name in seen:
-            raise ValueError(f"duplicate step {step.name!r}")
-        if step.label is not None and len(step.label) > MAX_STEP_LABEL:
-            raise ValueError(f"label of step {step.name!r} longer than {MAX_STEP_LABEL} chars")
-        if step.group is not None and step.group not in groups:
-            raise ValueError(f"step {step.name!r} uses undeclared group {step.group!r}")
-        for _, producer in step.inputs:
-            if producer not in seen:
-                raise ValueError(
-                    f"input of step {step.name!r} comes from {producer!r}, "
-                    "which is not an earlier step"
-                )
-        for hint in (step.col, step.row):
-            if hint is not None and hint < 0:
-                raise ValueError(f"layout hint of step {step.name!r} must be >= 0")
-        _validate_metrics(step)
+        if isinstance(step, MapStepSpec):
+            if not isinstance(step.name, str) or not _STEP_NAME.match(step.name):
+                raise ValueError(f"step name {step.name!r} must match [a-z0-9_]+ (max 64)")
+            if step.name in every:
+                raise ValueError(f"duplicate step {step.name!r}")
+            _validate_map(step, groups, seen, every)
+        else:
+            if step.name in every:
+                raise ValueError(f"duplicate step {step.name!r}")
+            _validate_step(step, groups, seen, "")
+            _validate_metrics(step)
         seen.add(step.name)
+        every.add(step.name)

@@ -3,7 +3,7 @@
 from typing import List, Set
 
 from waypoint_etl.decorator import TAG
-from waypoint_etl.spec import PipelineSpec
+from waypoint_etl.spec import MapStepSpec, PipelineSpec
 
 
 def audited_step_names(*objects: object) -> List[str]:
@@ -21,6 +21,9 @@ def assert_spec_matches(spec: PipelineSpec, *objects: object) -> None:
     """Fail if a decorated step is missing from the spec or a spec step has no decorated function."""
     decorated: Set[str] = set(audited_step_names(*objects))
     declared = {s.name for s in spec.steps}
+    for s in spec.steps:
+        if isinstance(s, MapStepSpec):
+            declared |= {inner.name for inner in s.steps}
     problems = []
     if decorated - declared:
         problems.append(f"decorated but not in the spec: {sorted(decorated - declared)}")

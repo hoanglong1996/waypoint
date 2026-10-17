@@ -1,0 +1,240 @@
+{
+ "run_id": "20261017T020301Z",
+ "pipeline": "callrail",
+ "env": "prod",
+ "started_at": "2026-10-17T02:03:01Z",
+ "ended_at": "2026-10-17T02:09:40Z",
+ "duration_seconds": 399,
+ "duration": {
+  "seconds": 399,
+  "running": false,
+  "complete": false,
+  "slow": false
+ },
+ "age_seconds": 12,
+ "stale": false,
+ "status": "incomplete",
+ "running_step": null,
+ "first_missing_step": "publish",
+ "missing_count": 2,
+ "loss_steps": [
+  "transform"
+ ],
+ "unreadable": 0,
+ "died": null,
+ "failed": {
+  "step": "load",
+  "index": 4,
+  "failed_at": "2026-10-17T02:08:00Z"
+ },
+ "flow_status": "ok",
+ "flow_problems": [],
+ "event_counts": {
+  "warning": 1,
+  "error": 1
+ },
+ "metrics_over": 1,
+ "flow": {
+  "label": "CallRail",
+  "groups": [
+   {
+    "key": "extract",
+    "label": "Extract"
+   },
+   {
+    "key": "load",
+    "label": "Load"
+   }
+  ],
+  "steps": [
+   {
+    "name": "read_calls",
+    "label": "Read calls",
+    "group": "extract",
+    "inputs": [],
+    "returns_nothing": false,
+    "col": null,
+    "row": null
+   },
+   {
+    "name": "transform",
+    "label": null,
+    "group": "extract",
+    "inputs": [
+     {
+      "name": "rows",
+      "from": "read_calls"
+     }
+    ],
+    "returns_nothing": false,
+    "metrics": [
+     {
+      "name": "rejected",
+      "label": "Rejected rows",
+      "unit": "rows",
+      "warn_above": 100
+     }
+    ]
+   },
+   {
+    "name": "merge",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "a",
+      "from": "transform"
+     },
+     {
+      "name": "b",
+      "from": "read_calls"
+     }
+    ],
+    "returns_nothing": false
+   },
+   {
+    "name": "load",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "rows",
+      "from": "merge"
+     }
+    ],
+    "returns_nothing": true
+   },
+   {
+    "name": "publish",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "x",
+      "from": "load"
+     },
+     {
+      "name": "y",
+      "from": "ghost",
+      "dangling": true
+     }
+    ],
+    "returns_nothing": false
+   },
+   {
+    "name": "notify",
+    "inputs": [
+     {
+      "name": "x",
+      "from": "publish"
+     }
+    ],
+    "returns_nothing": false
+   }
+  ]
+ },
+ "steps": [
+  {
+   "name": "read_calls",
+   "state": "done",
+   "inputs": [],
+   "output": 1200,
+   "finished_at": "2026-10-17T02:04:00Z",
+   "started_at": "2026-10-17T02:03:02Z",
+   "duration_seconds": 58,
+   "duration_approx": false
+  },
+  {
+   "name": "transform",
+   "state": "done",
+   "inputs": [
+    {
+     "name": "rows",
+     "value": 1200
+    }
+   ],
+   "output": 0,
+   "finished_at": "2026-10-17T02:05:00Z",
+   "duration_seconds": 60,
+   "duration_approx": true,
+   "metrics": [
+    {
+     "name": "rejected",
+     "label": "Rejected rows",
+     "value": 150,
+     "unit": "rows",
+     "declared": true,
+     "flag": "above",
+     "updated_at": "2026-10-17T02:04:59Z"
+    }
+   ],
+   "metrics_over": 1
+  },
+  {
+   "name": "merge",
+   "state": "done",
+   "inputs": [
+    {
+     "name": "a",
+     "value": 0
+    },
+    {
+     "name": "b",
+     "value": 1200
+    }
+   ],
+   "output": 1200,
+   "finished_at": "2026-10-17T02:06:00Z",
+   "duration_seconds": 30
+  },
+  {
+   "name": "load",
+   "state": "failed",
+   "started_at": "2026-10-17T02:06:01Z",
+   "failed_at": "2026-10-17T02:08:00Z",
+   "duration_seconds": 119,
+   "duration_approx": false,
+   "error": {
+    "type": "ValueError",
+    "message": "bad <b>date</b>",
+    "traceback": "Traceback (most recent call last):\n  File \"x.py\", line 1\nValueError: bad date"
+   }
+  },
+  {
+   "name": "publish",
+   "state": "waiting"
+  },
+  {
+   "name": "notify",
+   "state": "missing",
+   "missing": true
+  },
+  {
+   "name": "extra_step",
+   "state": "unplanned",
+   "inputs": [
+    {
+     "name": "i",
+     "value": 3
+    }
+   ],
+   "output": 3,
+   "finished_at": "2026-10-17T02:07:00Z"
+  },
+  {
+   "name": "slow_one",
+   "state": "running",
+   "started_at": "2026-10-17T02:08:30Z",
+   "elapsed_seconds": 12
+  },
+  {
+   "name": "stuck",
+   "state": "stalled",
+   "started_at": "2026-10-17T02:03:30Z",
+   "elapsed_seconds": 1200
+  },
+  {
+   "name": "gone",
+   "state": "died",
+   "started_at": "2026-10-17T02:03:30Z",
+   "last_seen_at": "2026-10-17T02:05:00Z"
+  }
+ ]
+}

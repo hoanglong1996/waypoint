@@ -5,6 +5,8 @@ import { esc, fmt, hhmmss, isDone, isLoss, metric, metricsOver, stepOf, stepStat
 import {
   I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, metricBadgeHTML, metricsTableHTML,
 } from '../ui.js';
+import { mapIcon, mapIconSmall, mapStatePill } from '../map-ui.js';
+import { mapLostText, mapPillText, mapProgress } from '../map-model.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
 
@@ -108,6 +110,18 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
       if (!compact) html += '<div class="step__bar" aria-hidden="true"><i style="width:' + barW.toFixed(1) + '%"></i></div>';
     }
     html += '</div>';
+  }
+
+  if (s.map) {
+    // a map step (specs/014): its loop in a line, and a button that opens the items inside this item
+    const m = s.map;
+    html += '<div class="step__map"><span class="mn-tag">' + mapIconSmall('loop') + 'Map</span> ' + mapStatePill(m.state) +
+      '<span class="step__map-prog">' + esc(mapProgress(m)) + '</span>' +
+      (mapPillText(m) ? '<span class="step__map-note">' + esc(mapPillText(m)) + '</span>' : '') +
+      (mapLostText(m) ? '<span class="step__map-note">' + esc(mapLostText(m)) + '</span>' : '') +
+      '<button type="button" class="btn btn--sm" data-map-toggle="' + esc(s.name) + '" aria-expanded="false">' +
+      mapIcon('chevDown') + '<span class="step__map-txt">Show items</span></button></div>' +
+      '<section class="mp-card mp-panel" data-map-slot="' + esc(s.name) + '" hidden></section>';
   }
 
   if (!missing && live !== 'waiting') html += metricsTableHTML(s, def);

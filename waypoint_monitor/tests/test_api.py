@@ -11,9 +11,13 @@ from tests.fakes import (
     FakeStore,
     declare_metrics,
     flow_value,
+    item_steps,
+    make_aggregate,
     make_alive,
     make_died,
     make_failure,
+    make_item,
+    make_map_run,
     make_marker,
     make_metrics,
     make_run,
@@ -1252,3 +1256,260 @@ class TestMetricsApi(unittest.TestCase):
         store.metrics = [make_metrics("prod", R1, 0, {"x": 1})]
         client_for(store).get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
         self.assertEqual(store.write_calls, [])
+
+
+MAP_NOW = datetime(2026, 10, 15, 2, 1, 0, tzinfo=timezone.utc)
+MAP_BASE = "/api/runs/callrail/prod/" + R1 + "/maps/accounts/items"
+
+
+def map_store(failed: int = 1, n: int = 10, **aggregate: Any) -> FakeStore:
+    """A finished run of `list_accounts` -> map `accounts` (n items, `failed` of them failing) -> `publish`."""
+    store = FakeStore()
+    store.records += make_map_run("prod", R1)
+    durations = [3000 + i * 100 for i in range(n)]
+    store.maps.append(
+        make_aggregate(
+            "prod",
+            R1,
+            index=2,
+            done=n - failed,
+            failed=failed,
+            durations_ms=durations,
+            slowest=[("acct-7", 9120)] if failed else [],
+            failed_items=[("acct-7", "transform", "ValueError")] if failed else [],
+            **aggregate,
+        )
+    )
+    for i in range(1, n + 1):
+        bad = i == 7 and failed > 0
+        store.items.append(
+            make_item(
+                "prod", R1, f"acct-{i}", i, "failed" if bad else "done",
+                duration_ms=9120 if bad else durations[i - 1],
+            )
+        )  # fmt: skip
+    return store
+
+
+def map_client(store: FakeStore, **kw: Any) -> TestClient:
+    return client_for(store, now=MAP_NOW, **kw)
+
+
+class TestMapRuns(unittest.TestCase):
+    def test_runs_carry_the_map_summary_and_never_read_items(self) -> None:
+        store = map_store()
+        client = map_client(store)
+        body = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+        step = next(s for s in body["runs"][0]["steps"] if s["name"] == "accounts")
+        self.assertEqual(step["state"], "failed")
+        self.assertEqual(step["error"]["type"], "ItemsFailed")
+        self.assertEqual(
+            step["map"]["counts"], {"started": 10, "running": 0, "done": 9, "failed": 1}
+        )
+        self.assertEqual(step["map"]["concurrency_limit"], 5)
+        self.assertEqual(step["map"]["slowest"], [{"key": "acct-7", "ms": 9120}])
+        self.assertTrue(step["map"]["duration"]["enough"])
+        flow_step = next(s for s in body["runs"][0]["flow"]["steps"] if s["name"] == "accounts")
+        self.assertEqual(len(flow_step["map"]["steps"]), 3)
+        client.get("/api/overview")
+        client.get("/api/pipelines", params={"env": "prod"})
+        client.get(f"/api/runs/callrail/prod/{R1}/events")
+        self.assertEqual(store.items_calls, [])
+
+    def test_a_damaged_aggregate_is_counted_for_its_run_and_the_step_stays_ordinary(self) -> None:
+        store = map_store()
+        store.maps = [(store.maps[0][0], "{broken")]
+        body = (
+            map_client(store)
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()
+        )
+        run = body["runs"][0]
+        self.assertEqual(run["unreadable"], 1)
+        self.assertEqual(body["unreadable_total"], 1)
+        self.assertTrue(all("map" not in s for s in run["steps"]))
+
+    def test_a_store_that_is_down_gives_503(self) -> None:
+        store = map_store()
+        store.fail = True
+        self.assertEqual(map_client(store).get(MAP_BASE).status_code, 503)
+
+
+class TestMapItemsRoute(unittest.TestCase):
+    def get(self, store: Optional[FakeStore] = None, **params: Any) -> Dict[str, Any]:
+        response = map_client(store or map_store()).get(MAP_BASE, params=params)
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()  # type: ignore[no-any-return]
+
+    def keys(self, body: Dict[str, Any]) -> List[str]:
+        return [i["key"] for i in body["items"]]
+
+    def test_default_page(self) -> None:
+        body = self.get()
+        self.assertEqual(
+            {k: body[k] for k in ("env", "pipeline", "run_id", "map", "state", "total", "with_record")},
+            {"env": "prod", "pipeline": "callrail", "run_id": R1, "map": "accounts",
+             "state": "failed", "total": 10, "with_record": 10},
+        )  # fmt: skip
+        self.assertEqual(body["counts"], {"failed": 1, "running": 0, "done": 9})
+        self.assertEqual((body["partial"], body["failed_without_record"]), (False, 0))
+        self.assertEqual(
+            (body["matched"], body["has_more"], body["next"], body["unreadable"]),
+            (10, False, None, 0),
+        )
+        self.assertEqual(self.keys(body), [f"acct-{i}" for i in range(1, 11)])
+        failed = body["items"][6]
+        self.assertEqual(
+            (failed["state"], failed["failed_step"], failed["error_type"], failed["slow"]),
+            ("failed", "transform", "ValueError", True),
+        )
+
+    def test_filters_sorting_and_failed_first(self) -> None:
+        self.assertEqual(self.keys(self.get(state="failed")), ["acct-7"])
+        self.assertEqual(self.keys(self.get(slow=1)), ["acct-7"])
+        self.assertEqual(self.keys(self.get(q="ACCT-1")), ["acct-1", "acct-10"])
+        self.assertEqual(self.get(sort="duration")["items"][0]["key"], "acct-7")
+        self.assertEqual(self.keys(self.get(sort="key", order="desc"))[:2], ["acct-10", "acct-9"])
+        self.assertEqual(self.keys(self.get(failed_first=1))[:2], ["acct-7", "acct-1"])
+        self.assertEqual(self.get(state="done", slow=1)["items"], [])
+
+    def test_three_pages_have_no_repeats_and_no_gaps(self) -> None:
+        store = map_store(n=120, failed=3)
+        seen: List[str] = []
+        after = None
+        for _ in range(3):
+            params: Dict[str, Any] = {"limit": 50, "sort": "duration"}
+            if after:
+                params["after"] = after
+            body = self.get(store, **params)
+            seen += self.keys(body)
+            after = body["next"]
+            self.assertEqual(body["matched"], 120)
+        self.assertIsNone(after)
+        self.assertEqual(len(seen), 120)
+        self.assertEqual(len(set(seen)), 120)
+
+    def test_bad_parameters_are_400(self) -> None:
+        client = map_client(map_store())
+        for params in (
+            {"state": "skipped"},
+            {"sort": "name"},
+            {"order": "up"},
+            {"limit": 0},
+            {"limit": 201},
+            {"q": "x" * 65},
+            {"after": "nope"},
+            {"slow": 2},
+            {"failed_first": 5},
+        ):
+            with self.subTest(params=params):
+                self.assertEqual(client.get(MAP_BASE, params=params).status_code, 400)
+        base = "/api/runs"
+        for path in (
+            f"{base}/callrail/dev/{R1}/maps/accounts/items",
+            f"{base}/Bad Name/prod/{R1}/maps/accounts/items",
+            f"{base}/callrail/prod/notarun/maps/accounts/items",
+            f"{base}/callrail/prod/{R1}/maps/Bad-Map/items",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(client.get(path).status_code, 400)
+
+    def test_an_unknown_run_or_map_is_an_empty_result(self) -> None:
+        client = map_client(map_store())
+        for path in (
+            "/api/runs/callrail/prod/20250101T000000Z/maps/accounts/items",
+            f"/api/runs/callrail/prod/{R1}/maps/nothing/items",
+            f"/api/runs/callrail/prod/{R1}/maps/publish/items",
+        ):
+            with self.subTest(path=path):
+                response = client.get(path)
+                self.assertEqual(response.status_code, 200)
+                body = response.json()
+                self.assertEqual((body["total"], body["items"], body["with_record"]), (0, [], 0))
+                self.assertIsNone(body["state"])
+
+    def test_partial_detail_is_reported(self) -> None:
+        body = self.get(map_store(failed=2, kept=10, failed_without_record=37))
+        self.assertFalse(body["partial"])  # started 10 == kept 10
+        store = map_store(failed=2, kept=4, failed_without_record=37)
+        body = self.get(store)
+        self.assertEqual((body["partial"], body["failed_without_record"]), (True, 37))
+        self.assertEqual((body["total"], body["with_record"]), (10, 10))
+
+    def test_a_damaged_item_is_counted_and_the_rest_listed(self) -> None:
+        store = map_store()
+        store.items.append((f"waypoint:callrail:prod:{R1}:item:accounts:acct-99", "{broken"))
+        body = self.get(store)
+        self.assertEqual((body["unreadable"], len(body["items"])), (1, 10))
+
+    def test_items_are_cached_for_the_cache_window(self) -> None:
+        store = map_store()
+        clock = Clock()
+        client = client_for(store, now=MAP_NOW, clock=clock, cache_seconds=10)
+        client.get(MAP_BASE)
+        client.get(MAP_BASE, params={"state": "failed"})
+        self.assertEqual(len(store.items_calls), 1)
+        clock.t = 11.0
+        client.get(MAP_BASE)
+        self.assertEqual(len(store.items_calls), 2)
+
+    def test_a_running_slow_item_carries_its_elapsed_time(self) -> None:
+        store = map_store()
+        store.items.append(
+            make_item(
+                "prod", R1, "acct-90", 90, "running", steps=item_steps(running="fetch"),
+                started_at=MAP_NOW - timedelta(seconds=30),
+            )
+        )  # fmt: skip
+        body = self.get(store, slow=1, sort="duration")
+        self.assertIn("acct-90", self.keys(body))
+        row = next(i for i in body["items"] if i["key"] == "acct-90")
+        self.assertEqual((row["state"], row["elapsed_ms"], row["slow"]), ("running", 30000, True))
+
+
+class TestMapItemRoute(unittest.TestCase):
+    def path(self, key: str, run: str = R1, map_name: str = "accounts") -> str:
+        return f"/api/runs/callrail/prod/{run}/maps/{map_name}/items/{key}"
+
+    def test_detail_of_a_failed_item(self) -> None:
+        response = map_client(map_store()).get(self.path("acct-7"))
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual((body["key"], body["state"], body["slow"]), ("acct-7", "failed", True))
+        self.assertEqual([s["state"] for s in body["steps"]], ["done", "failed", "not_run"])
+        self.assertEqual(body["steps"][1]["error"]["message"], "bad date")
+
+    def test_missing_item_and_bad_key(self) -> None:
+        client = map_client(map_store())
+        self.assertEqual(client.get(self.path("acct-99")).status_code, 404)
+        self.assertEqual(client.get(self.path("acct-99")).json(), {"error": "Item not found"})
+        self.assertEqual(client.get(self.path("a%20b")).status_code, 400)
+        self.assertEqual(client.get(self.path("acct-7", map_name="nothing")).status_code, 404)
+        self.assertEqual(client.get(self.path("acct-7", run="20250101T000000Z")).status_code, 404)
+
+    def test_a_damaged_item_is_not_found(self) -> None:
+        store = map_store()
+        store.items = [(k, "{broken" if k.endswith("acct-7") else v) for k, v in store.items]
+        self.assertEqual(map_client(store).get(self.path("acct-7")).status_code, 404)
+
+    def test_store_down_is_503(self) -> None:
+        store = map_store()
+        store.fail = True
+        self.assertEqual(map_client(store).get(self.path("acct-7")).status_code, 503)
+
+
+class TestEventsItemFilter(unittest.TestCase):
+    def test_only_events_of_that_item_are_returned(self) -> None:
+        store = map_store()
+        store.add_event(R1, "info", 1, "2026-10-15T02:00:12.000Z", "a", step="fetch", item="acct-7")
+        store.add_event(R1, "info", 2, "2026-10-15T02:00:13.000Z", "b", step="fetch", item="acct-8")
+        store.add_event(R1, "warning", 3, "2026-10-15T02:00:14.000Z", "c", step="fetch")
+        client = map_client(store)
+        base = f"/api/runs/callrail/prod/{R1}/events"
+        body = client.get(base, params={"item": "acct-7"}).json()
+        self.assertEqual([e["message"] for e in body["events"]], ["a"])
+        self.assertEqual((body["matched"], body["events"][0]["item"]), (1, "acct-7"))
+        everything = client.get(base).json()["events"]
+        self.assertEqual(sum("item" in e for e in everything), 2)  # others carry no `item` key
+        self.assertEqual(client.get(base, params={"item": "acct-1"}).json()["events"], [])
+        self.assertEqual(client.get(base, params={"item": "a b"}).status_code, 400)

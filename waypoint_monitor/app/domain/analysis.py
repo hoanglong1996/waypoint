@@ -6,12 +6,14 @@ from app.domain.durations import (
     finished_timing,
     run_duration,
 )
+from app.domain.maps import summarize, synthetic_failure
 from app.domain.metrics import count_over, step_metrics
 from app.domain.models import (
     AliveSignal,
     DiedVerdict,
     Flow,
     FlowStep,
+    MapAggregate,
     ParseResult,
     StartMarker,
     StepFailure,
@@ -102,41 +104,44 @@ def _ordered_inputs(declared: Sequence[str], inputs: Dict[str, int]) -> List[Dic
     return ordered
 
 
+def _flow_step_json(s: FlowStep) -> Dict[str, Any]:
+    entry: Dict[str, Any] = {
+        "name": s.name,
+        "label": s.label,
+        "group": s.group,
+        "inputs": [
+            {"name": i.name, "from": i.source, **({"dangling": True} if i.dangling else {})}
+            for i in s.inputs
+        ],
+        "returns_nothing": s.returns_nothing,
+        "col": s.col,
+        "row": s.row,
+    }
+    if s.metrics:
+        entry["metrics"] = [
+            {
+                "name": m.name,
+                "label": m.label,
+                "unit": m.unit,
+                "warn_above": m.warn_above,
+                "warn_below": m.warn_below,
+            }
+            for m in s.metrics
+        ]
+    if s.map is not None:
+        entry["map"] = {
+            "over": s.map.over,
+            "max_concurrency": s.map.max_concurrency,
+            "steps": [_flow_step_json(inner) for inner in s.map.steps],
+        }
+    return entry
+
+
 def _flow_json(flow: Flow) -> Dict[str, Any]:
     return {
         "label": flow.label,
         "groups": [{"key": g.key, "label": g.label} for g in flow.groups],
-        "steps": [
-            {
-                "name": s.name,
-                "label": s.label,
-                "group": s.group,
-                "inputs": [
-                    {"name": i.name, "from": i.source, **({"dangling": True} if i.dangling else {})}
-                    for i in s.inputs
-                ],
-                "returns_nothing": s.returns_nothing,
-                "col": s.col,
-                "row": s.row,
-                **(
-                    {
-                        "metrics": [
-                            {
-                                "name": m.name,
-                                "label": m.label,
-                                "unit": m.unit,
-                                "warn_above": m.warn_above,
-                                "warn_below": m.warn_below,
-                            }
-                            for m in s.metrics
-                        ]
-                    }
-                    if s.metrics
-                    else {}
-                ),
-            }
-            for s in flow.steps
-        ],
+        "steps": [_flow_step_json(s) for s in flow.steps],
     }
 
 
@@ -158,11 +163,29 @@ def _build_run(
     failures: Sequence[StepFailure] = (),
     counts: Optional[Mapping[str, int]] = None,
     metrics: Sequence[StepMetrics] = (),
+    maps: Sequence[MapAggregate] = (),
+    min_items: int = 5,
 ) -> Dict[str, Any]:
     started = parse_run_id(run_id)
     planned: List[FlowStep] = list(flow.steps) if flow else []
     planned_names = {s.name for s in planned}
     current = _current_failures(failures, reported, run_markers)
+    # the latest aggregate of each map step (specs/014); a map whose block ended with failed items and
+    # no real failure of its own fails through a synthetic one (research R6)
+    aggregates: Dict[str, MapAggregate] = {}
+    for found_map in maps:
+        known_map = aggregates.get(found_map.map)
+        if known_map is None or found_map.index > known_map.index:
+            aggregates[found_map.map] = found_map
+    for name, aggregate in aggregates.items():
+        ended_step = reported.get(name)
+        if (
+            name not in current
+            and aggregate.counts.failed > 0
+            and ended_step is not None
+            and ended_step.index == aggregate.index
+        ):
+            current[name] = synthetic_failure(aggregate, ended_step.finished_at)
 
     def previous_end(index: int) -> datetime:
         """End of the latest attempt that ran before attempt `index`, or the run's start."""
@@ -326,6 +349,14 @@ def _build_run(
         else:
             add_unfinished(name, run_markers[name], False)
 
+    if aggregates:
+        built = {str(entry["name"]): entry for entry in out_steps}
+        declared_maps = {s.name: s.map for s in planned if s.map is not None}
+        for name, aggregate in aggregates.items():
+            entry = built.get(name)
+            if entry is not None and aggregate.index == attempt(name):
+                entry["map"] = summarize(aggregate, declared_maps.get(name), entry, min_items)
+
     ended = max(
         [r.finished_at for r in reported.values()] + [f.failed_at for f in current.values()],
         default=started,
@@ -390,6 +421,8 @@ def build_runs(
     failures: Sequence[StepFailure] = (),
     event_counts: Optional[Mapping[str, Mapping[str, int]]] = None,
     metrics: Sequence[StepMetrics] = (),
+    maps: Sequence[MapAggregate] = (),
+    min_items: int = 5,
 ) -> List[Dict[str, Any]]:
     """Group records into runs (newest first), each drawn from its own flow description.
 
@@ -407,6 +440,11 @@ def build_runs(
     `failures` are the validated failure items. A step whose latest attempt failed is `failed`
     (never running, stalled or died); a failure that no later attempt of the run follows stopped the
     pipeline, and then `failed` names it and the run is not Died. A failure item alone creates a run.
+
+    `maps` are the validated map aggregates (specs/014). A map step with an aggregate of its current
+    attempt gets a `map` summary; one whose block ended with failed items fails through a synthetic
+    `ItemsFailed` failure unless a real failure item exists. `min_items` is the number of finished
+    items needed before percentiles are shown.
     """
     flows = flows or {}
     alive = alive or {}
@@ -436,6 +474,9 @@ def build_runs(
     metrics_by_run: Dict[str, List[StepMetrics]] = {}
     for record in metrics:
         metrics_by_run.setdefault(record.run_id, []).append(record)
+    maps_by_run: Dict[str, List[MapAggregate]] = {}
+    for aggregate in maps:
+        maps_by_run.setdefault(aggregate.run_id, []).append(aggregate)
 
     return [
         _build_run(
@@ -455,6 +496,8 @@ def build_runs(
             failures_by_run.get(run_id, ()),
             (event_counts or {}).get(run_id),
             metrics_by_run.get(run_id, ()),
+            maps_by_run.get(run_id, ()),
+            min_items,
         )
         for run_id in sorted(by_run, reverse=True)
     ]

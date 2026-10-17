@@ -1,4 +1,5 @@
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -64,6 +65,9 @@ class FakeStore:
         self.died: Raw = []
         self.failures: Raw = []
         self.metrics: Raw = []
+        self.maps: Raw = []
+        self.items: Raw = []
+        self.items_calls: List[Tuple[str, str, str, str]] = []  # list_items and read_item
         # run id -> level -> raw JSON elements, oldest first (the three event lists of a run)
         self.events: Dict[str, Dict[str, List[str]]] = {}
         self.events_denied = False  # the account may not read the event lists (NOPERM)
@@ -78,7 +82,16 @@ class FakeStore:
             raise StoreUnavailable("down")
 
     def _all(self) -> Raw:
-        return self.records + self.markers + self.alive + self.died + self.failures + self.metrics
+        return (
+            self.records
+            + self.markers
+            + self.alive
+            + self.died
+            + self.failures
+            + self.metrics
+            + self.maps
+            + self.items
+        )
 
     def list_pipelines(self, env: str) -> List[str]:
         self._check()
@@ -125,6 +138,25 @@ class FakeStore:
         prefix = _prefix(pipeline, env)
         return [(k, v) for k, v in self.metrics if k.startswith(prefix)]
 
+    def list_maps(self, env: str, pipeline: str) -> Raw:
+        self._check()
+        prefix = _prefix(pipeline, env)
+        return [(k, v) for k, v in self.maps if k.startswith(prefix)]
+
+    def list_items(self, env: str, pipeline: str, run_id: str, map_name: str) -> Raw:
+        self.items_calls.append((env, pipeline, run_id, map_name))
+        self._check()
+        prefix = f"{_prefix(pipeline, env)}{run_id}:item:{map_name}:"
+        return [(k, v) for k, v in self.items if k.startswith(prefix)]
+
+    def read_item(
+        self, env: str, pipeline: str, run_id: str, map_name: str, key: str
+    ) -> Optional[str]:
+        self.items_calls.append((env, pipeline, run_id, map_name))
+        self._check()
+        wanted = f"{_prefix(pipeline, env)}{run_id}:item:{map_name}:{key}"
+        return next((v for k, v in self.items if k == wanted), None)
+
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
         self._check()
         if self.events_denied:
@@ -159,6 +191,7 @@ class FakeStore:
         step: Optional[str] = None,
         fields: Optional[Dict[str, Any]] = None,
         raw: Optional[str] = None,
+        item: Optional[str] = None,
     ) -> None:
         """Append an author-sent event to the run's list of `level` (`raw` replaces the JSON)."""
         event: Dict[str, Any] = {"v": 1, "n": n, "ts": ts, "level": level}
@@ -168,6 +201,8 @@ class FakeStore:
             event["step"] = step
         if fields is not None:
             event["fields"] = fields
+        if item is not None:
+            event["item"] = item
         self.events.setdefault(run_id, {}).setdefault(level, []).append(
             raw if raw is not None else json.dumps(event)
         )
@@ -430,4 +465,242 @@ def declare_metrics(
                     entry["metrics"] = declarations
             value = json.dumps(flow)
         out.append((key, value))
+    return out
+
+
+def bucket_of(ms: int) -> int:
+    """The duration histogram bucket of the library: `floor(ln(ms) / ln(1.1))`, 0 below 1 ms."""
+    return int(math.floor(math.log(ms) / math.log(1.1))) if ms >= 1 else 0
+
+
+def make_aggregate(
+    env: str,
+    run_id: str,
+    *,
+    map_name: str = "accounts",
+    index: int = 2,
+    running: int = 0,
+    done: int = 0,
+    failed: int = 0,
+    ended: bool = True,
+    started_at: Optional[datetime] = None,
+    pipeline: str = PIPELINE,
+    durations_ms: Sequence[int] = (),
+    slowest: Sequence[Tuple[str, int]] = (),
+    inner: Optional[Dict[str, Dict[str, int]]] = None,
+    failed_items: Sequence[Tuple[str, str, str]] = (),
+    kept: Optional[int] = None,
+    failed_without_record: int = 0,
+    slow_kept: int = 0,
+    lost_items: int = 0,
+    in_total: int = 0,
+    out_total: int = 0,
+    raw: Optional[str] = None,
+    **overrides: Any,
+) -> Tuple[str, str]:
+    """One map aggregate pair (contracts/redis-keys.md). `durations_ms` fills the histogram, count and sum."""
+    start = started_at or parse_run_id(run_id) + timedelta(seconds=10)
+    hist: Dict[str, int] = {}
+    for ms in durations_ms:
+        hist[str(bucket_of(ms))] = hist.get(str(bucket_of(ms)), 0) + 1
+    started = running + done + failed
+    value: Dict[str, Any] = {
+        "v": 1,
+        "pipeline": pipeline,
+        "env": env,
+        "run_id": run_id,
+        "map": map_name,
+        "index": index,
+        "started_at": _stamp(start),
+        "ended_at": _stamp(start + timedelta(seconds=41)) if ended else None,
+        "updated_at": _stamp(start + timedelta(seconds=42)),
+        "counts": {"started": started, "running": running, "done": done, "failed": failed},
+        "in_total": in_total,
+        "out_total": out_total,
+        "lost_items": lost_items,
+        "inner": inner or {},
+        "duration": {
+            "count": len(durations_ms),
+            "sum_ms": sum(durations_ms),
+            "hist": hist,
+            "slowest": [{"key": k, "ms": ms} for k, ms in slowest],
+        },
+        "failed_items": [{"key": k, "step": st, "error_type": et} for k, st, et in failed_items],
+        "detail": {
+            "limit": 1000,
+            "kept": started if kept is None else kept,
+            "extra_failed_limit": 1000,
+            "failed_without_record": failed_without_record,
+            "slow_kept": slow_kept,
+        },
+    }
+    value.update(overrides)
+    return f"{_prefix(pipeline, env)}{run_id}:map:{map_name}", (
+        raw if raw is not None else json.dumps(value)
+    )
+
+
+def item_steps(
+    *, failed_at: Optional[str] = None, loss_at: Optional[str] = None, running: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Inner step results of fetch -> transform -> load for one item. A failed step stops the item;
+    `running` is the step still open (later steps have not begun)."""
+    results: List[Dict[str, Any]] = []
+    rows = 48
+    for name in ("fetch", "transform", "load"):
+        result: Dict[str, Any] = {
+            "step": name,
+            "attempt": 1,
+            "inputs": {"account": 1} if name == "fetch" else {"rows": rows},
+            "started_at": "2026-10-15T02:04:21Z",
+        }
+        if name == running:
+            result["state"] = "running"
+            result["output"] = None
+            results.append(result)
+            break
+        if name == failed_at:
+            result.update(
+                state="failed",
+                output=None,
+                duration_ms=6820,
+                error={
+                    "type": "ValueError",
+                    "message": "bad date",
+                    "traceback": '  File "t.py", line 3, in transform\n    raise ValueError("bad date")\n',
+                },
+            )
+            results.append(result)
+            break
+        out = 0 if name == loss_at else rows
+        result.update(state="done", output=out, duration_ms=2300)
+        results.append(result)
+        rows = out
+    return results
+
+
+def make_item(
+    env: str,
+    run_id: str,
+    key: str,
+    index: int,
+    state: str = "done",
+    *,
+    map_name: str = "accounts",
+    pipeline: str = PIPELINE,
+    steps: Optional[List[Dict[str, Any]]] = None,
+    duration_ms: Optional[int] = 3900,
+    started_at: Optional[datetime] = None,
+    compact: bool = False,
+    metrics: Optional[Dict[str, Dict[str, Any]]] = None,
+    error: Optional[Dict[str, Any]] = None,
+    raw: Optional[str] = None,
+    **overrides: Any,
+) -> Tuple[str, str]:
+    """One item record pair (contracts/redis-keys.md). A running item has no duration or end time."""
+    start = started_at or parse_run_id(run_id) + timedelta(seconds=10 + index)
+    if steps is None:
+        steps = item_steps(failed_at="transform" if state == "failed" else None)
+    value: Dict[str, Any] = {
+        "v": 1,
+        "pipeline": pipeline,
+        "env": env,
+        "run_id": run_id,
+        "map": map_name,
+        "key": key,
+        "index": index,
+        "state": state,
+        "started_at": _stamp(start),
+        "steps": steps,
+    }
+    if state != "running":
+        value["finished_at"] = _stamp(start + timedelta(milliseconds=duration_ms or 0))
+        value["duration_ms"] = duration_ms
+    if metrics:
+        value["metrics"] = metrics
+    if error:
+        value["error"] = error
+    if compact:
+        value["compact"] = True
+    value.update(overrides)
+    return (
+        f"{_prefix(pipeline, env)}{run_id}:item:{map_name}:{key}",
+        raw if raw is not None else json.dumps(value),
+    )
+
+
+def map_flow_steps(
+    over: Optional[str] = "list_accounts",
+    max_concurrency: Optional[int] = 5,
+    metrics: bool = True,
+) -> List[Dict[str, Any]]:
+    """Flow steps `list_accounts` -> map `accounts` (fetch -> transform -> load) -> `publish`."""
+    decl: Dict[str, Any] = {
+        "name": "accounts",
+        "label": "Accounts",
+        "kind": "map",
+        "inputs": [{"name": "accounts", "from": "list_accounts"}],
+        "steps": [
+            {"name": "fetch", "inputs": []},
+            {
+                "name": "transform",
+                "inputs": [{"name": "rows", "from": "fetch"}],
+                **(
+                    {"metrics": [{"name": "rejected", "unit": "rows", "warn_above": 100}]}
+                    if metrics
+                    else {}
+                ),
+            },
+            {"name": "load", "inputs": [{"name": "rows", "from": "transform"}]},
+        ],
+    }
+    if over is not None:
+        decl["over"] = over
+    if max_concurrency is not None:
+        decl["max_concurrency"] = max_concurrency
+    return [
+        {"name": "list_accounts", "inputs": []},
+        decl,
+        {"name": "publish", "inputs": [{"name": "done", "from": "accounts"}]},
+    ]
+
+
+def make_map_run(
+    env: str,
+    run_id: str,
+    *,
+    pipeline: str = PIPELINE,
+    steps_done: int = 3,
+    seconds: float = 8.0,
+    map_decl: Optional[List[Dict[str, Any]]] = None,
+) -> Raw:
+    """The flow plus the step records of `list_accounts`, `accounts` and `publish` (the first
+    `steps_done` of them), for a pipeline with a map step."""
+    start = parse_run_id(run_id)
+    flow = flow_value(pipeline, env, run_id, map_decl or map_flow_steps(), None, "Map demo")
+    out: Raw = [(f"{_prefix(pipeline, env)}{run_id}:flow", flow)]
+    names = ("list_accounts", "accounts", "publish")
+    outputs: List[Optional[int]] = [10, 10, None]
+    inputs: List[Dict[str, int]] = [{}, {"accounts": 10}, {"done": 10}]
+    for i, name in enumerate(names[:steps_done]):
+        began = start + timedelta(seconds=i * seconds)
+        out.append(
+            (
+                f"{_prefix(pipeline, env)}{run_id}:step:{i + 1:02d}-{name}",
+                json.dumps(
+                    {
+                        "pipeline": pipeline,
+                        "run_id": run_id,
+                        "env": env,
+                        "step": name,
+                        "index": i + 1,
+                        "inputs": inputs[i],
+                        "output": outputs[i],
+                        "finished_at": _stamp(began + timedelta(seconds=seconds)),
+                        "started_at": _stamp(began),
+                        "duration_ms": round(seconds * 1000),
+                    }
+                ),
+            )
+        )
     return out

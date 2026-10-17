@@ -1,9 +1,13 @@
 /* Directed-graph view of one run: HTML node buttons over an inline SVG edge layer.
    Rules and geometry live in ../graph-model.js. Design: docs/design/pipeline-monitor-graph-update. */
 import {
-  MIN_SCALE, computeLayout, dimsOf, edgeInfo, edgeWidth, edgesOf, layoutFor, neighbours, nodeStates, partition,
+  MIN_SCALE, computeLayout, dimsOf, edgeInfo, edgeWidth, edgesOf, hasMapStep, layoutFor, neighbours, nodeStates, partition,
   pickLayout, readingOrder, simpleLayout,
 } from '../graph-model.js';
+import { mapAria, mapProgress } from '../map-model.js';
+import { mapNodeHTML, mapIcon } from '../map-ui.js';
+import { mountMapPanel, panelId, syncAddress } from './map.js';
+import { parseRoute } from '../router.js';
 import {
   esc, fmt, fmtDuration, groupKeys, groupLabel, groupSlot, hasCounts, hhmmss, isDone, metricsOver, overText, stepState,
 } from '../model.js';
@@ -43,7 +47,7 @@ function build(el, o) {
   const edges = simple ? [] : edgesOf(defs);
   const cs = getComputedStyle(el);
   const cw = (el.clientWidth || 1100) - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const pk = pickLayout(cw, o.prefer, dimsOf(computeLayout(defs, edges)));
+  const pk = pickLayout(cw, o.prefer, dimsOf(computeLayout(defs, edges)), hasMapStep(defs));
   const L = simple ? simpleLayout(defs, cw, o.prefer === 'compact') : layoutFor(pk.kind, defs, edges, cw, groups);
   const sc = simple ? 1 : pk.kind === 'tb' ? Math.max(MIN_SCALE, Math.min(1, cw / L.W)) : pk.scale;
   const scrolls = L.W * sc > cw + 1;
@@ -91,6 +95,9 @@ function build(el, o) {
     const style = n ? 'left:' + n.x + 'px;top:' + n.y + 'px;width:' + n.w + 'px;height:' + n.h + 'px' : extraStyle;
     if (mode === 'skeleton') {
       return '<div class="gnode gnode--skel" style="' + style + '"><span class="skel" style="width:60%;height:12px"></span><span class="skel" style="width:85%;height:10px"></span><span class="skel" style="width:40%;height:20px;margin-top:auto"></span></div>';
+    }
+    if (mode === 'run' && def.map && s && s.map) {
+      return mapNodeHTML({ def, step: s, index: i, style, open: o.selected === i, panelId: panelId(def.name), label: labelOf(def) });
     }
     const st = mode === 'ghost' ? 'ghost' : ns.st[i];
     const aff = mode === 'run' && ns.affected[i] && st === 'ok';
@@ -187,6 +194,8 @@ function legendHTML(kind, run, simple) {
       '<span class="gpill gpill--stalled">' + I.alert + '<span class="gpill__txt">Stalled</span></span>' +
       '<span class="gpill gpill--died">' + I.power + '<span class="gpill__txt">Died</span></span>' +
       '<span class="gpill gpill--failed">' + I.failed + '<span class="gpill__txt">Failed</span></span></div>' +
+    (hasMapStep(run.defs) ? '<div class="graph-legend__group"><span class="eyebrow">Loops</span>' +
+      '<span class="lg-item"><span class="mn-tag">' + mapIcon('loop').replace('class="mic"', 'class="mic mic--s"') + 'Map</span>one step that repeats the same steps for many items</span></div>' : '') +
     (simple ? '' : '<div class="graph-legend__group"><span class="eyebrow">Arrows</span>' +
       '<span class="lg-item">' + ln('lg-ok') + 'items flow · thicker = more</span>' +
       '<span class="lg-item">' + ln('lg-empty') + '0 items</span>' +
@@ -222,6 +231,12 @@ function wire(el, o, L, edges, steps) {
   function nodeTip(i) {
     const s = run.steps[i];
     const def = steps[i];
+    if (def.map && s.map) {
+      return '<div class="tooltip__date"><span class="mono">' + esc(def.name) + '</span> · map step</div>' +
+        '<div class="tooltip__rows"><div>' + esc(mapProgress(s.map)) + '</div>' +
+        (s.map.lostItems > 0 ? '<div style="color:var(--bad)">items lost data</div>' : '') +
+        '<div class="faint">' + (o.selected === i ? 'items are shown below' : 'select to show its items') + '</div></div>';
+    }
     const ins = def.inputs.length
       ? def.inputs.map((p, k) => {
         const v = s.missing || !s.inputs[k] ? '—' : fmt(s.inputs[k].value);
@@ -258,9 +273,33 @@ function wire(el, o, L, edges, steps) {
   graph.addEventListener('focusin', (ev) => { const n = ev.target.closest('.gnode'); if (n) showTip(nodeTip(+n.dataset.i), n); });
   graph.addEventListener('focusout', hideTip);
 
-  function renderDetails(i, up, down) {
+  /* A map step opens its panel under the graph (design 3.2); every other step opens the "Selected step" details. */
+  const isMapAt = (i) => i != null && !!steps[i].map && !!run.steps[i].map;
+  function renderMapPanel(i, fromUser) {
+    if (!o.mapPanel) return;
+    if (!isMapAt(i)) {
+      if (!o.mapPanel.hidden || o.mapPanel.innerHTML) {
+        o.mapPanel.hidden = true;
+        o.mapPanel.innerHTML = '';
+        if (o.mapPanel._mpTimer) clearInterval(o.mapPanel._mpTimer);
+      }
+      if (parseRoute(location.hash).map) syncAddress(run, null);
+      return;
+    }
+    mountMapPanel(o.mapPanel, {
+      run, step: run.steps[i], def: steps[i], route: o.route, live: run.status === 'running', focus: !!fromUser,
+      onClose: () => {
+        const k = o.selected;
+        select(null);
+        focusNode(k);
+      },
+    });
+  }
+
+  function renderDetails(i, up, down, fromUser) {
+    renderMapPanel(i, fromUser);
     if (!o.details) return;
-    if (i == null) {
+    if (i == null || isMapAt(i)) {
       o.details.innerHTML = '';
       o.details.hidden = true;
       return;
@@ -278,7 +317,7 @@ function wire(el, o, L, edges, steps) {
       '<ol class="steps' + (o.prefer === 'compact' ? ' steps--compact' : '') + '">' + stepItemHTML(run, o.runs, cfg, i, o.prefer === 'compact') + '</ol>';
   }
 
-  function select(i) {
+  function select(i, fromUser) {
     o.selected = i;
     keepSelected.set(el.id, i);
     const { up, down } = i == null ? { up: new Set(), down: new Set() } : neighbours(edges, i);
@@ -287,19 +326,26 @@ function wire(el, o, L, edges, steps) {
       const k = +n.dataset.i;
       n.classList.toggle('is-selected', k === i);
       n.classList.toggle('is-hl', i != null && (k === i || up.has(k) || down.has(k)));
-      n.setAttribute('aria-pressed', String(k === i));
+      if (n.classList.contains('gnode--map')) {
+        // a map node is a disclosure: it opens and closes its panel
+        const open = k === i;
+        n.setAttribute('aria-expanded', String(open));
+        n.setAttribute('aria-label', mapAria(labelOf(steps[k]), run.steps[k].map, open));
+        const foot = n.querySelector('.mn-foot__txt');
+        if (foot) foot.textContent = open ? 'Hide items' : 'Show items';
+      } else n.setAttribute('aria-pressed', String(k === i));
     });
     graph.querySelectorAll('.gedge, .gchip').forEach((g) => {
       const e = edges[+g.dataset.edge];
       g.classList.toggle('is-hl', i != null && (e.from === i || e.to === i));
     });
-    renderDetails(i, up, down);
+    renderDetails(i, up, down, fromUser);
   }
   const focusNode = (k) => { const b = graph.querySelector('.gnode[data-i="' + k + '"]'); if (b) b.focus(); };
 
   const onClick = (ev) => {
     const n = ev.target.closest('[data-i]');
-    if (n) select(o.selected === +n.dataset.i ? null : +n.dataset.i);
+    if (n) select(o.selected === +n.dataset.i ? null : +n.dataset.i, true);
     else if (ev.currentTarget === graph) select(null); // empty-space click clears
   };
   graph.addEventListener('click', onClick);
@@ -314,7 +360,7 @@ function wire(el, o, L, edges, steps) {
       }
       const g = ev.target.closest('[data-goto]');
       if (g) {
-        select(+g.dataset.goto);
+        select(+g.dataset.goto, true);
         focusNode(g.dataset.goto);
       }
     };
@@ -356,6 +402,11 @@ window.addEventListener('resize', () => {
 /** mountGraph(el, {cfg, run, runs, mode: 'run'|'skeleton'|'ghost', details, prefer: 'auto'|'compact', ghostMsg, selected}) */
 export function mountGraph(el, o) {
   el.setAttribute('data-graph-mount', '');
+  if (o.mode === 'run' && o.route && o.route.map && o.run) {
+    // an address that names an open map panel (a shared link, Back from an item) opens it
+    const at = o.run.defs.findIndex((d) => d.name === o.route.map && d.map);
+    if (at >= 0 && o.run.steps[at] && o.run.steps[at].map) o.selected = at;
+  }
   if (o.selected === undefined && o.mode === 'run') o.selected = keepSelected.get(el.id);
   el._pmOpts = o;
   build(el, o);

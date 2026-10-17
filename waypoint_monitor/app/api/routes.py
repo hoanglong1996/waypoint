@@ -10,7 +10,9 @@ from fastapi.responses import JSONResponse
 from app.config import Settings
 from app.domain.analysis import build_runs
 from app.domain.durations import flag_slow, typical
-from app.domain.models import ParseResult
+from app.domain.flow import parse_flow
+from app.domain.maps import ItemQueryError, item_detail, select_items, validate_query
+from app.domain.models import MapDecl, ParseResult
 from app.domain.overview import build_overview
 from app.domain.parsing import (
     EVENT_LEVELS,
@@ -22,6 +24,9 @@ from app.domain.parsing import (
     parse_events,
     parse_failures,
     parse_flows,
+    parse_item,
+    parse_items,
+    parse_maps,
     parse_markers,
     parse_metrics,
     parse_records,
@@ -31,6 +36,8 @@ from app.infrastructure.store import RecordStore, StoreUnavailable
 
 UNAVAILABLE = "Data store unavailable"
 _RUN_ID = re.compile(r"^\d{8}T\d{6}Z$")
+_MAP_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
+_ITEM_KEY = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 
 Raw = List[Tuple[str, str]]
 
@@ -47,6 +54,7 @@ class Window(NamedTuple):
     failures: Raw
     event_counts: Dict[str, Dict[str, int]]
     metrics: Raw
+    maps: Raw
 
 
 def _error(status: int, message: str, **extra: Any) -> JSONResponse:
@@ -63,6 +71,7 @@ def build_router(
     now = now or (lambda: datetime.now(timezone.utc))
     router = APIRouter(prefix="/api")
     cache: Dict[Tuple[str, str], Window] = {}
+    item_cache: Dict[Tuple[str, str, str, str], Tuple[float, Raw]] = {}
 
     def keys_for(env: str, pipeline: str) -> Window:
         """Flows, audit records, start markers, heartbeats, verdicts and failures, in one cached window."""
@@ -80,12 +89,48 @@ def build_router(
                 store.list_failures(env, pipeline),
                 store.list_event_counts(env, pipeline),
                 store.list_metrics(env, pipeline),
+                store.list_maps(env, pipeline),
             )
         except StoreUnavailable:
             cache.pop((env, pipeline), None)  # never answer an unreachable store from old data
             raise
         cache[(env, pipeline)] = window
         return window
+
+    def items_for(env: str, pipeline: str, run_id: str, map_name: str) -> Raw:
+        """The raw item records of one map step of one run, cached for `cache_seconds`."""
+        name = (env, pipeline, run_id, map_name)
+        hit = item_cache.get(name)
+        if hit is not None and clock() - hit[0] < settings.cache_seconds:
+            return hit[1]
+        try:
+            raw = store.list_items(env, pipeline, run_id, map_name)
+        except StoreUnavailable:
+            item_cache.pop(name, None)
+            raise
+        if len(item_cache) > 64:  # keep the cache small: only the maps being looked at matter
+            item_cache.clear()
+        item_cache[name] = (clock(), raw)
+        return raw
+
+    def map_of(
+        env: str, pipeline: str, run_id: str, map_name: str, moment: datetime
+    ) -> Optional[Tuple[Dict[str, Any], Optional[MapDecl]]]:
+        """The `map` summary of a run's map step and its declaration, or None when the run or the
+        step has no map data."""
+        _, built, _ = build(env, pipeline, moment)
+        run = next((r for r in built if r["run_id"] == run_id), None)
+        step = next((s for s in run["steps"] if s["name"] == map_name), None) if run else None
+        if step is None or "map" not in step:
+            return None
+        decl: Optional[MapDecl] = None
+        wanted = f"waypoint:{pipeline}:{env}:{run_id}:flow"
+        raw_flow = next((v for k, v in keys_for(env, pipeline).flows if k == wanted), None)
+        if raw_flow is not None:
+            _, flow = parse_flow(pipeline, env, run_id, raw_flow)
+            found = next((s for s in flow.steps if s.name == map_name), None) if flow else None
+            decl = found.map if found else None
+        return step["map"], decl
 
     def record_verdicts(env: str, pipeline: str, built: List[Dict[str, Any]]) -> None:
         """Store the verdict of each run judged Died for the first time (the monitor's only write).
@@ -129,6 +174,9 @@ def build_router(
         metric_records, metric_unreadable = parse_metrics(env, pipeline, window.metrics)
         for run_id, count in metric_unreadable.items():
             by_run[run_id] = by_run.get(run_id, 0) + count
+        aggregates, map_unreadable = parse_maps(env, pipeline, window.maps)
+        for run_id, count in map_unreadable.items():
+            by_run[run_id] = by_run.get(run_id, 0) + count
         parsed = ParseResult(parsed.records, by_run, parsed.unreadable_unattributed)
         flows = parse_flows(env, pipeline, window.flows)
         built = build_runs(
@@ -145,6 +193,8 @@ def build_router(
             failures=failures,
             event_counts=window.event_counts,
             metrics=metric_records,
+            maps=aggregates,
+            min_items=settings.duration_min_runs,
             dead_seconds=settings.heartbeat_dead_seconds,
         )
         record_verdicts(env, pipeline, built)
@@ -249,6 +299,127 @@ def build_router(
         }
         return JSONResponse(body)
 
+    def _map_path_error(
+        pipeline: str, env: str, run_id: str, map_name: str
+    ) -> Optional[JSONResponse]:
+        if env not in settings.environments:
+            return _error(400, f"Unknown environment '{env}'")
+        if not PIPELINE_NAME.match(pipeline):
+            return _error(400, f"Invalid pipeline '{pipeline}'")
+        if not _RUN_ID.match(run_id):
+            return _error(400, f"Invalid run id '{run_id}'")
+        if not _MAP_NAME.match(map_name):
+            return _error(400, f"Invalid map step '{map_name}'")
+        return None
+
+    def _flag(value: Optional[int]) -> Optional[bool]:
+        return None if value is None else (True if value == 1 else False if value == 0 else None)
+
+    @router.get("/runs/{pipeline}/{env}/{run_id}/maps/{map_name}/items")
+    def map_items(
+        pipeline: str,
+        env: str,
+        run_id: str,
+        map_name: str,
+        state: Optional[str] = Query(None),
+        slow: Optional[int] = Query(None),
+        q: Optional[str] = Query(None),
+        sort: str = Query("index"),
+        order: Optional[str] = Query(None),
+        failed_first: Optional[int] = Query(None),
+        limit: int = Query(50),
+        after: Optional[str] = Query(None),
+    ) -> JSONResponse:
+        """One page of a map step's item list: filter by state, slow and key text, sort, page by cursor."""
+        bad = _map_path_error(pipeline, env, run_id, map_name)
+        if bad is not None:
+            return bad
+        slow_on, first_on = _flag(slow), _flag(failed_first)
+        if slow_on is None and slow is not None or first_on is None and failed_first is not None:
+            return _error(400, "slow and failed_first must be 0 or 1")
+        try:
+            validate_query(state, q, sort, order, limit)
+        except ItemQueryError as exc:
+            return _error(400, str(exc))
+        moment = now()
+        try:
+            found = map_of(env, pipeline, run_id, map_name, moment)
+            raw = items_for(env, pipeline, run_id, map_name) if found else []
+        except StoreUnavailable:
+            return _error(503, UNAVAILABLE)
+        records, unreadable = parse_items(env, pipeline, run_id, map_name, raw)
+        summary = found[0] if found else None
+        try:
+            page = (
+                select_items(
+                    records,
+                    summary,
+                    now=moment,
+                    multiple=settings.slow_run_multiple,
+                    state=state,
+                    slow=bool(slow_on),
+                    q=q,
+                    sort=sort,
+                    order=order,
+                    failed_first=bool(first_on),
+                    limit=limit,
+                    after=after,
+                )
+                if summary is not None
+                else {
+                    "items": [],
+                    "counts": {"failed": 0, "running": 0, "done": 0},
+                    "matched": 0,
+                    "has_more": False,
+                    "next": None,
+                }
+            )
+        except ItemQueryError as exc:
+            return _error(400, str(exc))
+        return JSONResponse(
+            {
+                "env": env,
+                "pipeline": pipeline,
+                "run_id": run_id,
+                "map": map_name,
+                "generated_at": moment.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "state": summary["state"] if summary else None,
+                "total": summary["counts"]["started"] if summary else 0,
+                "with_record": len(records),
+                "counts": page["counts"],
+                "partial": bool(summary and summary["detail"]["partial"]),
+                "failed_without_record": (
+                    summary["detail"]["failed_without_record"] if summary else 0
+                ),
+                "matched": page["matched"],
+                "has_more": page["has_more"],
+                "next": page["next"],
+                "items": page["items"],
+                "unreadable": unreadable,
+            }
+        )
+
+    @router.get("/runs/{pipeline}/{env}/{run_id}/maps/{map_name}/items/{key}")
+    def map_item(pipeline: str, env: str, run_id: str, map_name: str, key: str) -> JSONResponse:
+        """One item of a map step for the item view; 404 when it has no record of its own."""
+        bad = _map_path_error(pipeline, env, run_id, map_name)
+        if bad is not None:
+            return bad
+        if not _ITEM_KEY.match(key):
+            return _error(400, f"Invalid item key '{key}'")
+        moment = now()
+        try:
+            found = map_of(env, pipeline, run_id, map_name, moment)
+            raw = store.read_item(env, pipeline, run_id, map_name, key) if found else None
+        except StoreUnavailable:
+            return _error(503, UNAVAILABLE)
+        record = parse_item(env, pipeline, run_id, map_name, key, raw) if raw else None
+        if found is None or record is None:
+            return _error(404, "Item not found")
+        return JSONResponse(
+            item_detail(record, found[1], found[0], now=moment, multiple=settings.slow_run_multiple)
+        )
+
     @router.get("/runs/{pipeline}/{env}/{run_id}/events")
     def run_events(
         pipeline: str,
@@ -256,6 +427,7 @@ def build_router(
         run_id: str,
         level: Optional[str] = Query(None),
         step: Optional[str] = Query(None),
+        item: Optional[str] = Query(None),
         offset: int = Query(0),
         limit: int = Query(200),
     ) -> JSONResponse:
@@ -269,6 +441,8 @@ def build_router(
         levels = [part.strip() for part in level.split(",") if part.strip()] if level else None
         if levels and any(part not in EVENT_LEVELS for part in levels):
             return _error(400, "level must be info, warning or error")
+        if item is not None and not _ITEM_KEY.match(item):
+            return _error(400, f"Invalid item key '{item}'")
         if offset < 0 or not 1 <= limit <= 500:
             return _error(400, "offset must be 0 or more and limit between 1 and 500")
         moment = now()
@@ -281,7 +455,7 @@ def build_router(
         recorded, unreadable = parse_events(env, pipeline, raw)
         derived = derive_events(run, settings.stall_seconds) if run else []
         entries = merge(derived, recorded_entries(recorded))
-        page, matched = select(entries, levels, step, offset, limit)
+        page, matched = select(entries, levels, step, offset, limit, item)
         return JSONResponse(
             {
                 "env": env,

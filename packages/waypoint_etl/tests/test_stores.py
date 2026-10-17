@@ -87,5 +87,27 @@ class TestRedisStepAuditStore(unittest.TestCase):
         self.assertEqual(out.getvalue().count("cannot take events"), 1)
 
 
+class TestWriteMany(unittest.TestCase):
+    def test_one_pipeline_of_setex_without_a_transaction(self) -> None:
+        with patch("redis.Redis.from_url") as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisStepAuditStore("redis://localhost:6379/0")
+            store.write_many([("k1", {"a": 1}), ("k2", {"b": 2})], 60)
+        client.pipeline.assert_called_once_with(transaction=False)
+        pipe = client.pipeline.return_value
+        self.assertEqual(
+            [(c.args[0], c.args[1], json.loads(c.args[2])) for c in pipe.setex.call_args_list],
+            [("k1", 60, {"a": 1}), ("k2", 60, {"b": 2})],
+        )
+        pipe.execute.assert_called_once_with()
+        client.setex.assert_not_called()
+
+    def test_the_noop_store_accepts_a_batch(self) -> None:
+        from waypoint_etl.stores import NoopStepAuditStore
+
+        self.assertIsNone(NoopStepAuditStore().write_many([("k", {})], 1))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -107,3 +107,59 @@ class TestMetricUnconfigured(unittest.TestCase):
 
         self.assertEqual(fetch(), [1, 2])
         registry.clear()
+
+
+class TestOutsideItemsUnchanged(unittest.TestCase):
+    """Specs 014: an ordinary step is recorded as before while a map block is open elsewhere."""
+
+    def tearDown(self) -> None:
+        registry.clear()
+
+    def test_audited_step_in_another_context_is_not_taken_for_an_inner_step(self) -> None:
+        import threading
+
+        import waypoint_etl
+        from waypoint_etl import MapStepSpec
+
+        spec = PipelineSpec(
+            name="demo",
+            steps=(StepSpec("extract"), MapStepSpec("accounts", steps=(StepSpec("fetch"),))),
+        )
+        written: List[str] = []
+
+        class Store:
+            def write(self, key: str, record: Dict[str, object], ttl_seconds: int) -> None:
+                written.append(key)
+
+        waypoint_etl.init(
+            pipeline=spec,
+            redis_url=None,
+            env="qa",
+            store=Store(),  # type: ignore[arg-type]
+            heartbeat_seconds=None,
+        )
+
+        @audited_step("extract")
+        def extract() -> List[int]:
+            return [1]
+
+        inside = threading.Event()
+        leave = threading.Event()
+
+        def worker() -> None:
+            with waypoint_etl.map_step("accounts"):
+                with waypoint_etl.item("a"):
+                    inside.set()
+                    leave.wait(5)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        inside.wait(5)
+        self.assertEqual(extract(), [1])  # this thread is not in the item
+        leave.set()
+        thread.join()
+        self.assertTrue(any(":step:" in k and k.endswith("-extract") for k in written))
+
+
+if __name__ == "__main__":
+    unittest.main()

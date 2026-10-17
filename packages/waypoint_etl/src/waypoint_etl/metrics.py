@@ -90,6 +90,11 @@ class MetricState:
         with self._lock:
             return bool(self._dirty)
 
+    def snapshot(self) -> Dict[Attempt, Dict[str, Number]]:
+        """A copy of every attempt's values; the dirty marks are left alone."""
+        with self._lock:
+            return {a: dict(v) for a, v in self._values.items()}
+
 
 class MetricWriter:
     """Writes changed metric records from a daemon thread, each as the attempt's full state.

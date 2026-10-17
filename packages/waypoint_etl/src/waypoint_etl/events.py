@@ -67,11 +67,13 @@ def build_event(
     now: Optional[datetime] = None,
     capture_message: bool = True,
     redact: Optional[Callable[[str], str]] = None,
+    item: Optional[str] = None,
 ) -> Event:
     """One event with every limit applied (message 300 characters, 10 fields, names, value types).
 
     With ``capture_message`` off the message is left out and text values are dropped (numbers stay);
-    ``redact`` cleans the message and each text value before it is cut. Never raises.
+    ``redact`` cleans the message and each text value before it is cut. ``item`` is the key of the map
+    step item the event was sent from, omitted when not given. Never raises.
     """
     moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     event: Event = {
@@ -82,6 +84,8 @@ def build_event(
     }
     if isinstance(step, str) and 0 < len(step) <= MAX_STEP:
         event["step"] = step
+    if isinstance(item, str) and item:
+        event["item"] = item
     text = (
         _clean_text(message, MAX_MESSAGE, capture_message, redact)
         if isinstance(message, str)

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map step edge states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+.app{--bg:#f6f7f9;--surface:#fff;--surface-2:#f2f4f7;--border:#e3e6eb;--border-strong:#cdd2da;--text:#0e1116;--text-2:#4a5261;--text-3:#636b7a;--accent:#3e4cc9;--accent-soft:#eef0fd;--ok:#137a3a;--ok-bg:#e7f5ec;--ok-border:#b5e0c4;--warn:#8f5300;--warn-bg:#fff3df;--warn-border:#f1cf94;--bad:#b0222a;--bad-bg:#fdecec;--bad-border:#f2bfc2;--neutral:#4a5261;--neutral-bg:#eef0f3;--neutral-border:#d8dce3;--map:#6a3fc4;--map-bg:rgba(115,73,204,.07);--shadow-1:0 1px 2px rgba(16,24,40,.05);background:var(--bg);color:var(--text);font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#0a0c0f;--surface:#111418;--surface-2:#181c22;--border:#232931;--border-strong:#323943;--text:#e8eaee;--text-2:#aab1bd;--text-3:#8b93a1;--accent:#949cff;--accent-soft:rgba(148,156,255,.13);--ok:#4fd789;--ok-bg:rgba(79,215,137,.12);--ok-border:rgba(79,215,137,.32);--warn:#f3b34c;--warn-bg:rgba(243,179,76,.12);--warn-border:rgba(243,179,76,.34);--bad:#ff8086;--bad-bg:rgba(255,128,134,.12);--bad-border:rgba(255,128,134,.34);--neutral:#aab1bd;--neutral-bg:#1c2128;--neutral-border:#2c333d;--map:#b9a2ff;--map-bg:rgba(185,162,255,.08);--shadow-1:none}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:12px;height:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-1);box-sizing:border-box;overflow:hidden}
+.panel{border-top:3px solid var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--neutral-border);background:var(--neutral-bg);color:var(--neutral);font-size:11px;font-weight:600;white-space:nowrap;box-sizing:border-box;line-height:1}
+.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-border)}
+.pill.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-border)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-border)}
+.pill.run{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.tag{display:inline-flex;align-items:center;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border-strong);border-radius:4px;padding:0 6px;height:20px;box-sizing:border-box;white-space:nowrap}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.cap{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.cap p{margin:0;font-size:12px;color:var(--text-2)}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px 6px}
+.ph h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+.sum{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:0 16px 12px;font-size:12px;color:var(--text-2)}
+.sum b{color:var(--text);font-weight:600}
+.strip{display:flex;gap:6px;align-items:center;padding:10px 16px;background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-2)}
+.sb{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.sb .n{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-weight:600;color:var(--text);font-size:12px}
+.sa{color:var(--text-3)}
+.empty{padding:28px 16px;text-align:center;font-size:13px;color:var(--text-2);display:flex;flex-direction:column;align-items:center;gap:6px}
+.empty strong{color:var(--text);font-size:14px}
+.items{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 16px;border-top:1px solid var(--border);font-size:12px}
+.row .key{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;font-weight:500}
+.row .d{grid-column:1 / -1;color:var(--text-2)}
+.linkbtn{font:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);font:inherit;font-size:12px;font-weight:500}
+.chip[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+.search{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--accent);border-radius:6px;background:var(--surface);color:var(--text-3)}
+.search input{border:0;outline:0;background:transparent;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;color:var(--text);flex:1;min-width:0}
+.btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+</style>
+</helmet>
+<div class="app {{themeCls}}" style="width: 1280px; min-height: 1180px; box-sizing: border-box; padding: 40px 48px; display: flex; flex-direction: column; gap: 24px">
+<div>
+<div class="eyebrow" style="color: var(--map)">3.4 · Edge states</div>
+<h1 style="margin: 4px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em">Empty, interrupted and partial states</h1>
+<p style="margin: 6px 0 0; font-size: 13px; color: var(--text-2)">Panels shown at compact width. The same parts as the full panel; only what changes is drawn.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 24px; align-items: start">
+
+<div>
+<div class="cap"><div class="eyebrow">Just started · 0 started</div><p>Map step is open, no item has begun yet.</p></div>
+<section class="card panel" aria-label="Accounts map step, 0 started">
+<div class="ph"><h3><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--map)"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Accounts</h3><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></div>
+<div class="sum"><span><b>0</b> started</span><span>loop <b>2 s</b> so far</span><span>percentiles need 5 finished items</span><span class="tag">concurrency limit 5</span></div>
+<div class="strip"><div class="sb"><span class="n">fetch</span><span>no items yet</span></div><span class="sa">→</span><div class="sb"><span class="n">transform</span><span>no items yet</span></div><span class="sa">→</span><div class="sb"><span class="n">load</span><span>no items yet</span></div></div>
+<div class="empty" role="status"><svg class="ic" style="width: 22px; height: 22px; color: var(--text-3)" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3v3l5 6-5 6v3M17 3v3l-5 6 5 6v3"></path></svg><strong>No items started.</strong><span>Items appear here as soon as the first one begins.</span></div>
+</section>
+</div>
+
+<div>
+<div class="cap"><div class="eyebrow">Empty loop · Done · 0 items</div><p>Loop closed without items. Not an error.</p></div>
+<section class="card panel" aria-label="Accounts map step, done with 0 items">
+<div class="ph"><h3><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--map)"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Accounts</h3><span class="pill ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span></div>
+<div class="sum"><span><b>0</b> items</span><span>loop <b>0.4 s</b></span><span>percentiles need 5 finished items</span><span>rows in <b>0</b> → out <b>0</b></span></div>
+<div class="strip"><div class="sb"><span class="n">fetch</span><span>0 items</span></div><span class="sa">→</span><div class="sb"><span class="n">transform</span><span>0 items</span></div><span class="sa">→</span><div class="sb"><span class="n">load</span><span>0 items</span></div></div>
+<div class="empty" role="status"><svg class="ic" style="width: 22px; height: 22px; color: var(--text-3)" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12h8"></path></svg><strong>No items started.</strong><span>The map step finished with 0 items.</span></div>
+</section>
+</div>
+
+<div>
+<div class="cap"><div class="eyebrow">Search / filter · no match</div><p>Items exist, but none fits the search and filters.</p></div>
+<section class="card panel" aria-label="Item list with no matches">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px">
+<div class="search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><label for="e-q" style="position: absolute; width: 1px; height: 1px; overflow: hidden">Search items by key</label><input id="e-q" type="search" value="acct-99"></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><button class="chip" type="button" aria-pressed="false">All 10</button><button class="chip" type="button" aria-pressed="true">Failed 1</button><button class="chip" type="button" aria-pressed="false">Running 0</button><button class="chip" type="button" aria-pressed="false">Done 9</button></div>
+</div>
+<p role="status" aria-live="polite" style="margin: 0; padding: 0 16px 8px; font-size: 12px; color: var(--text-2)">No items match.</p>
+<div class="empty"><svg class="ic" style="width: 22px; height: 22px; color: var(--text-3)" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5M8 11h6"></path></svg><strong>No items match.</strong><span>Key contains “acct-99” · Failed</span><button class="btn" type="button">Clear search and filters</button></div>
+</section>
+</div>
+
+<div>
+<div class="cap"><div class="eyebrow">Run stalled mid-loop</div><p>Map step and its running items take the run's Stalled state.</p></div>
+<section class="card panel" aria-label="Accounts map step, stalled">
+<div class="ph"><h3><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--map)"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Accounts</h3><span class="pill warn"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"></path><path d="M12 10v4M12 17v.01"></path></svg>Stalled</span></div>
+<div class="sum"><span><b>6</b> done · <b>4</b> stalled · <b>0</b> failed</span><span>no update for <b>3 min 10 s</b></span></div>
+<ul class="items" aria-label="Stalled items">
+<li class="row"><span class="key">acct-7</span><span class="pill warn">Stalled</span><span class="d">last seen at <span class="mono">load</span> · 3 min 10 s ago</span></li>
+<li class="row"><span class="key">acct-8</span><span class="pill warn">Stalled</span><span class="d">last seen at <span class="mono">transform</span> · 3 min 12 s ago</span></li>
+<li class="row"><span class="key">acct-9</span><span class="pill warn">Stalled</span><span class="d">last seen at <span class="mono">fetch</span> · 3 min 15 s ago</span></li>
+<li class="row"><span class="key">acct-10</span><span class="pill warn">Stalled</span><span class="d">last seen at <span class="mono">fetch</span> · 3 min 15 s ago</span></li>
+</ul>
+</section>
+</div>
+
+<div>
+<div class="cap"><div class="eyebrow">Run died mid-loop</div><p>Process gone. Running items are shown as Died, not Failed.</p></div>
+<section class="card panel" aria-label="Accounts map step, died">
+<div class="ph"><h3><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--map)"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Accounts</h3><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span></div>
+<div class="sum"><span><b>5</b> done · <b>4</b> died · <b style="color: var(--bad)">1</b> failed</span><span>last seen <b>3 min 16 s</b> ago</span></div>
+<ul class="items" aria-label="Items">
+<li class="row"><span class="key">acct-7</span><span class="pill bad">Failed</span><span class="d" style="color: var(--bad)">transform · ValueError</span></li>
+<li class="row"><span class="key">acct-6</span><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span><span class="d">was at <span class="mono">load</span> when the process ended</span></li>
+<li class="row"><span class="key">acct-8</span><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span><span class="d">was at <span class="mono">transform</span></span></li>
+<li class="row"><span class="key">customer_00012345.part-0007</span><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span><span class="d">was at <span class="mono">fetch</span></span></li>
+</ul>
+</section>
+</div>
+
+<div>
+<div class="cap"><div class="eyebrow">Item detail · no record</div><p>Opened from a shared link to an item beyond the record limit.</p></div>
+<section class="card" aria-labelledby="nr-h" style="padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 12px">
+<a class="btn" href="MapLarge.dc.html" style="align-self: flex-start"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Back to items</a>
+<div class="eyebrow" style="color: var(--map)">Item of map step eu_billing__legacy_accounts_import</div>
+<h3 id="nr-h" class="mono" style="margin: 0; font-size: 20px; font-weight: 600; overflow-wrap: anywhere">acct-4120</h3>
+<div role="status" style="display: flex; gap: 10px; padding: 10px 12px; border-radius: 8px; background: var(--neutral-bg); border: 1px solid var(--neutral-border); font-size: 13px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="margin-top: 3px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5v.01"></path></svg><span>This item has no record of its own (item detail is partial). It is still counted in the map step totals.</span></div>
+<a class="linkbtn" href="MapLarge.dc.html" style="font-size: 13px">Go to the item list (1,050 items with a record)</a>
+</section>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1280,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return { themeCls: (this.props.theme ?? 'light') === 'dark' ? 'dark' : '' };
+}
+}
+</script>
+</body>
+</html>

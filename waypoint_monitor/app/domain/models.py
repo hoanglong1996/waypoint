@@ -30,6 +30,17 @@ class MetricDecl:
 
 
 @dataclass(frozen=True)
+class MapDecl:
+    """A map step's declaration (specs/014): the optional top-level step that supplies its items, the
+    informational concurrency limit (int >= 1) and the item flow, a linear list of at most 20 inner
+    steps. Inner steps are never top-level steps of the flow."""
+
+    over: Optional[str] = None
+    max_concurrency: Optional[int] = None
+    steps: Tuple["FlowStep", ...] = ()
+
+
+@dataclass(frozen=True)
 class FlowStep:
     name: str
     label: Optional[str]
@@ -40,6 +51,7 @@ class FlowStep:
     col: Optional[float] = None
     row: Optional[float] = None
     metrics: Tuple[MetricDecl, ...] = ()
+    map: Optional[MapDecl] = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +169,8 @@ class RunEvent:
     step: Optional[str]
     message: Optional[str]
     fields: Optional[Dict[str, FieldValue]]
+    # the item key an event inside a map step item carries (specs/014); None otherwise
+    item: Optional[str] = None
 
 
 MetricNumber = Union[int, float]
@@ -175,6 +189,101 @@ class StepMetrics:
     index: int
     values: Dict[str, MetricNumber]
     updated_at: Optional[datetime] = None
+
+
+@dataclass(frozen=True)
+class MapCounts:
+    """Items per state over **all** items of a map step: ints >= 0 with
+    `started == running + done + failed`."""
+
+    started: int
+    running: int
+    done: int
+    failed: int
+
+
+@dataclass(frozen=True)
+class MapInner:
+    """Counts of one inner step across all items: items running, done and failed in it, and the sums of
+    its input and output counts (ints >= 0)."""
+
+    name: str
+    running: int
+    done: int
+    failed: int
+    inputs_total: int
+    output_total: int
+
+
+@dataclass(frozen=True)
+class MapAggregate:
+    """One validated map aggregate (specs/014 data-model.md "Aggregate"): the state of a map step of a
+    run. `index` is the attempt index of the map block (int >= 1); `ended_at` is None while the block
+    is open. `inner` has at most 20 entries; `hist` maps a log-scale bucket (int >= 0) to a count;
+    `slowest` holds at most 5 `(key, ms)` pairs; `failed_items` at most 20 `(key, step, error_type)`.
+    """
+
+    pipeline: str
+    run_id: str
+    env: str
+    map: str
+    index: int
+    started_at: datetime
+    ended_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    counts: MapCounts
+    in_total: int = 0
+    out_total: int = 0
+    lost_items: int = 0
+    inner: Tuple[MapInner, ...] = ()
+    count: int = 0
+    sum_ms: int = 0
+    hist: Dict[int, int] = field(default_factory=dict)
+    slowest: Tuple[Tuple[str, int], ...] = ()
+    failed_items: Tuple[Tuple[str, str, str], ...] = ()
+    kept: int = 0
+    failed_without_record: int = 0
+    slow_kept: int = 0
+
+
+@dataclass(frozen=True)
+class ItemStepResult:
+    """The result of one inner step for one item: `attempt` int >= 1, `state` one of running, done,
+    failed, `inputs` map string -> int >= 0, `output` int >= 0 or None, `duration_ms` int >= 0 or None,
+    `error` set for a failed step (a compact record has an empty traceback)."""
+
+    step: str
+    attempt: int
+    state: str
+    inputs: Dict[str, int]
+    output: Optional[int]
+    started_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    error: Optional[ErrorInfo] = None
+
+
+@dataclass(frozen=True)
+class ItemRecord:
+    """One validated item record (specs/014 data-model.md "Item"). `key` matches
+    `^[A-Za-z0-9_.-]{1,64}$`, `index` is the arrival number (int >= 1), `state` one of running, done,
+    failed. `steps` has at most 20 results in the order the inner steps began; `metrics` maps inner
+    step -> metric name -> finite number; `error` is an item-level error; `compact` is true for a record
+    kept beyond the detail limit."""
+
+    pipeline: str
+    run_id: str
+    env: str
+    map: str
+    key: str
+    index: int
+    state: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    steps: Tuple[ItemStepResult, ...] = ()
+    metrics: Dict[str, Dict[str, MetricNumber]] = field(default_factory=dict)
+    error: Optional[ErrorInfo] = None
+    compact: bool = False
 
 
 @dataclass(frozen=True)

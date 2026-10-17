@@ -5,6 +5,7 @@ from typing import Callable, Optional, Union
 
 from waypoint_etl.auditor import StepAuditor
 from waypoint_etl.keys import HEARTBEAT_SECONDS
+from waypoint_etl.scopes import ItemScope, MapScope
 from waypoint_etl.spec import PipelineSpec, validate_spec
 from waypoint_etl.stores import NoopStepAuditStore, RedisStepAuditStore, StepAuditStore
 
@@ -134,6 +135,29 @@ def metric(
         return
 
 
+def map_step(name: str) -> MapScope:
+    """The block around a whole loop: ``with waypoint_etl.map_step("accounts"): ...``.
+
+    ``name`` is a ``MapStepSpec`` of the pipeline. Entering writes the step's ordinary start marker; leaving
+    normally writes its finish record, leaving with an exception writes its failure item. Does nothing, and
+    never raises or waits on the network, before ``init``, after a failed ``init``, for a name that is not a
+    map step or when Redis is unreachable. Also usable as ``async with``.
+    """
+    return MapScope(name)
+
+
+def item(key: str, *, map: Optional[str] = None) -> ItemScope:
+    """One pass of the item flow: ``with waypoint_etl.item(account_id): ...``.
+
+    ``key`` is an id or an index, never data content: other characters than ``[A-Za-z0-9_.-]`` become ``_``
+    and it is cut to 64. ``map`` names the map step when it cannot be told from the context (it is found
+    from the enclosing ``map_step`` or the one open block, which is what a worker thread needs). Steps,
+    events and metrics recorded inside belong to the item. A key that already started in this map step is a
+    duplicate: its pass is ignored. Never suppresses an exception, never raises, never waits on the network.
+    """
+    return ItemScope(key, map)
+
+
 def warn(message: str, *, step: Optional[str] = None, **fields: object) -> None:
     """``log`` at level ``warning``."""
     log(message, level="warning", step=step, **fields)
@@ -150,7 +174,9 @@ __all__ = [
     "error",
     "get_active",
     "init",
+    "item",
     "log",
+    "map_step",
     "metric",
     "set_active",
     "warn",

@@ -21,6 +21,7 @@ def event(
     step: Optional[str] = None,
     message: Optional[str] = "hello",
     fields: Optional[Dict[str, Any]] = None,
+    item: Optional[str] = None,
 ) -> RunEvent:
     return RunEvent(
         R1,
@@ -30,6 +31,7 @@ def event(
         step,
         message,
         fields,
+        item,
     )
 
 
@@ -260,6 +262,38 @@ class TestSelect(unittest.TestCase):
         page, matched = select(self.entries, ["warning"], "load", 0, 100)
         self.assertEqual([e["id"] for e in page], ["r:warning:2"])
         self.assertEqual(matched, 1)
+
+
+class TestItemEvents(unittest.TestCase):
+    """Events recorded inside a map step item carry `item` (specs/014); others are unchanged."""
+
+    def test_only_recorded_item_events_have_the_key(self) -> None:
+        entries = recorded_entries([event(1, item="acct-7"), event(2)])
+        self.assertEqual(entries[0]["item"], "acct-7")
+        self.assertNotIn("item", entries[1])
+        self.assertEqual(public(entries[0])["item"], "acct-7")
+        self.assertNotIn("item", public(entries[1]))
+
+    def test_select_filters_by_item(self) -> None:
+        entries = recorded_entries(
+            [event(1, item="acct-7"), event(2, item="acct-8"), event(3), event(4, item="acct-7")]
+        )
+        page, matched = select(entries, None, None, 0, 10, "acct-7")
+        self.assertEqual([e["_seq"] for e in page], [1, 4])
+        self.assertEqual(matched, 2)
+        self.assertEqual(select(entries, None, None, 0, 10, "acct-1"), ([], 0))
+        self.assertEqual(select(entries, None, None, 0, 10)[1], 4)
+
+    def test_select_combines_item_with_level_and_step(self) -> None:
+        entries = recorded_entries(
+            [
+                event(1, level="warning", step="fetch", item="acct-7"),
+                event(2, level="info", step="fetch", item="acct-7"),
+                event(3, level="warning", step="load", item="acct-7"),
+            ]
+        )
+        page, _ = select(entries, ["warning"], "fetch", 0, 10, "acct-7")
+        self.assertEqual([e["_seq"] for e in page], [1])
 
 
 class TestDropped(unittest.TestCase):

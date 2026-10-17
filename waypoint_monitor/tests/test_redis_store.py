@@ -332,3 +332,72 @@ class TestListMetrics(unittest.TestCase):
         client.scan_iter.side_effect = redis.ConnectionError("down")
         with self.assertRaises(StoreUnavailable):
             store.list_metrics("prod", "demo")
+
+
+class TestMapKeys(unittest.TestCase):
+    RUN = "20261015T020000Z"
+
+    def _store(self) -> Tuple[RedisRecordStore, MagicMock]:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        return store, client
+
+    def test_list_maps_scans_the_map_pattern(self) -> None:
+        store, client = self._store()
+        key = f"waypoint:demo:prod:{self.RUN}:map:accounts"
+        client.scan_iter.return_value = iter([key])
+        client.mget.return_value = ["{}"]
+        self.assertEqual(store.list_maps("prod", "demo"), [(key, "{}")])
+        client.scan_iter.assert_called_once_with(match="waypoint:demo:prod:*:map:*", count=500)
+
+    def test_list_items_scans_one_run_and_map_only(self) -> None:
+        store, client = self._store()
+        client.scan_iter.return_value = iter([])
+        store.list_items("prod", "demo", self.RUN, "accounts")
+        client.scan_iter.assert_called_once_with(
+            match=f"waypoint:demo:prod:{self.RUN}:item:accounts:*", count=500
+        )
+
+    def test_read_item_uses_mget_not_get(self) -> None:
+        store, client = self._store()
+        key = f"waypoint:demo:prod:{self.RUN}:item:accounts:acct-7"
+        client.mget.return_value = ["{}"]
+        self.assertEqual(store.read_item("prod", "demo", self.RUN, "accounts", "acct-7"), "{}")
+        client.mget.assert_called_once_with([key])
+        client.get.assert_not_called()
+        client.mget.return_value = [None]
+        self.assertIsNone(store.read_item("prod", "demo", self.RUN, "accounts", "acct-7"))
+
+    def test_unreachable_store_raises_store_unavailable(self) -> None:
+        store, client = self._store()
+        client.scan_iter.side_effect = redis.ConnectionError("nope")
+        client.mget.side_effect = redis.ConnectionError("nope")
+        for call in (
+            lambda: store.list_maps("prod", "demo"),
+            lambda: store.list_items("prod", "demo", self.RUN, "accounts"),
+            lambda: store.read_item("prod", "demo", self.RUN, "accounts", "a"),
+        ):
+            with self.assertRaises(StoreUnavailable):
+                call()
+
+    def test_the_existing_scan_patterns_never_match_the_new_keys(self) -> None:
+        patterns = (
+            "waypoint:demo:prod:*:flow",
+            "waypoint:demo:prod:*:step:*",
+            "waypoint:demo:prod:*:running:*",
+            "waypoint:demo:prod:*:failed:*",
+            "waypoint:demo:prod:*:metrics:*",
+            "waypoint:demo:prod:*:events:*",
+            "waypoint:demo:prod:*:alive",
+            "waypoint:demo:prod:*:died",
+        )
+        for key in (
+            f"waypoint:demo:prod:{self.RUN}:map:accounts",
+            f"waypoint:demo:prod:{self.RUN}:item:accounts:acct-7",
+            f"waypoint:demo:prod:{self.RUN}:item:accounts:step",
+        ):
+            for pattern in patterns:
+                with self.subTest(key=key, pattern=pattern):
+                    self.assertFalse(fnmatch.fnmatchcase(key, pattern))

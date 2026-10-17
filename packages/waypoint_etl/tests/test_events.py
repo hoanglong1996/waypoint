@@ -292,5 +292,75 @@ class TestStepAttachment(unittest.TestCase):
         self.assertEqual([e["level"] for e in self.sent()], ["info", "warning", "error"])
 
 
+class TestEventItem(unittest.TestCase):
+    """Specs 014: an event sent inside a map step item carries the item's key."""
+
+    def test_the_item_field_follows_the_step(self) -> None:
+        event = build("hi", step="transform", item="acct-7")
+        self.assertEqual((event["step"], event["item"]), ("transform", "acct-7"))
+        self.assertEqual(list(event).index("item"), list(event).index("step") + 1)
+
+    def test_without_an_item_the_event_is_unchanged(self) -> None:
+        self.assertEqual(build("hi", step="load"), build("hi", step="load", item=None))
+        self.assertNotIn("item", build("hi", step="load"))
+
+    def test_an_empty_or_non_text_item_is_left_out(self) -> None:
+        self.assertNotIn("item", build("hi", item=""))
+        self.assertNotIn("item", build("hi", item=7))  # type: ignore[arg-type]
+
+
+class EventStore:
+    def __init__(self) -> None:
+        self.events: List[Dict[str, Any]] = []
+
+    def write(self, key: str, record: Dict[str, object], ttl_seconds: int) -> None:
+        return None
+
+    def push_events(self, items: Any, ttl_seconds: int) -> None:
+        for _key, values, _cap in items:
+            self.events.extend(json.loads(v) for v in values)
+
+
+class TestEventsInItems(unittest.TestCase):
+    def tearDown(self) -> None:
+        registry.clear()
+
+    def test_events_carry_the_item_and_inner_step_only_inside_an_item(self) -> None:
+        from waypoint_etl import MapStepSpec
+
+        spec = PipelineSpec(
+            name="demo",
+            steps=(MapStepSpec("accounts", steps=(StepSpec("fetch"),)),),
+        )
+        store = EventStore()
+        waypoint_etl.init(
+            pipeline=spec, redis_url=None, env="qa", store=store, heartbeat_seconds=None  # type: ignore[arg-type]
+        )
+
+        @audited_step("fetch")
+        def fetch() -> None:
+            waypoint_etl.log("inside a step")
+
+        with waypoint_etl.map_step("accounts"):
+            waypoint_etl.log("in the block")
+            with waypoint_etl.item("acct-7"):
+                waypoint_etl.log("in the item")
+                fetch()
+                waypoint_etl.warn("a warning", rows=3)
+            waypoint_etl.log("after the item")
+        registry.clear()
+        found = {e["message"]: e for e in store.events}
+        self.assertNotIn("item", found["in the block"])
+        self.assertEqual(found["in the block"]["step"], "accounts")
+        self.assertEqual(found["in the item"]["item"], "acct-7")
+        self.assertEqual(found["in the item"]["step"], "accounts")
+        self.assertEqual(
+            (found["inside a step"]["item"], found["inside a step"]["step"]), ("acct-7", "fetch")
+        )
+        self.assertEqual(found["a warning"]["fields"], {"rows": 3})
+        self.assertEqual(found["a warning"]["level"], "warning")
+        self.assertNotIn("item", found["after the item"])
+
+
 if __name__ == "__main__":
     unittest.main()

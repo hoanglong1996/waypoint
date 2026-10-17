@@ -312,5 +312,72 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(state.take_dirty(), [])
 
 
+class TestMetricsInItems(unittest.TestCase):
+    """Specs 014: a metric inside a map step item merges per inner step into the item's record."""
+
+    def tearDown(self) -> None:
+        registry.clear()
+
+    def test_it_lands_in_the_item_record_and_creates_no_metrics_key(self) -> None:
+        from waypoint_etl import MapStepSpec
+        from waypoint_etl.keys import item_key
+
+        spec = PipelineSpec(
+            name="demo",
+            steps=(MapStepSpec("accounts", steps=(StepSpec("clean"),)),),
+        )
+
+        class ManyStore(Store):
+            def write_many(self, items: Any, ttl_seconds: int) -> None:
+                for key, record in items:
+                    self.write(key, record, ttl_seconds)
+
+        store = ManyStore()
+        waypoint_etl.init(
+            pipeline=spec,
+            redis_url=None,
+            env="qa",
+            run_id=RUN,
+            store=store,
+            heartbeat_seconds=None,
+        )
+
+        @audited_step("clean")
+        def clean() -> None:
+            for n in (1, 2, 3):
+                waypoint_etl.metric("rejected", n, mode="add")
+            waypoint_etl.metric("peak", 5, mode="max")
+            waypoint_etl.metric("peak", 2, mode="max")
+
+        with waypoint_etl.map_step("accounts"):
+            with waypoint_etl.item("acct-1"):
+                clean()
+        registry.clear()
+        found = [
+            r for k, r, _ in store.records if k == item_key("demo", "qa", RUN, "accounts", "acct-1")
+        ]
+        self.assertEqual(found[-1]["metrics"], {"clean": {"rejected": 6, "peak": 5}})
+        self.assertEqual([k for k, _, _ in store.records if ":metrics:" in k], [])
+
+    def test_a_metric_for_a_step_not_started_in_the_item_is_dropped_with_one_warning(self) -> None:
+        from waypoint_etl import MapStepSpec
+
+        spec = PipelineSpec(
+            name="demo", steps=(MapStepSpec("accounts", steps=(StepSpec("clean"),)),)
+        )
+        waypoint_etl.init(
+            pipeline=spec, redis_url=None, env="qa", store=Store(), heartbeat_seconds=None
+        )
+        out = io.StringIO()
+        with redirect_stdout(out):
+            with waypoint_etl.map_step("accounts"):
+                with waypoint_etl.item("a"):
+                    for _ in range(3):
+                        waypoint_etl.metric("n", 1, step="clean")
+                    waypoint_etl.metric("n", 1)  # no step running: nothing to attach to
+        self.assertEqual(out.getvalue().count("has not started in this item"), 1)
+        self.assertEqual(out.getvalue().count("no inner step is running in this item"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

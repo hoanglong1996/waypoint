@@ -7,6 +7,7 @@ import {
   I, deltaChip, durationHTML, envTag, getStepsView, lossPill, slowPill, stalePill, statusPill, stepsHeadHTML, wireCopy,
 } from '../ui.js';
 import { mountGraph } from './graph.js';
+import { wireMapSlots } from './map-slots.js';
 import { buildRoute } from '../router.js';
 import { mountEvents, wireStepEvents } from './events.js';
 import { stepItemHTML } from './step.js';
@@ -126,11 +127,14 @@ export function renderRun(el, run, runs, cfg, typical = null, route = null) {
   if (getStepsView() === 'graph') {
     el.innerHTML = heroHTML(run, runs, cfg, typical) + tabs + stepsHeadHTML('steps-view-run', 'Select a step to trace it') +
       '<section class="card graph-panel" id="run-graph" aria-label="Pipeline graph"></section>' +
+      '<section class="mp-card mp-panel" id="run-map-panel" hidden></section>' +
       '<section class="card graph-details" id="run-graph-details" aria-live="polite" hidden></section>';
     mountGraph(document.getElementById('run-graph'), {
       cfg, run, runs, mode: 'run', details: document.getElementById('run-graph-details'),
+      mapPanel: document.getElementById('run-map-panel'), route: r,
     });
   } else {
     el.innerHTML = heroHTML(run, runs, cfg, typical) + tabs + stepsHeadHTML('steps-view-run', 'Output per step · sparkline = last 14 runs') + stepsHTML(run, runs, cfg, false);
+    wireMapSlots(el, run, r);
   }
 }

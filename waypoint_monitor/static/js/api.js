@@ -10,7 +10,11 @@ async function getJson(url) {
     throw new DataStoreUnavailable(String(err));
   }
   if (response.status === 503) throw new DataStoreUnavailable('Data store unavailable');
-  if (!response.ok) throw new Error('Request failed (' + response.status + ')');
+  if (!response.ok) {
+    const err = new Error('Request failed (' + response.status + ')');
+    err.status = response.status;
+    throw err;
+  }
   try {
     return await response.json();
   } catch (err) {
@@ -95,7 +99,174 @@ export function mapMetrics(list) {
 }
 
 function mapStep(s) {
-  return { ...mapStepBase(s), metrics: mapMetrics(s.metrics), metricsOver: s.metrics_over || 0 };
+  const step = { ...mapStepBase(s), metrics: mapMetrics(s.metrics), metricsOver: s.metrics_over || 0 };
+  // a map step carries its loop summary (specs/014); every other step stays exactly as before
+  if (s.map && typeof s.map === 'object') step.map = mapMapSummary(s.map);
+  return step;
+}
+
+const count = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+const optNum = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * The loop summary of a map step (specs/014 contracts/api.md, `step.map`). All text stays text; counts are
+ * non-negative integers; there is never a total number of items.
+ */
+export function mapMapSummary(m) {
+  const c = m.counts || {};
+  const d = m.duration || {};
+  const detail = m.detail || {};
+  const counts = { started: count(c.started), running: count(c.running), done: count(c.done), failed: count(c.failed) };
+  return {
+    state: typeof m.state === 'string' ? m.state : 'running',
+    counts,
+    inTotal: optNum(m.in_total),
+    outTotal: optNum(m.out_total),
+    lostItems: count(m.lost_items),
+    concurrencyLimit: optNum(m.concurrency_limit),
+    over: typeof m.over === 'string' ? m.over : null,
+    loopSeconds: optNum(m.loop_seconds),
+    duration: {
+      count: count(d.count),
+      medianMs: optNum(d.median_ms),
+      p95Ms: optNum(d.p95_ms),
+      approx: d.approx !== false,
+      enough: !!d.enough,
+    },
+    slowest: (Array.isArray(m.slowest) ? m.slowest : []).filter((x) => x && typeof x.key === 'string').map((x) => ({ key: x.key, ms: optNum(x.ms) })),
+    failedItems: (Array.isArray(m.failed_items) ? m.failed_items : []).filter((x) => x && typeof x.key === 'string').map((x) => ({
+      key: x.key,
+      step: typeof x.step === 'string' ? x.step : null,
+      errorType: typeof x.error_type === 'string' ? x.error_type : null,
+    })),
+    inner: (Array.isArray(m.inner) ? m.inner : []).filter((x) => x && typeof x.name === 'string').map((x) => ({
+      name: x.name, running: count(x.running), done: count(x.done), failed: count(x.failed), inCount: optNum(x.in), outCount: optNum(x.out),
+    })),
+    detail: {
+      partial: !!detail.partial,
+      kept: count(detail.kept),
+      failedWithoutRecord: count(detail.failed_without_record),
+    },
+    unreadable: count(m.unreadable),
+  };
+}
+
+/** One row of the items list (contracts/api.md). `currentStep` and `lossStep` are optional extras. */
+export function mapItemRow(i) {
+  return {
+    key: String(i.key),
+    index: count(i.index),
+    state: typeof i.state === 'string' ? i.state : 'running',
+    slow: !!i.slow,
+    startedAt: i.started_at ? new Date(i.started_at) : null,
+    durationMs: optNum(i.duration_ms),
+    elapsedMs: optNum(i.elapsed_ms),
+    failedStep: typeof i.failed_step === 'string' ? i.failed_step : null,
+    errorType: typeof i.error_type === 'string' ? i.error_type : null,
+    inCount: optNum(i.in),
+    outCount: optNum(i.out),
+    loss: !!i.loss,
+    compact: !!i.compact,
+    currentStep: typeof i.current_step === 'string' ? i.current_step : null,
+    lossStep: typeof i.loss_step === 'string' ? i.loss_step : null,
+    fetchedAt: Date.now(),
+  };
+}
+
+/** A page of the items endpoint. */
+export function mapItemsPage(b) {
+  const c = b.counts || {};
+  return {
+    total: count(b.total),
+    withRecord: count(b.with_record),
+    counts: { failed: count(c.failed), running: count(c.running), done: count(c.done) },
+    partial: !!b.partial,
+    failedWithoutRecord: count(b.failed_without_record),
+    matched: count(b.matched),
+    hasMore: !!b.has_more,
+    next: typeof b.next === 'string' ? b.next : null,
+    unreadable: count(b.unreadable),
+    items: (Array.isArray(b.items) ? b.items : []).map(mapItemRow),
+  };
+}
+
+function mapItemStep(s) {
+  const e = s.error && typeof s.error === 'object' ? s.error : null;
+  return {
+    name: String(s.name),
+    state: typeof s.state === 'string' ? s.state : 'waiting',
+    inputs: (Array.isArray(s.inputs) ? s.inputs : []).map((x) => ({ name: String(x.name), value: optNum(x.value) })),
+    output: optNum(s.output),
+    durationMs: optNum(s.duration_ms),
+    startedAt: s.started_at ? new Date(s.started_at) : null,
+    loss: !!s.loss,
+    unplanned: !!s.unplanned,
+    error: e ? {
+      type: typeof e.type === 'string' ? e.type : 'Error',
+      message: typeof e.message === 'string' ? e.message : null,
+      traceback: typeof e.traceback === 'string' ? e.traceback : '',
+    } : null,
+    metrics: (Array.isArray(s.metrics) ? s.metrics : []).map((m) => ({
+      name: String(m.name),
+      label: typeof m.label === 'string' ? m.label : null,
+      unit: typeof m.unit === 'string' ? m.unit : null,
+      value: optNum(m.value),
+      over: !!m.over,
+    })),
+  };
+}
+
+/** One item for the item view (contracts/api.md). */
+export function mapItemDetail(b) {
+  const e = b.error && typeof b.error === 'object' ? b.error : null;
+  return {
+    key: String(b.key),
+    index: count(b.index),
+    state: typeof b.state === 'string' ? b.state : 'running',
+    slow: !!b.slow,
+    compact: !!b.compact,
+    startedAt: b.started_at ? new Date(b.started_at) : null,
+    finishedAt: b.finished_at ? new Date(b.finished_at) : null,
+    durationMs: optNum(b.duration_ms),
+    elapsedMs: optNum(b.elapsed_ms),
+    steps: (Array.isArray(b.steps) ? b.steps : []).map(mapItemStep),
+    error: e ? {
+      type: typeof e.type === 'string' ? e.type : 'Error',
+      message: typeof e.message === 'string' ? e.message : null,
+      traceback: typeof e.traceback === 'string' ? e.traceback : '',
+    } : null,
+    fetchedAt: Date.now(),
+  };
+}
+
+const runBase = (pipeline, env, runId) =>
+  '/api/runs/' + encodeURIComponent(pipeline) + '/' + encodeURIComponent(env) + '/' + encodeURIComponent(runId);
+
+/**
+ * A page of one map step's items. `params`: {state, slow, q, sort, order, failedFirst, limit, after}; empty values are left out.
+ */
+export async function loadItems(pipeline, env, runId, map, params = {}) {
+  const q = [];
+  if (params.state) q.push('state=' + encodeURIComponent(params.state));
+  if (params.slow) q.push('slow=1');
+  if (params.q) q.push('q=' + encodeURIComponent(params.q));
+  if (params.sort) q.push('sort=' + encodeURIComponent(params.sort));
+  if (params.order) q.push('order=' + encodeURIComponent(params.order));
+  if (params.failedFirst) q.push('failed_first=1');
+  if (params.limit) q.push('limit=' + params.limit);
+  if (params.after) q.push('after=' + encodeURIComponent(params.after));
+  const body = await getJson(runBase(pipeline, env, runId) + '/maps/' + encodeURIComponent(map) + '/items' + (q.length ? '?' + q.join('&') : ''));
+  return mapItemsPage(body);
+}
+
+/** One item; null when it has no record of its own (404). */
+export async function loadItem(pipeline, env, runId, map, key) {
+  try {
+    return mapItemDetail(await getJson(runBase(pipeline, env, runId) + '/maps/' + encodeURIComponent(map) + '/items/' + encodeURIComponent(key)));
+  } catch (err) {
+    if (err && err.status === 404) return null;
+    throw err;
+  }
 }
 
 function mapStepBase(s) {
@@ -171,13 +342,30 @@ function mapFlow(f) {
       returnsNothing: !!s.returns_nothing,
       col: typeof s.col === 'number' ? s.col : null,
       row: typeof s.row === 'number' ? s.row : null,
-      metrics: (s.metrics || []).map((m) => ({
-        name: String(m.name),
-        label: typeof m.label === 'string' ? m.label : null,
-        unit: typeof m.unit === 'string' ? m.unit : null,
-        warnAbove: typeof m.warn_above === 'number' ? m.warn_above : null,
-        warnBelow: typeof m.warn_below === 'number' ? m.warn_below : null,
-      })),
+      metrics: mapDecls(s.metrics),
+      ...(s.map && typeof s.map === 'object' ? { map: mapDecl(s.map) } : {}),
+    })),
+  };
+}
+
+const mapDecls = (list) => (list || []).map((m) => ({
+  name: String(m.name),
+  label: typeof m.label === 'string' ? m.label : null,
+  unit: typeof m.unit === 'string' ? m.unit : null,
+  warnAbove: typeof m.warn_above === 'number' ? m.warn_above : null,
+  warnBelow: typeof m.warn_below === 'number' ? m.warn_below : null,
+}));
+
+/** A map step's declaration in the flow: where its items come from, the concurrency limit, the item flow. */
+function mapDecl(m) {
+  return {
+    over: typeof m.over === 'string' ? m.over : null,
+    maxConcurrency: optNum(m.max_concurrency),
+    steps: (Array.isArray(m.steps) ? m.steps : []).filter((x) => x && typeof x.name === 'string').map((x) => ({
+      name: x.name,
+      label: typeof x.label === 'string' && x.label ? x.label : x.name,
+      inputs: (Array.isArray(x.inputs) ? x.inputs : []).map((i) => ({ name: String(i.name), from: String(i.from) })),
+      metrics: mapDecls(x.metrics),
     })),
   };
 }
@@ -270,6 +458,7 @@ export function mapEvent(e) {
     fields: e.fields && typeof e.fields === 'object' ? e.fields : null,
     source: e.source === 'monitor' ? 'monitor' : 'pipeline',
     kind: e.kind || 'custom',
+    ...(typeof e.item === 'string' ? { item: e.item } : {}),
   };
 }
 
@@ -277,10 +466,11 @@ export function mapEvent(e) {
  * A page of a run's timeline (GET /api/runs/{pipeline}/{env}/{run}/events, contracts/api.md).
  * `levels` is a list of levels (empty = all), `step` an exact step name or null.
  */
-export async function loadEvents(pipeline, env, runId, { levels = [], step = null, offset = 0, limit = 200 } = {}) {
+export async function loadEvents(pipeline, env, runId, { levels = [], step = null, item = null, offset = 0, limit = 200 } = {}) {
   const q = ['offset=' + offset, 'limit=' + limit];
   if (levels.length) q.push('level=' + levels.join(','));
   if (step) q.push('step=' + encodeURIComponent(step));
+  if (item) q.push('item=' + encodeURIComponent(item));
   const body = await getJson('/api/runs/' + encodeURIComponent(pipeline) + '/' + encodeURIComponent(env) + '/' + encodeURIComponent(runId) + '/events?' + q.join('&'));
   return {
     events: body.events.map(mapEvent),

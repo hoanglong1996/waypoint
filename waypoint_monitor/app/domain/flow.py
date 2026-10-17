@@ -5,7 +5,7 @@ import math
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
-from app.domain.models import Flow, FlowInput, FlowStep, GroupDef, MetricDecl
+from app.domain.models import Flow, FlowInput, FlowStep, GroupDef, MapDecl, MetricDecl
 
 SUPPORTED_VERSION = 1
 MAX_STEPS = 100
@@ -14,6 +14,7 @@ MAX_STEP_LABEL = 40
 MAX_METRIC_LABEL = 40
 MAX_METRIC_UNIT = 16
 MAX_METRICS_PER_STEP = 20
+MAX_INNER_STEPS = 20
 _METRIC_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
 _STEP_NAME = re.compile(r"^[a-z0-9_]{1,64}$")
 _GROUP_KEY = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
@@ -67,6 +68,85 @@ def _metric_decls(step: str, raw: object, problems: List[str]) -> Tuple[MetricDe
     return tuple(out)
 
 
+def _inputs(
+    name: str, raw: object, known: Set[str], problems: List[str], self_ok: bool = False
+) -> List[FlowInput]:
+    """The inputs of a step; one from a name not in `known` (or from the step itself) is flagged dangling."""
+    out: List[FlowInput] = []
+    for inp in raw if isinstance(raw, list) else []:
+        in_name = inp.get("name") if isinstance(inp, dict) else None
+        src = inp.get("from") if isinstance(inp, dict) else None
+        if not isinstance(in_name, str) or not in_name or not isinstance(src, str):
+            problems.append(f"an input of '{name}' was malformed and dropped")
+            continue
+        dangling = src not in known or (src == name and not self_ok)
+        if dangling:
+            problems.append(f"input '{in_name}' of '{name}' names unknown step '{src}'")
+        out.append(FlowInput(in_name, src, dangling))
+    return out
+
+
+def _map_decl(
+    name: str,
+    item: Dict[str, object],
+    names: Set[str],
+    earlier_steps: Set[str],
+    taken: Set[str],
+    problems: List[str],
+) -> MapDecl:
+    """The map declaration of a `kind: "map"` step: `over`, `max_concurrency` and the inner steps.
+
+    Bad parts are dropped and reported, never raised: a duplicate or invalid inner name, a nested map, an
+    `over` that is not an earlier step, a bad concurrency limit and inner steps beyond the 20th. `taken` holds every step name
+    already used in the flow, inner ones included.
+    """
+    over = item.get("over")
+    if over is not None and not (isinstance(over, str) and over in earlier_steps):
+        problems.append(f"'over' of map step '{name}' names no other step and was dropped")
+        over = None
+    limit = item.get("max_concurrency")
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 1):
+        problems.append(f"max_concurrency of map step '{name}' was invalid and dropped")
+        limit = None
+    raw = item.get("steps")
+    raw_inner = raw if isinstance(raw, list) else []
+    if raw is not None and not isinstance(raw, list):
+        problems.append(f"the item flow of map step '{name}' was malformed and dropped")
+    if len(raw_inner) > MAX_INNER_STEPS:
+        problems.append(f"only the first {MAX_INNER_STEPS} inner steps of '{name}' are shown")
+        raw_inner = raw_inner[:MAX_INNER_STEPS]
+    inner: List[FlowStep] = []
+    earlier: Set[str] = set()
+    for entry in raw_inner:
+        inner_name = entry.get("name") if isinstance(entry, dict) else None
+        if not isinstance(inner_name, str) or not _STEP_NAME.match(inner_name):
+            problems.append(f"an inner step of '{name}' with an invalid name was dropped")
+            continue
+        if isinstance(entry, dict) and entry.get("kind") == "map":
+            problems.append(f"nested map step '{inner_name}' in '{name}' was dropped")
+            continue
+        if inner_name in names or inner_name in taken:
+            problems.append(
+                f"inner step '{inner_name}' of '{name}' repeats a step name and was dropped"
+            )
+            continue
+        taken.add(inner_name)
+        # an inner step may take input from an earlier inner step or from a top-level step
+        known = earlier | earlier_steps
+        inner.append(
+            FlowStep(
+                name=inner_name,
+                label=_label(entry.get("label"), MAX_STEP_LABEL),
+                group=None,
+                inputs=tuple(_inputs(inner_name, entry.get("inputs"), known, problems)),
+                returns_nothing=entry.get("returns_nothing") is True,
+                metrics=_metric_decls(inner_name, entry.get("metrics"), problems),
+            )
+        )
+        earlier.add(inner_name)
+    return MapDecl(over=over, max_concurrency=limit, steps=tuple(inner))  # type: ignore[arg-type]
+
+
 def _drop_cycles(steps: List[FlowStep], problems: List[str]) -> List[FlowStep]:
     """Remove the edges that close a cycle (depth-first, in declared order)."""
     by_name = {s.name: s for s in steps}
@@ -105,6 +185,7 @@ def _drop_cycles(steps: List[FlowStep], problems: List[str]) -> List[FlowStep]:
                 step.col,
                 step.row,
                 step.metrics,
+                step.map,
             )
         )
     return out
@@ -152,6 +233,7 @@ def parse_flow(pipeline: str, env: str, run_id: str, raw: str) -> Tuple[str, Opt
     }
     steps: List[FlowStep] = []
     seen: Set[str] = set()
+    taken: Set[str] = set(names)
     for item in raw_steps:
         name = item.get("name") if isinstance(item, dict) else None
         if not isinstance(name, str) or not _STEP_NAME.match(name):
@@ -161,19 +243,13 @@ def parse_flow(pipeline: str, env: str, run_id: str, raw: str) -> Tuple[str, Opt
             problems.append(f"duplicate step '{name}' dropped")
             continue
         seen.add(name)
-        inputs: List[FlowInput] = []
-        raw_inputs = item.get("inputs")
-        for inp in raw_inputs if isinstance(raw_inputs, list) else []:
-            in_name = inp.get("name") if isinstance(inp, dict) else None
-            src = inp.get("from") if isinstance(inp, dict) else None
-            if not isinstance(in_name, str) or not in_name or not isinstance(src, str):
-                problems.append(f"an input of '{name}' was malformed and dropped")
-                continue
-            dangling = src not in names or src == name
-            if dangling:
-                problems.append(f"input '{in_name}' of '{name}' names unknown step '{src}'")
-            inputs.append(FlowInput(in_name, src, dangling))
+        inputs = _inputs(name, item.get("inputs"), names, problems)
         group = item.get("group")
+        decl = (
+            _map_decl(name, item, names, set(seen) - {name}, taken, problems)
+            if item.get("kind") == "map"
+            else None
+        )
         steps.append(
             FlowStep(
                 name=name,
@@ -184,6 +260,7 @@ def parse_flow(pipeline: str, env: str, run_id: str, raw: str) -> Tuple[str, Opt
                 col=_hint(item.get("col")),
                 row=_hint(item.get("row")),
                 metrics=_metric_decls(name, item.get("metrics"), problems),
+                map=decl,
             )
         )
     if not steps:

@@ -188,6 +188,17 @@ const SIZE = {
   tb: { du: 124, dv: 0, gapU: 92, gapV: 12, padU: 4, padV: 22 },
 };
 const TB_MIN_NODE = 110;
+/* A map step's node (specs/014) carries a progress line, pills and a footer, so a flow that declares one gets larger
+   nodes; a flow without one keeps the sizes above exactly. */
+const MAP_SIZE = {
+  lr: { du: 204, dv: 188 },
+  compact: { du: 150, dv: 136 },
+  tb: { du: 178, dv: 0 },
+};
+const TB_MIN_MAP_NODE = 200;
+const sizeOf = (kind, hasMap) => (hasMap ? { ...SIZE[kind], ...MAP_SIZE[kind] } : SIZE[kind]);
+/** Whether any step of the flow is a map step. */
+export const hasMapStep = (defs) => defs.some((d) => !!d.map);
 
 export const dimsOf = (pos) => {
   const rows = new Map();
@@ -201,18 +212,18 @@ export const dimsOf = (pos) => {
 };
 
 /** Natural (unscaled) width of the left-to-right layouts for a number of layers. */
-export const naturalWidth = (kind, layers) => {
-  const z = SIZE[kind];
+export const naturalWidth = (kind, layers, hasMap = false) => {
+  const z = sizeOf(kind, hasMap);
   return z.padU * 2 + layers * z.du + (layers - 1) * z.gapU;
 };
 
 /** Choose the layout from the panel's inner width and the graph's size ({layers, slots}). */
-export function pickLayout(cw, prefer, dims) {
+export function pickLayout(cw, prefer, dims, hasMap = false) {
   const layers = dims ? dims.layers : 5;
   if (cw < 600) return { kind: 'tb', scale: 1 };
-  const lr = naturalWidth('lr', layers);
+  const lr = naturalWidth('lr', layers, hasMap);
   if (prefer !== 'compact' && cw >= 880 && cw / lr >= 0.7) return { kind: 'lr', scale: Math.min(1, cw / lr) };
-  const cp = naturalWidth('compact', layers);
+  const cp = naturalWidth('compact', layers, hasMap);
   return { kind: 'compact', scale: Math.max(MIN_SCALE, Math.min(1.35, cw / cp)) };
 }
 
@@ -225,7 +236,8 @@ const num = (n) => Math.round(n * 10) / 10;
 export function layoutFor(kind, defs, edges, cw, groups = []) {
   const pos = computeLayout(defs, edges);
   const { layers, slots } = dimsOf(pos);
-  const z = SIZE[kind];
+  const hasMap = hasMapStep(defs);
+  const z = sizeOf(kind, hasMap);
   const tb = kind === 'tb';
   const toXY = tb ? (u, v) => [v, u] : (u, v) => [u, v];
   let dv = z.dv;
@@ -236,7 +248,7 @@ export function layoutFor(kind, defs, edges, cw, groups = []) {
     const slot = new Map();
     rank.forEach((list) => list.sort((a, b) => pos[a].row - pos[b].row || a - b).forEach((i, r) => slot.set(i, r)));
     const inner = Math.max(300, cw) - z.padV - 6;
-    dv = Math.max(TB_MIN_NODE, Math.floor((inner - z.gapV * (slots - 1)) / slots));
+    dv = Math.max(hasMap ? TB_MIN_MAP_NODE : TB_MIN_NODE, Math.floor((inner - z.gapV * (slots - 1)) / slots));
     slotOf = (p, i) => slot.get(i);
   }
   const nodesUV = defs.map((d, i) => {

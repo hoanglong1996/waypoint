@@ -1,4 +1,4 @@
-from typing import Dict, List, Protocol, Tuple
+from typing import Dict, List, Optional, Protocol, Tuple
 
 
 class StoreUnavailable(Exception):
@@ -36,6 +36,22 @@ class RecordStore(Protocol):
 
     def list_metrics(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         """Return `(key, raw_json)` pairs for every step metrics record. Read only."""
+        ...
+
+    def list_maps(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
+        """Return `(key, raw_json)` pairs for every map aggregate. Read only."""
+        ...
+
+    def list_items(
+        self, env: str, pipeline: str, run_id: str, map_name: str
+    ) -> List[Tuple[str, str]]:
+        """Return `(key, raw_json)` pairs for the item records of one map step of one run. Read only."""
+        ...
+
+    def read_item(
+        self, env: str, pipeline: str, run_id: str, map_name: str, key: str
+    ) -> Optional[str]:
+        """Return the raw JSON of one item record, or None when it has none. Read only."""
         ...
 
     def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:

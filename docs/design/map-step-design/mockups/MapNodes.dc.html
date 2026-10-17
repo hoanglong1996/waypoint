@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map step node variants</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+.app{--bg:#f6f7f9;--surface:#fff;--surface-2:#f2f4f7;--border:#e3e6eb;--border-strong:#cdd2da;--text:#0e1116;--text-2:#4a5261;--text-3:#636b7a;--accent:#3e4cc9;--accent-soft:#eef0fd;--focus:#3e4cc9;--ok:#137a3a;--ok-bg:#e7f5ec;--ok-border:#b5e0c4;--warn:#8f5300;--warn-bg:#fff3df;--warn-border:#f1cf94;--bad:#b0222a;--bad-bg:#fdecec;--bad-border:#f2bfc2;--neutral:#4a5261;--neutral-bg:#eef0f3;--neutral-border:#d8dce3;--edge:#8a93a3;--map:#6a3fc4;--map-bg:rgba(115,73,204,.07);--shadow-1:0 1px 2px rgba(16,24,40,.05);background:var(--bg);color:var(--text);font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#0a0c0f;--surface:#111418;--surface-2:#181c22;--border:#232931;--border-strong:#323943;--text:#e8eaee;--text-2:#aab1bd;--text-3:#8b93a1;--accent:#949cff;--accent-soft:rgba(148,156,255,.13);--focus:#a9b0ff;--ok:#4fd789;--ok-bg:rgba(79,215,137,.12);--ok-border:rgba(79,215,137,.32);--warn:#f3b34c;--warn-bg:rgba(243,179,76,.12);--warn-border:rgba(243,179,76,.34);--bad:#ff8086;--bad-bg:rgba(255,128,134,.12);--bad-border:rgba(255,128,134,.34);--neutral:#aab1bd;--neutral-bg:#1c2128;--neutral-border:#2c333d;--edge:#6b7482;--map:#b9a2ff;--map-bg:rgba(185,162,255,.08);--shadow-1:none}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:12px;height:12px}
+.pill{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--neutral-border);background:var(--neutral-bg);color:var(--neutral);font-size:11px;font-weight:600;white-space:nowrap;box-sizing:border-box;line-height:1}
+.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-border)}
+.pill.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-border)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-border)}
+.pill.run{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.pill.dash{border-style:dashed}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.cell{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cap{display:flex;flex-direction:column;gap:2px}
+.cap p{margin:0;font-size:12px;color:var(--text-2)}
+.lane{display:flex;align-items:center;padding:14px 0 6px}
+.stub{width:22px;border-top:2px solid var(--edge);flex:none}
+.stub.dim{border-top-style:dashed;opacity:.6}
+.mapnode{position:relative;flex:none;width:228px;box-sizing:border-box;text-align:left;font-family:inherit;font-size:12px;color:var(--text);background:var(--surface);border:1.5px solid var(--border-strong);border-radius:10px;padding:10px 12px 8px;display:flex;flex-direction:column;gap:6px;cursor:pointer;margin:0 10px 10px 0;box-shadow:5px 5px 0 -1.5px var(--surface),5px 5px 0 0 var(--border-strong),10px 10px 0 -1.5px var(--surface),10px 10px 0 0 var(--border-strong)}
+.mapnode.fail{border-color:var(--bad)}
+.mapnode.stall{border-color:var(--warn)}
+.mapnode[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:3px}
+.mapnode:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.mn-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.maptag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--map);background:var(--map-bg);border-radius:4px;padding:2px 6px}
+.mn-name{font-size:14px;font-weight:600;overflow-wrap:anywhere;line-height:1.3}
+.mn-flow{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;color:var(--text-3);overflow-wrap:anywhere}
+.mn-prog{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.mn-prog b{color:var(--text);font-weight:600}
+.mn-prog .f,.mn-prog .f b{color:var(--bad)}
+.mn-pills{display:flex;flex-wrap:wrap;gap:4px}
+.mn-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;font-size:11.5px;color:var(--text-2)}
+.mapnode[aria-expanded="true"] .mn-foot{color:var(--accent);font-weight:600}
+.mapnode[aria-expanded="true"] .mn-foot .ic{transform:rotate(180deg)}
+</style>
+</helmet>
+<div class="app {{themeCls}}" style="width: 1280px; min-height: 1180px; box-sizing: border-box; padding: 40px 48px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+<div>
+<div class="eyebrow" style="color: var(--map)">3.1 · Graph node</div>
+<h1 style="margin: 4px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em">Map step node</h1>
+<p style="margin: 6px 0 0; font-size: 13px; color: var(--text-2); max-width: 720px">One node in the pipeline graph. Read as a map step at a glance: stacked card (two offset layers), the loop icon and the MAP tag. Never shows a total N — only items that have started.</p>
+</div>
+<div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-2)">
+<span style="display: inline-flex; align-items: center; gap: 6px"><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span>identity, not status</span>
+<span>Outline = selected (panel open)</span>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 28px">
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Running · no failures</div><p>Loop open. 4 items in parallel.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, running: 6 done, 4 running, 0 failed. Show items">
+<span class="mn-top"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>6</b> done · <b>4</b> running · <b>0</b> failed</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Running · 1 failed</div><p>Still Running, but failures are counted in red and pilled.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode fail" type="button" aria-expanded="false" aria-label="Accounts, map step, running: 5 done, 4 running, 1 failed. Show items">
+<span class="mn-top"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>5</b> done · <b>4</b> running · <span class="f"><b>1</b> failed</span></span>
+<span class="mn-pills"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>1 failed item</span></span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Failed</div><p>Loop closed, at least 1 item failed.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode fail" type="button" aria-expanded="false" aria-label="Accounts, map step, failed: 9 done, 1 failed. Show items">
+<span class="mn-top"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>9</b> done · <b>0</b> running · <span class="f"><b>1</b> failed</span></span>
+<span class="mn-pills"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>1 failed item</span></span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub dim"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Done</div><p>Loop closed, no failed items.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, done: 10 done, 0 failed. Show items">
+<span class="mn-top"><span class="pill ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>10</b> done · <b>0</b> running · <b>0</b> failed</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Done · items lost data</div><p>An inner step got input and returned 0 for some item.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, done: 10 done, 0 failed, items lost data. Show items">
+<span class="mn-top"><span class="pill ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>10</b> done · <b>0</b> running · <b>0</b> failed</span>
+<span class="mn-pills"><span class="pill bad dash"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>items lost data</span></span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Running · 0 started</div><p>Map step opened, no item has started yet.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, running: 0 started. Show items">
+<span class="mn-top"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>0</b> started</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub dim"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Done · 0 items</div><p>Loop closed without any item. Still Done.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, done: 0 items. Show items">
+<span class="mn-top"><span class="pill ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>0</b> items</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Stalled (run state)</div><p>Running items take the run's state: shown as stalled.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode stall" type="button" aria-expanded="false" aria-label="Accounts, map step, stalled: 6 done, 4 stalled, 0 failed. Show items">
+<span class="mn-top"><span class="pill warn"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"></path><path d="M12 10v4M12 17v.01"></path></svg>Stalled</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>6</b> done · <b>4</b> stalled · <b>0</b> failed</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub dim"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Died (run state)</div><p>Process gone mid-loop. Running items shown as died.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode fail" type="button" aria-expanded="false" aria-label="Accounts, map step, died: 6 done, 4 died, 1 failed. Show items">
+<span class="mn-top"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>5</b> done · <b>4</b> died · <span class="f"><b>1</b> failed</span></span>
+<span class="mn-pills"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>1 failed item</span></span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub dim"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Selected · panel open</div><p>aria-expanded="true", accent outline, footer reads "Hide items".</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode fail" type="button" aria-expanded="true" aria-controls="map-panel" aria-label="Accounts, map step, failed: 9 done, 1 failed. Hide items">
+<span class="mn-top"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-flow">fetch → transform → load</span>
+<span class="mn-prog"><b>9</b> done · <b>0</b> running · <span class="f"><b>1</b> failed</span></span>
+<span class="mn-pills"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>1 failed item</span><span class="pill bad dash"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>items lost data</span></span>
+<span class="mn-foot"><span>Hide items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button><span class="stub dim"></span></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Large counts · long name</div><p>Thousands separators; long names wrap, never truncate.</p></div>
+<div class="lane"><span class="stub"></span>
+<button class="mapnode fail" type="button" aria-expanded="false" aria-label="eu_billing__legacy_accounts_import, map step, failed: 9,812 done, 188 failed, items lost data. Show items">
+<span class="mn-top"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">eu_billing__legacy_accounts_import</span>
+<span class="mn-flow">fetch_partition → normalize_rows → upsert_bq</span>
+<span class="mn-prog"><b>9,812</b> done · <b>0</b> running · <span class="f"><b>188</b> failed</span></span>
+<span class="mn-pills"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>188 failed items</span><span class="pill bad dash"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>items lost data</span></span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button></div>
+</div>
+
+<div class="cell">
+<div class="cap"><div class="eyebrow">Narrow screen</div><p>Graph stacks top to bottom; node takes the full width.</p></div>
+<div style="width: 250px; display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 12px">
+<div style="height: 18px; border-left: 2px solid var(--edge); margin-left: 50%"></div>
+<button class="mapnode" type="button" aria-expanded="false" aria-label="Accounts, map step, running: 6 done, 4 running, 0 failed. Show items" style="width: auto">
+<span class="mn-top"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span class="mn-name">Accounts</span>
+<span class="mn-prog"><b>6</b> done · <b>4</b> running · <b>0</b> failed</span>
+<span class="mn-foot"><span>Show items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button>
+<div style="height: 18px; border-left: 2px dashed var(--edge); margin-left: 50%; opacity: .6"></div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1280,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return { themeCls: (this.props.theme ?? 'light') === 'dark' ? 'dark' : '' };
+}
+}
+</script>
+</body>
+</html>

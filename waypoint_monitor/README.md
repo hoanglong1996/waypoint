@@ -112,6 +112,11 @@ Per pipeline, run and environment (`waypoint:{pipeline}:{env}:{run_id}:...`, ful
   newer), one JSON record per step attempt; declarations (label, unit, limits) are an optional `metrics` list on the
   step in the `...:flow` record. Read with the same `SCAN` and `MGET`: **no new permission**.
 
+- `...:map:{map}` and `...:item:{map}:{key}`: a map step's aggregate (counts for every item, per-inner-step counts,
+  duration histogram, slowest and first failures) and one record per detailed item (`waypoint-etl` 0.6.0 or newer).
+  The aggregate is read with the run list; item records only when an operator opens a map step's item list. Same
+  `SCAN` and `MGET`: **no new permission**.
+
 A marker with no finish record for the same step means the step is **running** (or **stalled** past
 `STALL_SECONDS`); later planned steps of that run show **Waiting**. A planned step with no record is
 **not reached**; a record for a step that is not in the run's flow shows under "Other steps".
@@ -196,6 +201,24 @@ A step can carry named numbers sent with `waypoint_etl.metric` (`waypoint-etl` 0
 The monitor shows the metrics of a step's **latest attempt** only. Names, labels and units are shown as plain text.
 Records come from `...:metrics:{NN}-{step}` (contract: `../specs/013-step-metrics/contracts/`); a damaged one is
 skipped and counted as unreadable. `tests/seed_demo.py` writes a `metrics` demo pipeline.
+
+## Map steps (loops)
+
+A step that loops over items (`MapStepSpec`, `waypoint-etl` 0.6.0) is drawn as **one node** with live progress
+(`6 done · 4 running · 1 failed`, never a total) and opens a panel under the graph: summary (loop duration,
+median and 95th percentile with `≈`, slowest item, in and out sums), the item flow with counts per inner step, and the
+item list (search, status chips, Slow toggle, sort, 50 rows per page). An item opens at its own address
+`#/p/<pipeline>/runs/<env>/<run>/steps/<map>/items/<key>` with its inner steps, errors, metrics and events.
+
+- **State:** Running while the loop is open (failures are counted), Failed once it ended with at least one failed
+  item (the run is then Incomplete or Failed like for any failed step), Done otherwise (also with zero items).
+- **Large loops:** only about 1,050 items have a record (the first 1,000, failed ones up to a cap, the 50 slowest);
+  the panel says so and totals still cover every item.
+- **Endpoints:** `/api/runs` adds `map` on the step; `/api/runs/{pipeline}/{env}/{run}/maps/{map}/items` (filters
+  `state`, `slow`, `q`, `sort`, `order`, `failed_first`, `limit`, cursor `after`) and `.../items/{key}`; the events
+  route takes `item`. Contract: `../specs/014-map-step-fan-out/contracts/`.
+- Slow items and percentiles reuse `SLOW_RUN_MULTIPLE` and `DURATION_MIN_RUNS`; there are no new settings.
+- `tests/seed_demo.py` (run it with no pipeline names) writes a `maps` demo pipeline with every state.
 
 ## Hung or dead?
 

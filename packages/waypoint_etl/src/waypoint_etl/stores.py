@@ -17,6 +17,9 @@ class NoopStepAuditStore:
     ) -> None:
         return None
 
+    def write_many(self, items: Sequence[Tuple[str, Dict[str, object]]], ttl_seconds: int) -> None:
+        return None
+
 
 class RedisStepAuditStore:
     """Stores each record as a JSON string that expires after ``ttl_seconds``."""
@@ -30,6 +33,16 @@ class RedisStepAuditStore:
 
     def write(self, key: str, record: Dict[str, object], ttl_seconds: int) -> None:
         self.client.setex(key, ttl_seconds, json.dumps(record))
+
+    def write_many(self, items: Sequence[Tuple[str, Dict[str, object]]], ttl_seconds: int) -> None:
+        """``write`` for several records in one round trip (a non-transactional pipeline of ``SETEX``).
+
+        A store that only has ``write`` simply has no ``write_many``: the map writer then writes one by one.
+        """
+        pipe = self.client.pipeline(transaction=False)
+        for key, record in items:
+            pipe.setex(key, ttl_seconds, json.dumps(record))
+        pipe.execute()  # type: ignore[no-untyped-call]
 
     def push_events(
         self, items: Sequence[Tuple[str, Sequence[str], int]], ttl_seconds: int

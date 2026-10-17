@@ -36,8 +36,9 @@ def _seconds_label(seconds: float) -> str:
 
 def recorded_entries(events: Sequence[RunEvent]) -> List[Entry]:
     """Timeline entries for author-sent events."""
-    return [
-        {
+    out: List[Entry] = []
+    for e in events:
+        entry: Entry = {
             "id": f"r:{e.level}:{e.n}",
             "ts": _recorded_stamp(e.ts),
             "level": e.level,
@@ -49,8 +50,10 @@ def recorded_entries(events: Sequence[RunEvent]) -> List[Entry]:
             "_rank": _RANK_RECORDED,
             "_seq": e.n,
         }
-        for e in events
-    ]
+        if e.item is not None:  # only events recorded inside a map step item (specs/014)
+            entry["item"] = e.item
+        out.append(entry)
+    return out
 
 
 def derive_events(run: Dict[str, Any], stall_seconds: float) -> List[Entry]:
@@ -201,12 +204,17 @@ def select(
     step: Optional[str],
     offset: int,
     limit: int,
+    item: Optional[str] = None,
 ) -> Tuple[List[Entry], int]:
-    """The page `[offset, offset + limit)` of the entries matching the filters, and how many match."""
+    """The page `[offset, offset + limit)` of the entries matching the filters, and how many match.
+
+    `item` keeps only the events recorded inside that map step item (specs/014)."""
     matched = [
         e
         for e in entries
-        if (not levels or e["level"] in levels) and (step is None or e["step"] == step)
+        if (not levels or e["level"] in levels)
+        and (step is None or e["step"] == step)
+        and (item is None or e.get("item") == item)
     ]
     return matched[offset : offset + limit], len(matched)
 

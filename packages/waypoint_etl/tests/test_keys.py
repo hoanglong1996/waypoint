@@ -49,10 +49,6 @@ class TestKeys(unittest.TestCase):
         self.assertEqual(keys.FLOW_VERSION, 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestMetricsKey(unittest.TestCase):
     def test_exact_key_and_padding(self) -> None:
         from waypoint_etl.keys import metrics_key
@@ -62,3 +58,37 @@ class TestMetricsKey(unittest.TestCase):
             "waypoint:demo:qa:20261017T020301Z:metrics:07-load",
         )
         self.assertTrue(metrics_key("demo", "qa", "r", 100, "x").endswith(":metrics:100-x"))
+
+
+class TestMapKeys(unittest.TestCase):
+    def test_map_and_item_keys(self) -> None:
+        self.assertEqual(
+            keys.map_key("callrail", "prod", "20261017T020301Z", "accounts"),
+            "waypoint:callrail:prod:20261017T020301Z:map:accounts",
+        )
+        self.assertEqual(
+            keys.item_key("callrail", "prod", "20261017T020301Z", "accounts", "acct-7"),
+            "waypoint:callrail:prod:20261017T020301Z:item:accounts:acct-7",
+        )
+
+    def test_limits(self) -> None:
+        self.assertEqual(
+            (
+                keys.MAP_VERSION,
+                keys.MAP_DETAIL_LIMIT,
+                keys.MAP_EXTRA_FAILED_LIMIT,
+                keys.MAP_SLOWEST_KEPT,
+                keys.MAX_ITEM_KEY,
+                keys.MAX_INNER_STEPS,
+                keys.ITEM_TRACE_BYTES,
+                keys.COMPACT_MESSAGE,
+                keys.MAP_FAILED_LISTED,
+                keys.MAP_SLOWEST_LISTED,
+                keys.EVICT_TTL_SECONDS,
+            ),
+            (1, 1000, 1000, 50, 64, 20, 2048, 200, 20, 5, 1),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

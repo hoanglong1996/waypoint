@@ -11,7 +11,7 @@ trả lời đủ ba câu hỏi: *step nào hỏng và vì sao*, *chạy mất b
 | 4 | Freshness/SLA theo từng pipeline | #2 (dùng duration cho "chạy quá lâu") | SDK (spec) + Monitor + UI |
 | 5 | Metric tuỳ chọn theo step ✅ | #3 (dùng chung kênh ghi của event) | SDK + Monitor + UI |
 | 6 | Alerting (Slack/webhook/email) | #1, #4 (cần trạng thái Failed và Late) | Monitor + cấu hình |
-| 7 | Map step / fan-out *(làm sau)* | #1, #2, #3, #5 (thêm chiều `item_key` vào các record đó) | SDK + Monitor + UI, đổi định dạng record |
+| 7 | Map step / fan-out ✅ | #1, #2, #3, #5 (thêm chiều `item_key` vào các record đó) | SDK + Monitor + UI, đổi định dạng record |
 
 Thứ tự đề xuất (#1–#3 đã xong): **1 → 2 → 3 → 4 → 5 → 6**. Mỗi tính năng là một spec riêng (speckit); #1–#3 và #4–#5 mỗi
 nhóm có thể chung một bản phát hành SDK. #6 chỉ thay đổi Monitor.
@@ -299,10 +299,12 @@ và khi đã hồi phục, mà không bị spam.
 
 ---
 
-## 7. Map step / fan-out (làm sau)
+## 7. Map step / fan-out — ✅ Đã xong
 
-**Trạng thái:** ghi nhận, chưa lên lịch. Làm sau #1–#6 vì nó đổi định dạng record và thêm một chiều (`item_key`)
-vào lỗi, duration, event và metric; làm trước sẽ phải làm lại các phần đó.
+**Trạng thái:** đã làm xong, spec `014-map-step-fan-out`, thư viện `waypoint-etl 0.6.0`. Hai họ key mới (`...:map:{map}`, `...:item:{map}:{key}`), không thêm quyền Redis. Phần mô tả bên dưới là ghi chú thiết kế ban đầu; quyết định cuối cùng nằm trong spec 014 (không có tổng N, item flow tuyến tính, giữ chi tiết tối đa 1.000 item + 1.000 item lỗi gọn + 50 item chậm nhất).
+
+**Trạng thái gốc:** ghi nhận, làm sau #1–#6 vì nó đổi định dạng record và thêm một chiều (`item_key`)
+vào lỗi, duration, event và metric.
 
 **Thuật ngữ:** pipeline hiện tại là **DAG**. Mô hình mới vẫn là DAG, nhưng một step lớn được mở rộng lúc chạy
 thành N nhánh song song (**dynamic fan-out / fan-in**).
@@ -379,7 +381,7 @@ Chỉ làm map step khi có **một trong các dấu hiệu**:
 10. **Email:** có thật sự cần SMTP không, hay Slack và webhook là đủ cho giai đoạn đầu?
 11. **Xác thực dashboard:** liên kết trong thông báo trỏ tới dashboard; có làm xác thực trước khi bật alert
     ra ngoài mạng nội bộ không?
-12. **Map step (khi làm):** N thường là bao nhiêu (10, 100, 10.000)? Có cần retry riêng từng item không? Kết
+12. ✅ *Đã quyết định (spec 014):* N tối đa khoảng 10.000; không có retry riêng từng item (Waypoint chỉ giám sát); fan-in thành công khi mọi item thành công, kết quả một phần được hiển thị nhưng không là trạng thái run riêng. *Câu hỏi gốc:* **Map step (khi làm):** N thường là bao nhiêu (10, 100, 10.000)? Có cần retry riêng từng item không? Kết
     quả fan-in tính là thành công khi tất cả item thành công, hay chấp nhận một phần?
 
 ## Ngoài phạm vi (cố ý không làm)

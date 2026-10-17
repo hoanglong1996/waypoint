@@ -149,8 +149,35 @@ outside.
   It holds ids and a time only, never raises, never blocks a step, never keeps the process alive, and stops on
   `waypoint_etl.registry.clear()` or when `init` is called again. Only the process that called `init` beats.
   Older monitors ignore the item; runs without it are never shown as Died.
-- Steps are assumed to run one after another within a run. Calling `init` again replaces the
-  previous configuration (with a warning).
+- Top-level steps run one after another within a run; a loop inside a step uses a **map step** (below).
+  Calling `init` again replaces the previous configuration (with a warning).
+- **Loops: map step** (0.6.0). Declare the loop in the spec and add two `with` lines to your existing loop; the loop
+  itself (plain `for`, thread pool or asyncio) stays yours:
+
+  ```python
+  SPEC = PipelineSpec("callrail", steps=(
+      StepSpec("list_accounts"),
+      MapStepSpec("accounts", over="list_accounts", max_concurrency=5,
+                  steps=(StepSpec("fetch"), StepSpec("transform"), StepSpec("load"))),
+  ))
+
+  with waypoint_etl.map_step("accounts"):                 # the whole loop
+      with ThreadPoolExecutor(5) as pool:
+          list(pool.map(process, accounts))
+
+  def process(account):
+      with waypoint_etl.item(account.id):                 # one pass; an id or an index
+          fetch(account); transform(...); load(...)        # @audited_step as today
+  ```
+
+  Inside `item()` the inner steps, `log` and `metric` calls belong to that item automatically. **The item key is an
+  id or an index, never a name or contact data**: it is shown on screen and stored; characters outside
+  `[A-Za-z0-9_.-]` become `_` and it is cut to 64. A key that starts twice in one map step is ignored with a warning.
+  Items run in a child process are not attributed unless the child calls `init` itself. Storage is bounded per map
+  step and run: 1,000 items keep a full record, then up to 1,000 more failed items (compact) and the 50 slowest;
+  counts always cover every item. Records are written in the background (at most once a second); nothing here
+  raises or waits on the network. The map step is **Failed** in the monitor when the loop ends with a failed item,
+  even if your code caught the error.
 - Counts: `None` → none, list/tuple/set → its length, anything else → 1. Never the contents.
 
 ## Try it

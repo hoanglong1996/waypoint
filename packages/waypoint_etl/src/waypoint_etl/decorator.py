@@ -23,7 +23,8 @@ def _input_values(
     kwargs: Any,
 ) -> Dict[str, object]:
     """Arguments of this call that the spec lists as inputs of ``step`` (by name)."""
-    wanted = {name for s in auditor.spec.steps if s.name == step for name, _ in s.inputs}
+    declared = auditor.step_spec(step)
+    wanted = {name for name, _ in declared.inputs} if declared is not None else set()
     if not wanted:
         return {}
     try:

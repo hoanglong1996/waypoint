@@ -1,0 +1,2117 @@
+{
+ "run": {
+  "id": "20261017T020301Z",
+  "pipeline": "callrail",
+  "env": "prod",
+  "startedAt": "2026-10-17T02:03:01.000Z",
+  "endedAt": "2026-10-17T02:09:40.000Z",
+  "durationSeconds": 399,
+  "duration": {
+   "seconds": 399,
+   "running": false,
+   "complete": false,
+   "slow": false
+  },
+  "metricsOver": 1,
+  "eventCounts": {
+   "warning": 1,
+   "error": 1
+  },
+  "ageSeconds": 12,
+  "stale": false,
+  "status": "incomplete",
+  "runningStep": null,
+  "firstMissingStep": "publish",
+  "missingCount": 2,
+  "lossSteps": [
+   "transform"
+  ],
+  "unreadable": 0,
+  "died": null,
+  "failed": {
+   "step": "load",
+   "index": 4,
+   "failedAt": "2026-10-17T02:08:00.000Z"
+  },
+  "flowStatus": "ok",
+  "flowProblems": [],
+  "flow": {
+   "label": "CallRail",
+   "groups": [
+    {
+     "key": "extract",
+     "label": "Extract"
+    },
+    {
+     "key": "load",
+     "label": "Load"
+    }
+   ],
+   "steps": [
+    {
+     "name": "read_calls",
+     "label": "Read calls",
+     "group": "extract",
+     "inputs": [],
+     "returnsNothing": false,
+     "col": null,
+     "row": null,
+     "metrics": []
+    },
+    {
+     "name": "transform",
+     "label": "transform",
+     "group": "extract",
+     "inputs": [
+      {
+       "name": "rows",
+       "from": "read_calls",
+       "dangling": false
+      }
+     ],
+     "returnsNothing": false,
+     "col": null,
+     "row": null,
+     "metrics": [
+      {
+       "name": "rejected",
+       "label": "Rejected rows",
+       "unit": "rows",
+       "warnAbove": 100,
+       "warnBelow": null
+      }
+     ]
+    },
+    {
+     "name": "merge",
+     "label": "merge",
+     "group": "load",
+     "inputs": [
+      {
+       "name": "a",
+       "from": "transform",
+       "dangling": false
+      },
+      {
+       "name": "b",
+       "from": "read_calls",
+       "dangling": false
+      }
+     ],
+     "returnsNothing": false,
+     "col": null,
+     "row": null,
+     "metrics": []
+    },
+    {
+     "name": "load",
+     "label": "load",
+     "group": "load",
+     "inputs": [
+      {
+       "name": "rows",
+       "from": "merge",
+       "dangling": false
+      }
+     ],
+     "returnsNothing": true,
+     "col": null,
+     "row": null,
+     "metrics": []
+    },
+    {
+     "name": "publish",
+     "label": "publish",
+     "group": "load",
+     "inputs": [
+      {
+       "name": "x",
+       "from": "load",
+       "dangling": false
+      },
+      {
+       "name": "y",
+       "from": "ghost",
+       "dangling": true
+      }
+     ],
+     "returnsNothing": false,
+     "col": null,
+     "row": null,
+     "metrics": []
+    },
+    {
+     "name": "notify",
+     "label": "notify",
+     "group": null,
+     "inputs": [
+      {
+       "name": "x",
+       "from": "publish",
+       "dangling": false
+      }
+     ],
+     "returnsNothing": false,
+     "col": null,
+     "row": null,
+     "metrics": []
+    }
+   ]
+  },
+  "defs": [
+   {
+    "name": "read_calls",
+    "label": "Read calls",
+    "group": "extract",
+    "inputs": [],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": []
+   },
+   {
+    "name": "transform",
+    "label": "transform",
+    "group": "extract",
+    "inputs": [
+     {
+      "name": "rows",
+      "from": "read_calls",
+      "dangling": false
+     }
+    ],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": [
+     {
+      "name": "rejected",
+      "label": "Rejected rows",
+      "unit": "rows",
+      "warnAbove": 100,
+      "warnBelow": null
+     }
+    ]
+   },
+   {
+    "name": "merge",
+    "label": "merge",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "a",
+      "from": "transform",
+      "dangling": false
+     },
+     {
+      "name": "b",
+      "from": "read_calls",
+      "dangling": false
+     }
+    ],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": []
+   },
+   {
+    "name": "load",
+    "label": "load",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "rows",
+      "from": "merge",
+      "dangling": false
+     }
+    ],
+    "returnsNothing": true,
+    "col": null,
+    "row": null,
+    "metrics": []
+   },
+   {
+    "name": "publish",
+    "label": "publish",
+    "group": "load",
+    "inputs": [
+     {
+      "name": "x",
+      "from": "load",
+      "dangling": false
+     },
+     {
+      "name": "y",
+      "from": "ghost",
+      "dangling": true
+     }
+    ],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": []
+   },
+   {
+    "name": "notify",
+    "label": "notify",
+    "group": null,
+    "inputs": [
+     {
+      "name": "x",
+      "from": "publish",
+      "dangling": false
+     }
+    ],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": []
+   },
+   {
+    "name": "extra_step",
+    "label": "extra_step",
+    "group": null,
+    "inputs": [],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": [],
+    "unplanned": true,
+    "noFlow": false
+   },
+   {
+    "name": "slow_one",
+    "label": "slow_one",
+    "group": null,
+    "inputs": [],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": [],
+    "unplanned": true,
+    "noFlow": false
+   },
+   {
+    "name": "stuck",
+    "label": "stuck",
+    "group": null,
+    "inputs": [],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": [],
+    "unplanned": true,
+    "noFlow": false
+   },
+   {
+    "name": "gone",
+    "label": "gone",
+    "group": null,
+    "inputs": [],
+    "returnsNothing": false,
+    "col": null,
+    "row": null,
+    "metrics": [],
+    "unplanned": true,
+    "noFlow": false
+   }
+  ],
+  "steps": [
+   {
+    "name": "read_calls",
+    "state": "done",
+    "inputs": [],
+    "output": 1200,
+    "finishedAt": "2026-10-17T02:04:00.000Z",
+    "startedAt": "2026-10-17T02:03:02.000Z",
+    "durationSeconds": 58,
+    "durationApprox": false,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "transform",
+    "state": "done",
+    "inputs": [
+     {
+      "name": "rows",
+      "value": 1200
+     }
+    ],
+    "output": 0,
+    "finishedAt": "2026-10-17T02:05:00.000Z",
+    "startedAt": null,
+    "durationSeconds": 60,
+    "durationApprox": true,
+    "metrics": [
+     {
+      "name": "rejected",
+      "label": "Rejected rows",
+      "value": 150,
+      "unit": "rows",
+      "declared": true,
+      "flag": "above",
+      "updatedAt": "2026-10-17T02:04:59.000Z"
+     }
+    ],
+    "metricsOver": 1
+   },
+   {
+    "name": "merge",
+    "state": "done",
+    "inputs": [
+     {
+      "name": "a",
+      "value": 0
+     },
+     {
+      "name": "b",
+      "value": 1200
+     }
+    ],
+    "output": 1200,
+    "finishedAt": "2026-10-17T02:06:00.000Z",
+    "startedAt": null,
+    "durationSeconds": 30,
+    "durationApprox": false,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "load",
+    "state": "failed",
+    "inputs": [],
+    "output": null,
+    "finishedAt": null,
+    "startedAt": "2026-10-17T02:06:01.000Z",
+    "failedAt": "2026-10-17T02:08:00.000Z",
+    "durationSeconds": 119,
+    "durationApprox": false,
+    "error": {
+     "type": "ValueError",
+     "message": "bad <b>date</b>",
+     "traceback": "Traceback (most recent call last):\n  File \"x.py\", line 1\nValueError: bad date"
+    },
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "publish",
+    "state": "waiting",
+    "inputs": [],
+    "output": null,
+    "finishedAt": null,
+    "startedAt": null,
+    "elapsedSeconds": null,
+    "fetchedAt": 1790000000000,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "notify",
+    "state": "missing",
+    "missing": true,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "extra_step",
+    "state": "unplanned",
+    "inputs": [
+     {
+      "name": "i",
+      "value": 3
+     }
+    ],
+    "output": 3,
+    "finishedAt": "2026-10-17T02:07:00.000Z",
+    "startedAt": null,
+    "durationSeconds": null,
+    "durationApprox": false,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "slow_one",
+    "state": "running",
+    "inputs": [],
+    "output": null,
+    "finishedAt": null,
+    "startedAt": "2026-10-17T02:08:30.000Z",
+    "elapsedSeconds": 12,
+    "fetchedAt": 1790000000000,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "stuck",
+    "state": "stalled",
+    "inputs": [],
+    "output": null,
+    "finishedAt": null,
+    "startedAt": "2026-10-17T02:03:30.000Z",
+    "elapsedSeconds": 1200,
+    "fetchedAt": 1790000000000,
+    "metrics": [],
+    "metricsOver": 0
+   },
+   {
+    "name": "gone",
+    "state": "died",
+    "inputs": [],
+    "output": null,
+    "finishedAt": null,
+    "startedAt": "2026-10-17T02:03:30.000Z",
+    "lastSeenAt": "2026-10-17T02:05:00.000Z",
+    "metrics": [],
+    "metricsOver": 0
+   }
+  ]
+ },
+ "signature": "[{\"id\":\"20261017T020301Z\",\"pipeline\":\"callrail\",\"env\":\"prod\",\"startedAt\":\"2026-10-17T02:03:01.000Z\",\"endedAt\":\"2026-10-17T02:09:40.000Z\",\"durationSeconds\":399,\"duration\":{\"seconds\":399,\"running\":false,\"complete\":false,\"slow\":false},\"metricsOver\":1,\"eventCounts\":{\"warning\":1,\"error\":1},\"stale\":false,\"status\":\"incomplete\",\"runningStep\":null,\"firstMissingStep\":\"publish\",\"missingCount\":2,\"lossSteps\":[\"transform\"],\"unreadable\":0,\"died\":null,\"failed\":{\"step\":\"load\",\"index\":4,\"failedAt\":\"2026-10-17T02:08:00.000Z\"},\"flowStatus\":\"ok\",\"flowProblems\":[],\"flow\":{\"label\":\"CallRail\",\"groups\":[{\"key\":\"extract\",\"label\":\"Extract\"},{\"key\":\"load\",\"label\":\"Load\"}],\"steps\":[{\"name\":\"read_calls\",\"label\":\"Read calls\",\"group\":\"extract\",\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"transform\",\"label\":\"transform\",\"group\":\"extract\",\"inputs\":[{\"name\":\"rows\",\"from\":\"read_calls\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[{\"name\":\"rejected\",\"label\":\"Rejected rows\",\"unit\":\"rows\",\"warnAbove\":100,\"warnBelow\":null}]},{\"name\":\"merge\",\"label\":\"merge\",\"group\":\"load\",\"inputs\":[{\"name\":\"a\",\"from\":\"transform\",\"dangling\":false},{\"name\":\"b\",\"from\":\"read_calls\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"load\",\"label\":\"load\",\"group\":\"load\",\"inputs\":[{\"name\":\"rows\",\"from\":\"merge\",\"dangling\":false}],\"returnsNothing\":true,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"publish\",\"label\":\"publish\",\"group\":\"load\",\"inputs\":[{\"name\":\"x\",\"from\":\"load\",\"dangling\":false},{\"name\":\"y\",\"from\":\"ghost\",\"dangling\":true}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"notify\",\"label\":\"notify\",\"group\":null,\"inputs\":[{\"name\":\"x\",\"from\":\"publish\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]}]},\"defs\":[{\"name\":\"read_calls\",\"label\":\"Read calls\",\"group\":\"extract\",\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"transform\",\"label\":\"transform\",\"group\":\"extract\",\"inputs\":[{\"name\":\"rows\",\"from\":\"read_calls\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[{\"name\":\"rejected\",\"label\":\"Rejected rows\",\"unit\":\"rows\",\"warnAbove\":100,\"warnBelow\":null}]},{\"name\":\"merge\",\"label\":\"merge\",\"group\":\"load\",\"inputs\":[{\"name\":\"a\",\"from\":\"transform\",\"dangling\":false},{\"name\":\"b\",\"from\":\"read_calls\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"load\",\"label\":\"load\",\"group\":\"load\",\"inputs\":[{\"name\":\"rows\",\"from\":\"merge\",\"dangling\":false}],\"returnsNothing\":true,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"publish\",\"label\":\"publish\",\"group\":\"load\",\"inputs\":[{\"name\":\"x\",\"from\":\"load\",\"dangling\":false},{\"name\":\"y\",\"from\":\"ghost\",\"dangling\":true}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"notify\",\"label\":\"notify\",\"group\":null,\"inputs\":[{\"name\":\"x\",\"from\":\"publish\",\"dangling\":false}],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[]},{\"name\":\"extra_step\",\"label\":\"extra_step\",\"group\":null,\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[],\"unplanned\":true,\"noFlow\":false},{\"name\":\"slow_one\",\"label\":\"slow_one\",\"group\":null,\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[],\"unplanned\":true,\"noFlow\":false},{\"name\":\"stuck\",\"label\":\"stuck\",\"group\":null,\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[],\"unplanned\":true,\"noFlow\":false},{\"name\":\"gone\",\"label\":\"gone\",\"group\":null,\"inputs\":[],\"returnsNothing\":false,\"col\":null,\"row\":null,\"metrics\":[],\"unplanned\":true,\"noFlow\":false}],\"steps\":[{\"name\":\"read_calls\",\"state\":\"done\",\"inputs\":[],\"output\":1200,\"finishedAt\":\"2026-10-17T02:04:00.000Z\",\"startedAt\":\"2026-10-17T02:03:02.000Z\",\"durationSeconds\":58,\"durationApprox\":false,\"metrics\":[],\"metricsOver\":0},{\"name\":\"transform\",\"state\":\"done\",\"inputs\":[{\"name\":\"rows\",\"value\":1200}],\"output\":0,\"finishedAt\":\"2026-10-17T02:05:00.000Z\",\"startedAt\":null,\"durationSeconds\":60,\"durationApprox\":true,\"metrics\":[{\"name\":\"rejected\",\"label\":\"Rejected rows\",\"value\":150,\"unit\":\"rows\",\"declared\":true,\"flag\":\"above\",\"updatedAt\":\"2026-10-17T02:04:59.000Z\"}],\"metricsOver\":1},{\"name\":\"merge\",\"state\":\"done\",\"inputs\":[{\"name\":\"a\",\"value\":0},{\"name\":\"b\",\"value\":1200}],\"output\":1200,\"finishedAt\":\"2026-10-17T02:06:00.000Z\",\"startedAt\":null,\"durationSeconds\":30,\"durationApprox\":false,\"metrics\":[],\"metricsOver\":0},{\"name\":\"load\",\"state\":\"failed\",\"inputs\":[],\"output\":null,\"finishedAt\":null,\"startedAt\":\"2026-10-17T02:06:01.000Z\",\"failedAt\":\"2026-10-17T02:08:00.000Z\",\"durationSeconds\":119,\"durationApprox\":false,\"error\":{\"type\":\"ValueError\",\"message\":\"bad <b>date</b>\",\"traceback\":\"Traceback (most recent call last):\\n  File \\\"x.py\\\", line 1\\nValueError: bad date\"},\"metrics\":[],\"metricsOver\":0},{\"name\":\"publish\",\"state\":\"waiting\",\"inputs\":[],\"output\":null,\"finishedAt\":null,\"startedAt\":null,\"metrics\":[],\"metricsOver\":0},{\"name\":\"notify\",\"state\":\"missing\",\"missing\":true,\"metrics\":[],\"metricsOver\":0},{\"name\":\"extra_step\",\"state\":\"unplanned\",\"inputs\":[{\"name\":\"i\",\"value\":3}],\"output\":3,\"finishedAt\":\"2026-10-17T02:07:00.000Z\",\"startedAt\":null,\"durationSeconds\":null,\"durationApprox\":false,\"metrics\":[],\"metricsOver\":0},{\"name\":\"slow_one\",\"state\":\"running\",\"inputs\":[],\"output\":null,\"finishedAt\":null,\"startedAt\":\"2026-10-17T02:08:30.000Z\",\"metrics\":[],\"metricsOver\":0},{\"name\":\"stuck\",\"state\":\"stalled\",\"inputs\":[],\"output\":null,\"finishedAt\":null,\"startedAt\":\"2026-10-17T02:03:30.000Z\",\"metrics\":[],\"metricsOver\":0},{\"name\":\"gone\",\"state\":\"died\",\"inputs\":[],\"output\":null,\"finishedAt\":null,\"startedAt\":\"2026-10-17T02:03:30.000Z\",\"lastSeenAt\":\"2026-10-17T02:05:00.000Z\",\"metrics\":[],\"metricsOver\":0}],\"ageBucket\":0}]",
+ "items": [
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">1</span></div><article class=\"step__card\" aria-label=\"Step 1, Read calls · read_calls, ok\"><div class=\"step__name\"><div class=\"step__title\">Read calls · read_calls</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:04:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">58s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input none</span></div><div class=\"step__output\"><div class=\"step__count num\">1,200</div><div class=\"step__sub\"><span>output</span></div><div class=\"step__bar\" aria-hidden=\"true\"><i style=\"width:100.0%\"></i></div></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path class=\"spark-line\" vector-effect=\"non-scaling-stroke\" d=\"M3.0 3.0\"/><circle class=\"spark-dot\" cx=\"3.0\" cy=\"3.0\" r=\"2.6\"/></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"read_calls\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--loss\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">!</span></div><article class=\"step__card\" aria-label=\"Step 2, transform, possible data loss\"><div class=\"step__name\"><div class=\"step__title\">transform</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:05:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num dur--approx\" title=\"Estimated from the previous step\">≈1m 00s</span></span><span class=\"pill pill--bad pill--sm\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7.9 2.5h8.2l5.4 5.4v8.2l-5.4 5.4H7.9l-5.4-5.4V7.9Z\"/><path d=\"M12 8v4.5M12 16h.01\"/></svg>Possible data loss</span><span class=\"pill pill--metric pill--sm\" title=\"1 metric over limit\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>1 metric over limit</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\" title=\"from read_calls\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>rows <b>1,200</b></span></div><div class=\"step__output\"><div class=\"step__count num\">0</div><div class=\"step__sub\"><span>output</span></div><div class=\"step__bar\" aria-hidden=\"true\"><i style=\"width:0.0%\"></i></div></div><div class=\"xmetric\" role=\"group\" aria-label=\"Metrics\"><table class=\"xmetric__table\"><thead><tr><th scope=\"col\">Metric</th><th scope=\"col\">Value</th><th scope=\"col\"><span class=\"sr-only\">Limit</span></th></tr></thead><tbody><tr class=\"xmetric__row--over\"><th scope=\"row\" title=\"rejected\">Rejected rows</th><td><span class=\"num\" title=\"150\">150 rows</span></td><td><span class=\"xmetric__flag\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>above 100</span></td></tr></tbody></table></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path class=\"spark-line\" vector-effect=\"non-scaling-stroke\" d=\"M3.0 33.0\"/><circle class=\"spark-zero\" cx=\"3.0\" cy=\"33.0\" r=\"2.2\"/></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"transform\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">3</span></div><article class=\"step__card\" aria-label=\"Step 3, merge, ok\"><div class=\"step__name\"><div class=\"step__title\">merge</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:06:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">30s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\" title=\"from transform\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>a <b>0</b></span><span class=\"chip\" title=\"from read_calls\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>b <b>1,200</b></span></div><div class=\"step__output\"><div class=\"step__count num\">1,200</div><div class=\"step__sub\"><span>output</span></div><div class=\"step__bar\" aria-hidden=\"true\"><i style=\"width:100.0%\"></i></div></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path class=\"spark-line\" vector-effect=\"non-scaling-stroke\" d=\"M3.0 3.0\"/><circle class=\"spark-dot\" cx=\"3.0\" cy=\"3.0\" r=\"2.6\"/></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"merge\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--failed\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8.5 8.5a3.5 3.5 0 0 1 7 0v6.5a3.5 3.5 0 0 1-7 0Z\"/><path d=\"M12 8v13M3.5 11l5 1.5M20.5 11l-5 1.5M3.5 19l5-1.5M20.5 19l-5-1.5M9.5 4 11 6M14.5 4 13 6\"/></svg></span></div><article class=\"step__card\" aria-label=\"Step 4, load, failed\"><div class=\"step__name\"><div class=\"step__title\">load</div><div class=\"step__time\"><span>Started 02:06:01 · failed 02:08:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">1m 59s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input not recorded</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8.5 8.5a3.5 3.5 0 0 1 7 0v6.5a3.5 3.5 0 0 1-7 0Z\"/><path d=\"M12 8v13M3.5 11l5 1.5M20.5 11l-5 1.5M3.5 19l5-1.5M20.5 19l-5-1.5M9.5 4 11 6M14.5 4 13 6\"/></svg><span>Failed</span></span><span class=\"step__live-sub\">the step raised an error</span></div><div class=\"step__error\" role=\"group\" aria-label=\"Error\"><div class=\"step__error-head\"><div class=\"step__error-title\"><span class=\"step__error-type mono\">ValueError</span><span class=\"step__error-msg\">bad &lt;b&gt;date&lt;/b&gt;</span></div><button type=\"button\" class=\"btn btn--sm btn--copy\" data-copy=\"prod|20261017T020301Z|load\">Copy</button></div><pre class=\"step__trace\" tabindex=\"0\" aria-label=\"Stack trace\">Traceback (most recent call last):\n  File &quot;x.py&quot;, line 1\nValueError: bad date</pre></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"load\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--waiting\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">5</span></div><article class=\"step__card\" aria-label=\"Step 5, publish, waiting\"><div class=\"step__name\"><div class=\"step__title\">publish</div><div class=\"step__time\"><span>Not started</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">expects x</span><span class=\"chip chip--none\">expects y</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9\"/></svg><span>Waiting</span></span></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div></article></li>",
+  "<li class=\"step step--missing\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">6</span></div><article class=\"step__card\" aria-label=\"Step 6, notify, not recorded\"><div class=\"step__name\"><div class=\"step__title\">notify</div><div class=\"step__time\"><span>No record</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">expects x</span></div><div class=\"step__missing-msg\"><svg class=\"ico\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\" stroke-dasharray=\"3 3\"/></svg><span>Step did not report for this run</span></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div></article></li>",
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">7</span></div><article class=\"step__card\" aria-label=\"Step 7, extra_step, ok\"><div class=\"step__name\"><div class=\"step__title\">extra_step</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:07:00</span><span class=\"pill pill--neutral pill--sm\" title=\"Reported, but not in this run’s flow description\">not in flow</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>i <b>3</b></span></div><div class=\"step__output\"><div class=\"step__count num\">3</div><div class=\"step__sub\"><span>output</span></div><div class=\"step__bar\" aria-hidden=\"true\"><i style=\"width:19.6%\"></i></div></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\"><path class=\"spark-line\" vector-effect=\"non-scaling-stroke\" d=\"M3.0 3.0\"/><circle class=\"spark-dot\" cx=\"3.0\" cy=\"3.0\" r=\"2.6\"/></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"extra_step\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--running\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">8</span></div><article class=\"step__card\" aria-label=\"Step 8, slow_one, running\"><div class=\"step__name\"><div class=\"step__title\">slow_one</div><div class=\"step__time\"><span>Started 02:08:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input pending</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg class=\"spin\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-6.2-8.55\"/></svg><span>Running · <span class=\"num\" data-elapsed=\"12\" data-fetched=\"1790000000000\">12 s</span></span></span><div class=\"step__progress\" aria-hidden=\"true\"><i></i></div></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"slow_one\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--stalled\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">9</span></div><article class=\"step__card\" aria-label=\"Step 9, stuck, stalled\"><div class=\"step__name\"><div class=\"step__title\">stuck</div><div class=\"step__time\"><span>Started 02:03:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input pending</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg><span>Stalled · <span class=\"num\" data-elapsed=\"1200\" data-fetched=\"1790000000000\">20m 00s</span></span></span><span class=\"step__live-sub\">alive but not progressing</span></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"stuck\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--died\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">10</span></div><article class=\"step__card\" aria-label=\"Step 10, gone, died\"><div class=\"step__name\"><div class=\"step__title\">gone</div><div class=\"step__time\"><span>Started 02:03:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input not recorded</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 2v9\"/><path d=\"M18.4 6.6a9 9 0 1 1-12.8 0\"/></svg><span>Died · last seen 02:05:00</span></span><span class=\"step__live-sub\">process gone</span></div><div class=\"step__spark\" title=\"Last 1 runs\"><svg viewBox=\"0 0 128 36\" aria-hidden=\"true\"></svg><div class=\"spark-cap\">1 runs</div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"gone\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>"
+ ],
+ "itemsCompact": [
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">1</span></div><article class=\"step__card\" aria-label=\"Step 1, Read calls · read_calls, ok\"><div class=\"step__name\"><div class=\"step__title\">Read calls · read_calls</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:04:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">58s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input none</span></div><div class=\"step__output\"><div class=\"step__count num\">1,200</div><div class=\"step__sub\"><span>output</span></div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"read_calls\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--loss\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">!</span></div><article class=\"step__card\" aria-label=\"Step 2, transform, possible data loss\"><div class=\"step__name\"><div class=\"step__title\">transform</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:05:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num dur--approx\" title=\"Estimated from the previous step\">≈1m 00s</span></span><span class=\"pill pill--bad pill--sm\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7.9 2.5h8.2l5.4 5.4v8.2l-5.4 5.4H7.9l-5.4-5.4V7.9Z\"/><path d=\"M12 8v4.5M12 16h.01\"/></svg>Possible data loss</span><span class=\"pill pill--metric pill--sm\" title=\"1 metric over limit\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>1 metric over limit</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\" title=\"from read_calls\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>rows <b>1,200</b></span></div><div class=\"step__output\"><div class=\"step__count num\">0</div><div class=\"step__sub\"><span>output</span></div></div><div class=\"xmetric\" role=\"group\" aria-label=\"Metrics\"><table class=\"xmetric__table\"><thead><tr><th scope=\"col\">Metric</th><th scope=\"col\">Value</th><th scope=\"col\"><span class=\"sr-only\">Limit</span></th></tr></thead><tbody><tr class=\"xmetric__row--over\"><th scope=\"row\" title=\"rejected\">Rejected rows</th><td><span class=\"num\" title=\"150\">150 rows</span></td><td><span class=\"xmetric__flag\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg>above 100</span></td></tr></tbody></table></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"transform\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">3</span></div><article class=\"step__card\" aria-label=\"Step 3, merge, ok\"><div class=\"step__name\"><div class=\"step__title\">merge</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:06:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">30s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\" title=\"from transform\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>a <b>0</b></span><span class=\"chip\" title=\"from read_calls\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>b <b>1,200</b></span></div><div class=\"step__output\"><div class=\"step__count num\">1,200</div><div class=\"step__sub\"><span>output</span></div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"merge\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--failed\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8.5 8.5a3.5 3.5 0 0 1 7 0v6.5a3.5 3.5 0 0 1-7 0Z\"/><path d=\"M12 8v13M3.5 11l5 1.5M20.5 11l-5 1.5M3.5 19l5-1.5M20.5 19l-5-1.5M9.5 4 11 6M14.5 4 13 6\"/></svg></span></div><article class=\"step__card\" aria-label=\"Step 4, load, failed\"><div class=\"step__name\"><div class=\"step__title\">load</div><div class=\"step__time\"><span>Started 02:06:01 · failed 02:08:00</span><span class=\"step__dur\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"14\" r=\"7.5\"/><path d=\"M12 14l3-3M9.5 2.5h5M12 2.5v4\"/></svg><span class=\"dur num\" title=\"Duration\">1m 59s</span></span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input not recorded</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8.5 8.5a3.5 3.5 0 0 1 7 0v6.5a3.5 3.5 0 0 1-7 0Z\"/><path d=\"M12 8v13M3.5 11l5 1.5M20.5 11l-5 1.5M3.5 19l5-1.5M20.5 19l-5-1.5M9.5 4 11 6M14.5 4 13 6\"/></svg><span>Failed</span></span><span class=\"step__live-sub\">the step raised an error</span></div><div class=\"step__error step__error--compact\"><span class=\"step__error-type mono\">ValueError</span><span class=\"step__error-msg\">bad &lt;b&gt;date&lt;/b&gt;</span></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"load\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--waiting\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">5</span></div><article class=\"step__card\" aria-label=\"Step 5, publish, waiting\"><div class=\"step__name\"><div class=\"step__title\">publish</div><div class=\"step__time\"><span>Not started</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">expects x</span><span class=\"chip chip--none\">expects y</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9\"/></svg><span>Waiting</span></span></div></article></li>",
+  "<li class=\"step step--missing\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">6</span></div><article class=\"step__card\" aria-label=\"Step 6, notify, not recorded\"><div class=\"step__name\"><div class=\"step__title\">notify</div><div class=\"step__time\"><span>No record</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">expects x</span></div><div class=\"step__missing-msg\"><svg class=\"ico\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\" stroke-dasharray=\"3 3\"/></svg><span>Step did not report for this run</span></div></article></li>",
+  "<li class=\"step step--ok\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">7</span></div><article class=\"step__card\" aria-label=\"Step 7, extra_step, ok\"><div class=\"step__name\"><div class=\"step__title\">extra_step</div><div class=\"step__time\"><span title=\"Finished at\"><svg class=\"ico--sm\" style=\"width:12px;height:12px\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>02:07:00</span><span class=\"pill pill--neutral pill--sm\" title=\"Reported, but not in this run’s flow description\">not in flow</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip\"><svg class=\"chip__arrow\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h12M13 8l4 4-4 4\"/></svg>i <b>3</b></span></div><div class=\"step__output\"><div class=\"step__count num\">3</div><div class=\"step__sub\"><span>output</span></div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"extra_step\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--running\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">8</span></div><article class=\"step__card\" aria-label=\"Step 8, slow_one, running\"><div class=\"step__name\"><div class=\"step__title\">slow_one</div><div class=\"step__time\"><span>Started 02:08:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input pending</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg class=\"spin\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 12a9 9 0 1 1-6.2-8.55\"/></svg><span>Running · <span class=\"num\" data-elapsed=\"12\" data-fetched=\"1790000000000\">12 s</span></span></span><div class=\"step__progress\" aria-hidden=\"true\"><i></i></div></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"slow_one\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--stalled\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">9</span></div><article class=\"step__card\" aria-label=\"Step 9, stuck, stalled\"><div class=\"step__name\"><div class=\"step__title\">stuck</div><div class=\"step__time\"><span>Started 02:03:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input pending</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4M12 17h.01\"/></svg><span>Stalled · <span class=\"num\" data-elapsed=\"1200\" data-fetched=\"1790000000000\">20m 00s</span></span></span><span class=\"step__live-sub\">alive but not progressing</span></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"stuck\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>",
+  "<li class=\"step step--died\"><div class=\"step__rail\" aria-hidden=\"true\"><span class=\"step__node\">10</span></div><article class=\"step__card\" aria-label=\"Step 10, gone, died\"><div class=\"step__name\"><div class=\"step__title\">gone</div><div class=\"step__time\"><span>Started 02:03:30</span></div></div><div class=\"step__inputs\" aria-label=\"Inputs\"><span class=\"chip chip--none\">input not recorded</span></div><div class=\"step__live\"><span class=\"step__live-text\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 2v9\"/><path d=\"M18.4 6.6a9 9 0 1 1-12.8 0\"/></svg><span>Died · last seen 02:05:00</span></span><span class=\"step__live-sub\">process gone</span></div><details class=\"step__events\" data-ev-pipeline=\"callrail\" data-ev-env=\"prod\" data-ev-run=\"20261017T020301Z\" data-ev-step=\"gone\"><summary>Events of this step</summary><div class=\"step__events-body\" aria-live=\"polite\"></div></details></article></li>"
+ ],
+ "layouts": {
+  "500": {
+   "pk": {
+    "kind": "tb",
+    "scale": 1
+   },
+   "L": {
+    "kind": "tb",
+    "W": 500,
+    "H": 1214,
+    "nodes": [
+     {
+      "x": 22,
+      "y": 4,
+      "w": 472,
+      "h": 124
+     },
+     {
+      "x": 22,
+      "y": 220,
+      "w": 472,
+      "h": 124
+     },
+     {
+      "x": 22,
+      "y": 436,
+      "w": 472,
+      "h": 124
+     },
+     {
+      "x": 22,
+      "y": 652,
+      "w": 472,
+      "h": 124
+     },
+     {
+      "x": 22,
+      "y": 868,
+      "w": 472,
+      "h": 124
+     },
+     {
+      "x": 22,
+      "y": 1084,
+      "w": 472,
+      "h": 124
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M258 128C258 170.5 258 170.5 258 213",
+      "chip": {
+       "x": 258,
+       "y": 170.5
+      },
+      "zone": [
+       128,
+       220
+      ],
+      "arrow": "M253.5 212L258 220L262.5 212Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M258 344C258 386.5 179.3 386.5 179.3 429",
+      "chip": {
+       "x": 218.7,
+       "y": 386.5
+      },
+      "zone": [
+       344,
+       436
+      ],
+      "arrow": "M174.8 428L179.3 436L183.8 428Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M258 128C258 164.8 11 164.8 11 201.6L11 362.4C11 395.7 336.7 395.7 336.7 429",
+      "chip": {
+       "x": 11,
+       "y": 169.4
+      },
+      "zone": [
+       128,
+       220
+      ],
+      "arrow": "M332.2 428L336.7 436L341.2 428Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M258 560C258 602.5 258 602.5 258 645",
+      "chip": {
+       "x": 258,
+       "y": 602.5
+      },
+      "zone": [
+       560,
+       652
+      ],
+      "arrow": "M253.5 644L258 652L262.5 644Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M258 776C258 818.5 179.3 818.5 179.3 861",
+      "chip": {
+       "x": 218.7,
+       "y": 818.5
+      },
+      "zone": [
+       776,
+       868
+      ],
+      "arrow": "M174.8 860L179.3 868L183.8 860Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M258 992C258 1034.5 258 1034.5 258 1077",
+      "chip": {
+       "x": 258,
+       "y": 1034.5
+      },
+      "zone": [
+       992,
+       1084
+      ],
+      "arrow": "M253.5 1076L258 1084L262.5 1076Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M336.7 835L336.7 861",
+      "arrow": "M332.2 860L336.7 868L341.2 860Z"
+     }
+    ],
+    "chips": true,
+    "layers": 6
+   }
+  },
+  "700": {
+   "pk": {
+    "kind": "compact",
+    "scale": 0.9259259259259259
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [
+     {
+      "g": "extract",
+      "x": 0,
+      "y": 0,
+      "w": 244,
+      "h": 112
+     },
+     {
+      "g": "load",
+      "x": 256,
+      "y": 0,
+      "w": 372,
+      "h": 112
+     }
+    ],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  },
+  "900": {
+   "pk": {
+    "kind": "compact",
+    "scale": 1.1904761904761905
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [
+     {
+      "g": "extract",
+      "x": 0,
+      "y": 0,
+      "w": 244,
+      "h": 112
+     },
+     {
+      "g": "load",
+      "x": 256,
+      "y": 0,
+      "w": 372,
+      "h": 112
+     }
+    ],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  },
+  "1200": {
+   "pk": {
+    "kind": "lr",
+    "scale": 0.8695652173913043
+   },
+   "L": {
+    "kind": "lr",
+    "W": 1380,
+    "H": 174,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     {
+      "x": 250,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     {
+      "x": 492,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     {
+      "x": 734,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     {
+      "x": 976,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     {
+      "x": 1218,
+      "y": 28,
+      "w": 154,
+      "h": 128
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [
+     {
+      "g": "extract",
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 174
+     },
+     {
+      "g": "load",
+      "x": 484,
+      "y": 0,
+      "w": 654,
+      "h": 174
+     }
+    ],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M162 92C202.5 92 202.5 92 243 92",
+      "chip": {
+       "x": 202.5,
+       "y": 92
+      },
+      "zone": [
+       162,
+       250
+      ],
+      "arrow": "M242 87.5L250 92L242 96.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M404 92C444.5 92 444.5 70.7 485 70.7",
+      "chip": {
+       "x": 444.5,
+       "y": 81.3
+      },
+      "zone": [
+       404,
+       492
+      ],
+      "arrow": "M484 66.2L492 70.7L484 75.2Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M162 92C197.2 92 197.2 165 232.4 165L421.6 165C453.3 165 453.3 113.3 485 113.3",
+      "chip": {
+       "x": 201.6,
+       "y": 165
+      },
+      "zone": [
+       162,
+       250
+      ],
+      "arrow": "M484 108.8L492 113.3L484 117.8Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M646 92C686.5 92 686.5 92 727 92",
+      "chip": {
+       "x": 686.5,
+       "y": 92
+      },
+      "zone": [
+       646,
+       734
+      ],
+      "arrow": "M726 87.5L734 92L726 96.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M888 92C928.5 92 928.5 70.7 969 70.7",
+      "chip": {
+       "x": 928.5,
+       "y": 81.3
+      },
+      "zone": [
+       888,
+       976
+      ],
+      "arrow": "M968 66.2L976 70.7L968 75.2Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M1130 92C1170.5 92 1170.5 92 1211 92",
+      "chip": {
+       "x": 1170.5,
+       "y": 92
+      },
+      "zone": [
+       1130,
+       1218
+      ],
+      "arrow": "M1210 87.5L1218 92L1210 96.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M943 113.3L969 113.3",
+      "arrow": "M968 108.8L976 113.3L968 117.8Z"
+     }
+    ],
+    "chips": true,
+    "layers": 6
+   }
+  },
+  "1200c": {
+   "pk": {
+    "kind": "compact",
+    "scale": 1.35
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  },
+  "900c": {
+   "pk": {
+    "kind": "compact",
+    "scale": 1.1904761904761905
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  },
+  "700c": {
+   "pk": {
+    "kind": "compact",
+    "scale": 0.9259259259259259
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  },
+  "500c": {
+   "pk": {
+    "kind": "tb",
+    "scale": 1
+   },
+   "L": {
+    "kind": "compact",
+    "W": 756,
+    "H": 112,
+    "nodes": [
+     {
+      "x": 8,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 136,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 264,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 392,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 520,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     {
+      "x": 648,
+      "y": 22,
+      "w": 100,
+      "h": 72
+     },
+     null,
+     null,
+     null,
+     null
+    ],
+    "bands": [],
+    "edges": [
+     {
+      "e": {
+       "from": 0,
+       "to": 1,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M108 58C118.5 58 118.5 58 129 58",
+      "chip": {
+       "x": 118.5,
+       "y": 58
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M128 53.5L136 58L128 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 1,
+       "to": 2,
+       "input": "a",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M236 58C246.5 58 246.5 46 257 46",
+      "chip": {
+       "x": 246.5,
+       "y": 52
+      },
+      "zone": [
+       236,
+       264
+      ],
+      "arrow": "M256 41.5L264 46L256 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 0,
+       "to": 2,
+       "input": "b",
+       "k": 1,
+       "n": 2
+      },
+      "d": "M108 58C119.2 58 119.2 103 130.4 103L241.6 103C249.3 103 249.3 70 257 70",
+      "chip": {
+       "x": 120.6,
+       "y": 103
+      },
+      "zone": [
+       108,
+       136
+      ],
+      "arrow": "M256 65.5L264 70L256 74.5Z",
+      "skip": true
+     },
+     {
+      "e": {
+       "from": 2,
+       "to": 3,
+       "input": "rows",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M364 58C374.5 58 374.5 58 385 58",
+      "chip": {
+       "x": 374.5,
+       "y": 58
+      },
+      "zone": [
+       364,
+       392
+      ],
+      "arrow": "M384 53.5L392 58L384 62.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 3,
+       "to": 4,
+       "input": "x",
+       "k": 0,
+       "n": 2
+      },
+      "d": "M492 58C502.5 58 502.5 46 513 46",
+      "chip": {
+       "x": 502.5,
+       "y": 52
+      },
+      "zone": [
+       492,
+       520
+      ],
+      "arrow": "M512 41.5L520 46L512 50.5Z",
+      "skip": false
+     },
+     {
+      "e": {
+       "from": 4,
+       "to": 5,
+       "input": "x",
+       "k": 0,
+       "n": 1
+      },
+      "d": "M620 58C630.5 58 630.5 58 641 58",
+      "chip": {
+       "x": 630.5,
+       "y": 58
+      },
+      "zone": [
+       620,
+       648
+      ],
+      "arrow": "M640 53.5L648 58L640 62.5Z",
+      "skip": false
+     }
+    ],
+    "stubs": [
+     {
+      "to": 4,
+      "input": "y",
+      "k": 1,
+      "n": 2,
+      "d": "M495 70L513 70",
+      "arrow": "M512 65.5L520 70L512 74.5Z"
+     }
+    ],
+    "chips": false,
+    "layers": 6
+   }
+  }
+ },
+ "routes": {
+  "": {
+   "r": {
+    "name": "home"
+   },
+   "back": "#/"
+  },
+  "#/": {
+   "r": {
+    "name": "home"
+   },
+   "back": "#/"
+  },
+  "#/p/callrail": {
+   "r": {
+    "name": "pipeline",
+    "id": "callrail",
+    "page": "history",
+    "env": null
+   },
+   "back": "#/p/callrail/history"
+  },
+  "#/p/callrail/history?env=qa": {
+   "r": {
+    "name": "pipeline",
+    "id": "callrail",
+    "page": "history",
+    "env": "qa"
+   },
+   "back": "#/p/callrail/history?env=qa"
+  },
+  "#/p/callrail/runs/prod/20261015T020000Z": {
+   "r": {
+    "name": "run",
+    "id": "callrail",
+    "env": "prod",
+    "runId": "20261015T020000Z"
+   },
+   "back": "#/p/callrail/runs/prod/20261015T020000Z"
+  },
+  "#/p/callrail/runs/prod/20261015T020000Z?tab=events&level=error,warning&step=load": {
+   "r": {
+    "name": "run",
+    "id": "callrail",
+    "env": "prod",
+    "runId": "20261015T020000Z",
+    "tab": "events",
+    "levels": [
+     "error",
+     "warning"
+    ],
+    "step": "load"
+   },
+   "back": "#/p/callrail/runs/prod/20261015T020000Z?tab=events&level=error,warning&step=load"
+  },
+  "#/p/callrail/runs/prod/nope": {
+   "r": {
+    "name": "notfound",
+    "id": "callrail"
+   },
+   "back": "#/"
+  },
+  "#/p/callrail/runs/prod/20261015T020000Z/x": {
+   "r": {
+    "name": "notfound",
+    "id": "callrail"
+   },
+   "back": "#/"
+  }
+ }
+}
