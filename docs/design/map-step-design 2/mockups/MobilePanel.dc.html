@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map step panel · mobile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+.app{--bg:#f6f7f9;--surface:#fff;--surface-2:#f2f4f7;--border:#e3e6eb;--border-strong:#cdd2da;--text:#0e1116;--text-2:#4a5261;--text-3:#636b7a;--accent:#3e4cc9;--accent-soft:#eef0fd;--ok:#137a3a;--ok-bg:#e7f5ec;--ok-border:#b5e0c4;--warn:#8f5300;--warn-bg:#fff3df;--warn-border:#f1cf94;--bad:#b0222a;--bad-bg:#fdecec;--bad-border:#f2bfc2;--neutral:#4a5261;--neutral-bg:#eef0f3;--neutral-border:#d8dce3;--edge:#8a93a3;--map:#6a3fc4;--map-bg:rgba(115,73,204,.07);--shadow-1:0 1px 2px rgba(16,24,40,.05);background:var(--bg);color:var(--text);font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#0a0c0f;--surface:#111418;--surface-2:#181c22;--border:#232931;--border-strong:#323943;--text:#e8eaee;--text-2:#aab1bd;--text-3:#8b93a1;--accent:#949cff;--accent-soft:rgba(148,156,255,.13);--ok:#4fd789;--ok-bg:rgba(79,215,137,.12);--ok-border:rgba(79,215,137,.32);--warn:#f3b34c;--warn-bg:rgba(243,179,76,.12);--warn-border:rgba(243,179,76,.34);--bad:#ff8086;--bad-bg:rgba(255,128,134,.12);--bad-border:rgba(255,128,134,.34);--neutral:#aab1bd;--neutral-bg:#1c2128;--neutral-border:#2c333d;--edge:#6b7482;--map:#b9a2ff;--map-bg:rgba(185,162,255,.08);--shadow-1:none}
+.mono,.key{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:12px;height:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);box-sizing:border-box}
+.pill{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--neutral-border);background:var(--neutral-bg);color:var(--neutral);font-size:11px;font-weight:600;white-space:nowrap;box-sizing:border-box;line-height:1}
+.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-border)}
+.pill.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-border)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-border)}
+.pill.run{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.pill.dash{border-style:dashed}
+.tag{display:inline-flex;align-items:center;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border-strong);border-radius:4px;padding:0 6px;height:20px;box-sizing:border-box;white-space:nowrap}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.vline{height:16px;border-left:2px solid var(--edge);margin-left:50%}
+.vline.dim{border-left-style:dashed;opacity:.6}
+.snode{border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.snode b{font-size:13px;font-weight:600}
+.snode.dim{border-style:dashed;background:transparent;color:var(--text-2)}
+.mapnode{width:calc(100% - 10px);box-sizing:border-box;text-align:left;font-family:inherit;font-size:12px;color:var(--text);background:var(--surface);border:1.5px solid var(--bad);border-radius:10px;padding:10px 12px 8px;display:flex;flex-direction:column;gap:6px;cursor:pointer;margin:0 10px 10px 0;box-shadow:5px 5px 0 -1.5px var(--surface),5px 5px 0 0 var(--border-strong),10px 10px 0 -1.5px var(--surface),10px 10px 0 0 var(--border-strong);outline:2px solid var(--accent);outline-offset:3px}
+.mn-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.maptag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--map);background:var(--map-bg);border-radius:4px;padding:2px 6px}
+.mn-prog{font-size:12px;color:var(--text-2)}
+.mn-prog b{color:var(--text);font-weight:600}
+.mn-prog .f,.mn-prog .f b{color:var(--bad)}
+.mn-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;font-size:11.5px;color:var(--accent);font-weight:600}
+.panel{border-top:3px solid var(--accent);overflow:hidden}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 8px}
+.ph h2{margin:2px 0 0;font-size:17px;font-weight:600}
+.xbtn{width:44px;height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-2);display:grid;place-items:center;padding:0;flex:none}
+.sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;padding:4px 16px 14px;font-size:12px;color:var(--text-2)}
+.sum b{display:block;color:var(--text);font-size:14px;font-weight:600}
+.linkbtn{color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-size:14px;font-weight:600}
+.stripw{background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 16px}
+.sbox{background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.sbox.hot{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+.sbox-n{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;font-weight:600}
+.cnts{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--text-2)}
+.cnts b{color:var(--text)}
+.cnts .bad,.cnts .bad b{color:var(--bad)}
+.sarr{display:flex;justify-content:center;color:var(--edge);height:18px;align-items:center}
+.iflow{display:flex;flex-direction:column;align-items:stretch}
+.inode{box-sizing:border-box;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow-1)}
+.inode.loss{border-color:var(--bad-border);background:linear-gradient(var(--bad-bg),var(--bad-bg)),var(--surface)}
+.in-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:20px}
+.in-label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600}
+.gdot{width:7px;height:7px;border-radius:50%;background:var(--map);flex:none}
+.in-name{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;color:var(--text-3)}
+.in-foot{display:flex;align-items:baseline;gap:6px;padding-top:4px}
+.in-count{font-size:22px;font-weight:600;line-height:1.1;letter-spacing:-.02em}
+.in-sub{font-size:11px;color:var(--text-3)}
+.iedge{display:flex;flex-direction:column;align-items:center;height:60px}
+.ie-line{flex:1;width:0;border-left:3px solid var(--edge)}
+.ie-lab{display:flex;flex-direction:column;align-items:center;line-height:1.1;font-size:10px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 6px}
+.ie-lab b{font-size:13px;font-weight:600;color:var(--text)}
+.ie-arrow{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--edge)}
+.tools{display:flex;flex-direction:column;gap:10px;padding:14px 16px 8px}
+.search{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text-3)}
+.search input{border:0;outline:0;background:transparent;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:14px;color:var(--text);flex:1;min-width:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);font:inherit;font-size:13px;font-weight:500}
+.chip .n{color:var(--text-3);font-size:12px}
+.chip[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+.chip[aria-pressed="true"] .n{color:inherit;opacity:.8}
+.sort{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)}
+.sel{flex:1;height:40px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:14px;padding:0 10px}
+.btn{height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.count{margin:0;padding:0 16px 8px;font-size:12px;color:var(--text-2)}
+.items{list-style:none;margin:0;padding:0}
+.row{display:flex;flex-direction:column;gap:4px;padding:11px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2)}
+.r1{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.r1 .key{font-size:14px;font-weight:500;color:var(--text);overflow-wrap:anywhere;min-width:0}
+.r2{overflow-wrap:anywhere}
+.r2.bad{color:var(--bad)}
+.r3{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.r3 .io{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.r3 .io.lost{color:var(--bad);font-weight:600}
+.dur{display:inline-flex;align-items:center;gap:4px}
+.dur.live{color:var(--accent);font-weight:500}
+.dur.slow{color:var(--warn);font-weight:600}
+.more{padding:14px 16px 18px;border-top:1px solid var(--border)}
+</style>
+</helmet>
+<div class="app {{themeCls}}" style="width: 390px; min-height: 2050px; box-sizing: border-box; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 12px; color: var(--text-3)">Google Ads › Sat, Oct 17, 15:20 › Steps</div>
+
+<section class="card" aria-label="Pipeline graph" style="padding: 12px 14px 4px">
+<div class="snode"><b>Prepare</b><span class="pill ok">Fine</span></div>
+<div class="vline"></div>
+<button class="mapnode" type="button" aria-expanded="true" aria-controls="m-panel" aria-label="Accounts, map step, running: 5 done, 4 running, 1 failed. Hide items">
+<span class="mn-top"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span><span class="maptag"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>Map</span></span>
+<span style="font-size: 14px; font-weight: 600">Accounts</span>
+<span class="mn-prog"><b>5</b> done · <b>4</b> running · <span class="f"><b>1</b> failed</span></span>
+<span style="display: flex; flex-wrap: wrap; gap: 4px"><span class="pill bad">1 failed item</span><span class="pill bad dash">items lost data</span></span>
+<span class="mn-foot"><span>Hide items</span><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(180deg)"><path d="m6 9 6 6 6-6"></path></svg></span>
+</button>
+<div class="vline dim"></div>
+<div class="snode dim" style="margin-bottom: 10px"><b>Merge</b><span class="pill">Waiting</span></div>
+</section>
+
+<section id="m-panel" class="card panel" aria-labelledby="m-title">
+<div class="ph">
+<div><div class="eyebrow" style="color: var(--map)">Map step</div><h2 id="m-title">Accounts</h2></div>
+<button class="xbtn" type="button" aria-label="Close items panel"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px"><span class="pill run">Running</span><span class="pill bad">1 failed item</span><span class="tag">concurrency limit 5</span></div>
+<div class="sum">
+<span>loop<b>31 s</b></span>
+<span>median · p95<b>≈3.7 s · ≈4.1 s</b></span>
+<span>slowest<a class="linkbtn mono" href="ItemFailed.dc.html" style="display: block">acct-7 (9.1 s)</a></span>
+<span>rows in → out<b>446 → 242</b></span>
+</div>
+<div class="stripw">
+<div class="eyebrow" style="margin-bottom: 8px">Item flow · all items</div>
+<div class="iflow" role="list" aria-label="Item flow: fetch, transform, load">
+<div class="inode" role="listitem"><span class="in-head"><span class="pill ok">✓ Fine</span></span><span class="in-label"><i class="gdot"></i>fetch</span><span class="in-name">inner step 1</span><span class="in-foot"><span class="in-count">10</span><span class="in-sub">items done</span></span></div>
+<div class="iedge" aria-hidden="true"><span class="ie-line"></span><span class="ie-lab">items<b>10</b></span><span class="ie-line"></span><span class="ie-arrow"></span></div>
+<div class="inode loss" role="listitem"><span class="in-head"><span class="pill bad">1 failed</span><span class="pill run">1 running</span><span class="pill bad">bottleneck</span></span><span class="in-label"><i class="gdot"></i>transform</span><span class="in-name">inner step 2</span><span class="in-foot"><span class="in-count">7</span><span class="in-sub">items done</span></span></div>
+<div class="iedge" aria-hidden="true"><span class="ie-line"></span><span class="ie-lab">items<b>7</b></span><span class="ie-line"></span><span class="ie-arrow"></span></div>
+<div class="inode" role="listitem"><span class="in-head"><span class="pill run">1 running</span></span><span class="in-label"><i class="gdot"></i>load</span><span class="in-name">inner step 3</span><span class="in-foot"><span class="in-count">5</span><span class="in-sub">items done</span></span></div>
+</div>
+</div>
+<div class="tools">
+<div class="search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><label class="sr" for="m-q">Search items by key</label><input id="m-q" type="search" placeholder="Search key…"></div>
+<div class="chips" role="group" aria-label="Filter items by status">
+<button class="chip" type="button" aria-pressed="true">All <span class="n">10</span></button>
+<button class="chip" type="button" aria-pressed="false">Failed <span class="n">1</span></button>
+<button class="chip" type="button" aria-pressed="false">Running <span class="n">4</span></button>
+<button class="chip" type="button" aria-pressed="false">Done <span class="n">5</span></button>
+<button class="chip" type="button" aria-pressed="false">Slow <span class="n">2</span></button>
+</div>
+<div class="sort"><label for="m-sort">Sort</label><select id="m-sort" class="sel"><option>Order started</option><option>Duration</option><option>Key</option></select><button class="btn" type="button" aria-label="Sort direction: ascending. Switch to descending">↑ Asc</button></div>
+</div>
+<p class="count" role="status" aria-live="polite">10 items · order started ↑</p>
+<ul class="items" aria-label="Items">
+<sc-for list="{{rows}}" as="it" hint-placeholder-count="10">
+<li><a class="row" href="{{it.href}}">
+<span class="r1"><span class="key">{{it.key}}</span>
+<sc-if value="{{it.isDone}}"><span class="pill ok"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span></sc-if>
+<sc-if value="{{it.isRun}}"><span class="pill run"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></sc-if>
+<sc-if value="{{it.isFail}}"><span class="pill bad"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span></sc-if>
+</span>
+<sc-if value="{{it.hasWhere}}"><span class="r2 {{it.whereCls}}">{{it.where}}</span></sc-if>
+<span class="r3"><span class="dur {{it.durCls}}"><svg class="ic s" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7"></circle><path d="M12 14v-3M10 3h4M12 3v4"></path></svg>{{it.dur}}</span><span class="io {{it.ioCls}}">{{it.io}}</span>
+<sc-if value="{{it.slow}}"><span class="pill warn">{{it.slowTxt}}</span></sc-if>
+<sc-if value="{{it.lost}}"><span class="pill bad dash">data lost</span></sc-if>
+</span>
+</a></li>
+</sc-for>
+</ul>
+<div class="more"><button class="btn" type="button" disabled style="width: 100%; justify-content: center; opacity: .55">Show more</button></div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":390,"height":2050}}'>
+class Component extends DCLogic {
+renderVals() {
+const data = [
+{ key: 'acct-1', st: 'done', dur: '3.4 s', io: '52 → 52' },
+{ key: 'acct-2', st: 'done', dur: '3.9 s', io: '47 → 47' },
+{ key: 'acct-3', st: 'done', dur: '4.1 s', io: '48 → 0', lost: true, where: 'transform · in 48 → out 0', href: 'MobileItem.dc.html' },
+{ key: 'acct-4', st: 'done', dur: '3.2 s', io: '50 → 50' },
+{ key: 'acct-5', st: 'done', dur: '3.7 s', io: '44 → 44' },
+{ key: 'acct-6', st: 'run', dur: 'running 12 s', io: '49 → …', where: 'at transform', slow: '×3.2', href: 'ItemRunning.dc.html' },
+{ key: 'acct-7', st: 'fail', dur: '9.1 s', io: '51 → —', where: 'transform · ValueError', slow: '×2.5', href: 'ItemFailed.dc.html' },
+{ key: 'acct-8', st: 'run', dur: 'running 6 s', io: '46 → …', where: 'at load' },
+{ key: 'customer_00012345.part-0007', st: 'run', dur: 'running 4 s', io: '112 → …', where: 'fetch done · transform next' },
+{ key: 'acct-10', st: 'run', dur: 'running 2 s', io: '33 → …', where: 'transform done · load next' }
+];
+return {
+themeCls: (this.props.theme ?? 'dark') === 'dark' ? 'dark' : '',
+rows: data.map((r) => ({
+key: r.key, href: r.href || 'ItemFailed.dc.html',
+isDone: r.st === 'done', isRun: r.st === 'run', isFail: r.st === 'fail',
+dur: r.dur, durCls: r.slow ? 'slow' : (r.st === 'run' ? 'live' : ''),
+io: r.io, ioCls: r.lost ? 'lost' : '',
+hasWhere: !!r.where, where: r.where || '', whereCls: (r.st === 'fail' || r.lost) ? 'bad' : '',
+slow: !!r.slow, slowTxt: 'slow ' + (r.slow || ''), lost: !!r.lost
+}))
+};
+}
+}
+</script>
+</body>
+</html>

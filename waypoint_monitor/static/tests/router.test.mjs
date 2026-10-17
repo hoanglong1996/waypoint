@@ -100,3 +100,12 @@ test('a run address without the tab has no query', () => {
   const route = { name: 'run', id: 'a', env: 'qa', runId: '20261015T020000Z', tab: 'steps', levels: ['error'] };
   assert.equal(buildRoute(route), '#/p/a/runs/qa/20261015T020000Z');
 });
+
+test('the item page keeps its List | Graph choice in the address', () => {
+  const base = '#/p/g/runs/prod/20261017T020301Z/steps/accounts/items/acct-7';
+  assert.equal(parseRoute(base).view, undefined);
+  assert.equal(parseRoute(base + '?view=graph').view, 'graph');
+  assert.equal(parseRoute(base + '?view=nope').view, undefined);
+  assert.equal(buildRoute(parseRoute(base + '?view=list')), base + '?view=list');
+  assert.equal(buildRoute(parseRoute(base)), base);
+});

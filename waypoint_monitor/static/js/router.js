@@ -8,7 +8,7 @@
  *   #/p/<id>/runs/<env>/<run>   -> {name: 'run', id, env, runId}
  *   ...?tab=events[&level=a,b][&step=s]  (run only) adds tab: 'events', levels: [...], step: s | null
  *   ...?map=<step>[&items=failed|running|done|all][&slow=1][&sort=duration-desc][&q=text]  (run only) adds map, items, slow, sort, q
- *   #/p/<id>/runs/<env>/<run>/steps/<map>/items/<key> -> {name: 'item', id, env, runId, map, key}  (specs/014)
+ *   #/p/<id>/runs/<env>/<run>/steps/<map>/items/<key>[?view=list|graph] -> {name: 'item', id, env, runId, map, key[, view]}  (specs/014)
  *   anything else               -> {name: 'notfound', id}
  * See specs/010-history-first-run-detail/contracts/routes.md.
  */
@@ -26,6 +26,7 @@ export function withoutPanel(hash) {
   if (q < 0) return h;
   const params = new URLSearchParams(h.slice(q + 1));
   PANEL_PARAMS.forEach((k) => params.delete(k));
+  params.delete('view'); // the item page's List | Graph choice
   const rest = params.toString();
   return h.slice(0, q) + (rest ? '?' + rest : '');
 }
@@ -78,7 +79,8 @@ export function parseRoute(hash) {
       const map = decode(parts[6]);
       const key = decode(parts[8]);
       if (env && runId && RUN_ID.test(runId) && map && MAP_NAME.test(map) && key && ITEM_KEY.test(key)) {
-        return { name: 'item', id, env, runId, map, key };
+        const view = new URLSearchParams(query).get('view');
+        return view === 'list' || view === 'graph' ? { name: 'item', id, env, runId, map, key, view } : { name: 'item', id, env, runId, map, key };
       }
     }
   }
@@ -104,7 +106,8 @@ export function buildRoute(route) {
   }
   if (route.name === 'item') {
     return base + '/runs/' + encodeURIComponent(route.env) + '/' + encodeURIComponent(route.runId) +
-      '/steps/' + encodeURIComponent(route.map) + '/items/' + encodeURIComponent(route.key);
+      '/steps/' + encodeURIComponent(route.map) + '/items/' + encodeURIComponent(route.key) +
+      (route.view === 'list' || route.view === 'graph' ? '?view=' + route.view : '');
   }
   if (route.name !== 'pipeline') return '#/';
   return base + '/history' + (route.env ? '?env=' + encodeURIComponent(route.env) : '');

@@ -3,6 +3,7 @@
    cannot clash with the rest of the dashboard). Every string that comes from a pipeline (keys, step names, error text,
    event text) goes through `esc`; nothing here uses innerHTML on raw data. Status is always an icon plus words. */
 import { elapsedLabel, esc, fmt } from './model.js';
+import { I } from './ui.js';
 import {
   fmtMs, itemFlowStrip, itemRowView, mapAria, mapLostText, mapNodeTone, mapPillText, mapProgressParts, runningWord,
 } from './map-model.js';
@@ -141,23 +142,61 @@ export function summaryHTML({ map, line, slowest, io, slowestHref }) {
   return parts.join('');
 }
 
+/* ---------- flow nodes and edges: the look of the pipeline graph (.gnode / .gedge), laid out as plain flex ---------- */
+
+/** A status pill of the graph: icon and words. `tone` is a .gpill--<tone> of styles.css. */
+const gpill = (tone, name, text) => '<span class="gpill gpill--' + tone + '">' + icon12(name) + '<span class="gpill__txt">' + esc(text) + '</span></span>';
+
+/**
+ * One node of a flow: pills and time on top, the step name with the map's dot, a small line, the big count.
+ * `o`: {tag, cls, attrs, pills, time, name, sub, subCls, count (html), countNa, foot}. All text is escaped here.
+ */
+function flowNodeHTML(o) {
+  const tag = o.tag || 'div';
+  return '<' + tag + ' class="gnode gnode--flow' + (o.cls ? ' ' + o.cls : '') + '"' + (o.attrs || '') + '>' +
+    '<span class="gnode__head">' + (o.pills || '') + (o.time ? '<span class="gnode__time num">' + esc(o.time) + '</span>' : '') + '</span>' +
+    '<span class="gnode__label"><i class="gdot gdot--map" aria-hidden="true"></i>' + esc(o.name) + '</span>' +
+    '<span class="gnode__name' + (o.subCls ? ' ' + o.subCls : '') + '">' + esc(o.sub || '') + '</span>' +
+    '<span class="gnode__foot"><span class="gnode__count num' + (o.countNa ? ' gnode__count--na' : '') + '">' + o.count + '</span>' +
+    (o.foot ? '<span class="gnode__sub">' + esc(o.foot) + '</span>' : '') + '</span></' + tag + '>';
+}
+
+/** The edge between two nodes: a 3 px line, a count label and an arrowhead. `kind` '' | 'lost' | 'off'; `value` null for a text-only label. */
+function flowEdgeHTML(word, value, kind = '') {
+  return '<div class="iedge' + (kind ? ' iedge--' + kind : '') + '" aria-hidden="true"><span class="iedge__line"></span>' +
+    '<span class="iedge__chip">' + esc(word) + (value != null ? '<b class="num">' + esc(value) + '</b>' : '') + '</span>' +
+    '<span class="iedge__line"></span><span class="iedge__arrow"></span></div>';
+}
+
 /** The item flow with aggregate counts across every item. */
 export function stripHTML(map, declared) {
   const boxes = itemFlowStrip(map, declared);
+  const live = map.state === 'running' ? 'spinner' : map.state === 'died' ? 'power' : 'warn';
+  const liveTone = map.state === 'running' ? 'running' : map.state === 'died' ? 'died' : 'stalled';
   const word = runningWord(map.state);
-  const cnt = (kind, n, label) => {
-    const ic = kind === 'done' ? 'check' : kind === 'failed' ? 'failed' : kind === 'notrun' ? 'notrun' : kind === 'running' ? (map.state === 'running' ? 'spinner' : map.state === 'died' ? 'power' : 'warn') : 'wait';
-    return '<span class="mp-cnt mp-cnt--' + kind + '">' + icon12(ic) + '<b>' + esc(fmt(n)) + '</b> ' + esc(label) + '</span>';
-  };
+  const failedBoxes = boxes.filter((b) => b.hot).length;
+  const mostFailed = Math.max(0, ...boxes.map((b) => (b.parts.find((p) => p.kind === 'failed') || { n: 0 }).n));
+  const doneOf = (b) => (b.parts.find((p) => p.kind === 'done') || { n: 0 }).n;
   const html = boxes.map((b, i) => {
-    const counts = b.empty
-      ? '<span class="mp-cnt mp-cnt--nr">' + esc(b.text) + '</span>'
-      : b.parts.map((p) => cnt(p.kind, p.n, p.kind === 'running' ? word : p.word)).join('');
-    return (i ? '<span class="mp-sarr" aria-hidden="true">' + icon('arrow') + '</span>' : '') +
-      '<div class="mp-sbox' + (b.hot ? ' mp-sbox--hot' : b.busy ? ' mp-sbox--busy' : '') + '"><div class="mp-sbox__h"><span class="mp-sbox__n">' + esc(b.name) + '</span>' +
-      (b.hot ? pill('bad', null, 'failures here') : '<span class="mp-tag">' + b.order + '</span>') + '</div><div class="mp-cnts">' + counts + '</div></div>';
+    const n = (kind) => (b.parts.find((p) => p.kind === kind) || { n: 0 }).n;
+    let pills = '';
+    if (b.empty) pills = gpill('unreached', 'wait', b.text);
+    else {
+      if (n('running')) pills += gpill(liveTone, live, fmt(n('running')) + ' ' + word);
+      if (n('failed')) pills += gpill('loss', 'failed', fmt(n('failed')) + ' failed');
+      if (n('notrun')) pills += gpill('unreached', 'notrun', fmt(n('notrun')) + ' not run');
+      if (!pills) pills = gpill('ok', 'check', 'Fine');
+      if (b.hot && failedBoxes > 1 && n('failed') === mostFailed) pills += gpill('stopped', 'warn', 'most failures');
+    }
+    const node = flowNodeHTML({
+      cls: (b.hot ? 'gnode--loss' : b.busy && map.state === 'running' ? 'gnode--running' : ''),
+      attrs: ' role="listitem"', pills, name: b.name, sub: 'inner step ' + b.order, count: esc(fmt(doneOf(b))), foot: 'items done',
+    });
+    return (i ? flowEdgeHTML('items', fmt(doneOf(boxes[i - 1]))) : '') + node;
   }).join('');
-  return '<div class="mp-eyebrow">Item flow · counts across every item</div><div class="mp-strip">' + html + '</div>';
+  return '<div class="mp-eyebrow">Item flow · counts across every item</div>' +
+    '<div class="iflow" role="list" aria-label="Item flow: ' + esc(boxes.map((b) => b.name).join(', ')) + '">' + html + '</div>' +
+    '<div class="iflow-legend"><span><i class="iflow-legend__line" aria-hidden="true"></i>items handed to the next inner step</span><span>big number = items done at this step</span></div>';
 }
 
 /** Notices about partial detail (design: neutral for the record limit, red for failures without a record). */
@@ -238,20 +277,101 @@ export function moreHTML(text, remaining) {
 const when = (d) => (d ? d.toTimeString().slice(0, 8) : '—');
 const msClock = (d) => (d ? d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0') : '—');
 
-/** An inner step of an item: rail bubble, name, state, counts and (when failed) the error block drawn by the caller. */
-export function innerStepHTML(s, isLast, errorHTML) {
-  const bub = { done: ['ok', 'check'], failed: ['bad', 'x'], running: ['run', 'spinner'], notrun: ['nr', 'notrun'], waiting: ['wait', 'wait'] }[s.kind] || ['nr', 'wait'];
+const SPILL = { done: ['ok', 'check'], failed: ['loss', 'failed'], running: ['running', 'spinner'], notrun: ['unreached', 'notrun'], waiting: ['waiting', 'wait'] };
+const SCLASS = { done: 'step--ok', failed: 'step--loss', running: 'step--running', notrun: 'step--missing', waiting: 'step--missing step--waiting' };
+const clockOf = (d) => (d ? d.toTimeString().slice(0, 8) : null);
+const liveSpan = (s) => '<span class="num mp-live" data-elapsed="' + s.liveSeconds + '" data-fetched="' + s.fetchedAt + '">' + esc(elapsedLabel(s.liveSeconds)) + '</span>';
+
+/** Segmented List | Graph control of the item page: buttons with aria-pressed (the choice lives in the address). */
+export function innerViewToggleHTML(view) {
+  const b = (v, ico, label) => '<button type="button" class="segmented__btn" data-mp-view="' + v + '" aria-pressed="' + (view === v ? 'true' : 'false') + '">' + ico + '<span>' + label + '</span></button>';
+  return '<div class="segmented segmented--view" role="group" aria-label="Inner steps view">' + b('list', I.list, 'List') + b('graph', I.graph, 'Graph') + '</div>';
+}
+
+/**
+ * The inner steps as the run page's step list (.steps / .step__rail / .step__card): name | inputs | output, the error block
+ * inside the card of the failed step. `errors[i]` is the block drawn by the caller for step i.
+ */
+export function innerStepListHTML(view, errors) {
+  const rows = view.map((s, i) => {
+    const prev = i > 0 ? view[i - 1].name : null;
+    const [, ic] = SPILL[s.kind] || SPILL.waiting;
+    const when = s.kind === 'done' || s.kind === 'failed' ? clockOf(s.finishedAt) : null;
+    const time = '<div class="step__time">' + icon12(ic) + esc(s.label) + (when ? ' ' + esc(when) : '') + (s.tookText ? ' · took ' + esc(s.tookText) : '') +
+      (s.lost ? lostFlag() : '') + (s.unplanned ? '<span class="mp-tag">not in flow</span>' : '') + '</div>';
+    let chip;
+    if (s.kind === 'notrun' || s.kind === 'waiting') chip = '<span class="chip chip--none">' + (prev ? 'expects ' + esc(prev) : 'waiting to start') + '</span>';
+    else if (!prev || s.inText == null) chip = '<span class="chip chip--none">input · ' + esc(s.inText == null ? 'none reported' : s.inText) + '</span>';
+    else chip = '<span class="chip"><svg class="chip__arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' + esc(prev) + ' <b>' + esc(s.inText) + '</b></span>';
+    let out;
+    if (s.kind === 'running') out = '<div class="step__count num">' + liveSpan(s) + '</div><div class="step__sub">running now</div>';
+    else if (s.kind === 'notrun') out = '<div class="step__missing-msg">skipped · ' + esc(s.note ? s.note.replace(/^Skipped because /, '').replace(/\.$/, '') : 'an earlier step failed') + '</div>';
+    else if (s.kind === 'waiting') out = '<div class="step__missing-msg">waiting for an earlier step</div>';
+    else if (s.kind === 'failed') out = '<div class="step__count step__count--na">—</div><div class="step__sub">no output</div>';
+    else out = '<div class="step__count num">' + esc(s.outText == null ? 'n/a' : s.outText) + '</div><div class="step__sub">rows out</div>';
+    return '<li class="step ' + SCLASS[s.kind] + '"><div class="step__rail"><span class="step__node">' + (i + 1) + '</span></div>' +
+      '<div class="step__card"><div class="step__name"><div class="step__title">' + esc(s.name) + '</div>' + time + '</div>' +
+      '<div class="step__inputs">' + chip + '</div><div class="step__output">' + out + '</div>' +
+      (errors && errors[i] ? '<div class="step__err">' + errors[i] + '</div>' : '') + '</div></li>';
+  }).join('');
+  return '<ol class="steps steps--inner">' + rows + '</ol>';
+}
+
+/**
+ * The inner steps as the graph: a node button per step, an edge with rows handed on (red dashed when the data was lost,
+ * grey dashed when the next step did not run or is waiting). `sel` is the selected step's name.
+ */
+export function innerStepGraphHTML(view, sel) {
+  const html = view.map((s, i) => {
+    const prev = i > 0 ? view[i - 1].name : null;
+    const [tone, ic] = SPILL[s.kind] || SPILL.waiting;
+    let sub = '';
+    let subCls = '';
+    if (s.kind === 'failed') { sub = s.error && s.error.type ? s.error.type : 'error'; subCls = 'gnode__name--bad'; }
+    else if (s.kind === 'notrun') sub = prev ? 'expects ' + prev : 'not run';
+    else if (s.kind === 'waiting') sub = prev ? 'after ' + prev : 'waiting to start';
+    else if (s.kind === 'running') sub = 'running now';
+    else sub = s.inText == null ? 'no input reported' : (prev ? 'in ' : 'input ') + s.inText;
+    const live = s.kind === 'running' && s.liveSeconds != null;
+    const na = !live && (s.kind !== 'done' || s.outText == null);
+    const node = flowNodeHTML({
+      tag: 'button',
+      cls: (s.kind === 'failed' || s.lost ? 'gnode--loss' : s.kind === 'running' ? 'gnode--running' : s.kind === 'notrun' ? 'gnode--unreached' : s.kind === 'waiting' ? 'gnode--waiting' : '') + (sel === s.name ? ' is-selected' : ''),
+      attrs: ' type="button" data-mp-step="' + esc(s.name) + '" aria-pressed="' + (sel === s.name ? 'true' : 'false') + '"',
+      pills: gpill(tone, ic, s.label) + (s.lost ? gpill('loss', 'lost', 'data lost') : ''),
+      time: s.kind === 'running' ? '' : s.tookText,
+      name: s.name, sub, subCls,
+      count: live ? liveSpan(s) : esc(s.kind === 'done' && s.outText != null ? s.outText : '—'),
+      countNa: na, foot: s.kind === 'done' && s.outText != null ? 'rows out' : s.kind === 'failed' ? 'no output' : '',
+    });
+    let edge = '';
+    if (i) {
+      const p = view[i - 1];
+      if (s.kind === 'notrun') edge = flowEdgeHTML('not run', null, 'off');
+      else if (s.kind === 'waiting') edge = flowEdgeHTML('waiting', null, 'off');
+      else if (p.outText === '0') edge = flowEdgeHTML('rows', '0', 'lost');
+      else edge = flowEdgeHTML('rows', p.outText == null ? 'n/a' : p.outText);
+    }
+    return edge + node;
+  }).join('');
+  return '<div class="iflow" role="group" aria-label="Inner steps graph: select a step to see its detail">' + html + '</div>' +
+    '<div class="iflow-legend"><span><i class="iflow-legend__line" aria-hidden="true"></i>rows handed to the next step</span>' +
+    '<span><i class="iflow-legend__line iflow-legend__line--lost" aria-hidden="true"></i>data lost</span>' +
+    '<span><i class="iflow-legend__line iflow-legend__line--off" aria-hidden="true"></i>not run / waiting</span><span>Select a step to see its detail</span></div>';
+}
+
+/** Detail of the selected step below the graph: state, counts, time and (when failed) the error block drawn by the caller. */
+export function innerStepDetailHTML(s, errorHTML) {
+  const [tone, ic] = SPILL[s.kind] || SPILL.waiting;
   const stats = [];
   if (s.inText != null) stats.push('<span>in <b>' + esc(s.inText) + '</b></span>');
   if (s.outText != null) stats.push('<span>out <b>' + esc(s.outText) + '</b></span>');
   if (s.tookText != null) stats.push('<span>took <b>' + esc(s.tookText) + '</b></span>');
-  if (s.liveSeconds != null) stats.push('<span>running <span class="num mp-live" data-elapsed="' + s.liveSeconds + '" data-fetched="' + s.fetchedAt + '">' + esc(elapsedLabel(s.liveSeconds)) + '</span></span>');
+  if (s.liveSeconds != null) stats.push('<span>running ' + liveSpan(s) + '</span>');
   if (s.note) stats.push('<span>' + esc(s.note) + '</span>');
-  return '<li class="mp-istep' + (s.dim ? ' mp-dim' : '') + '"><div class="mp-rail"><span class="mp-bub mp-bub--' + bub[0] + '">' + icon12(bub[1]) + '</span>' +
-    (isLast ? '' : '<span class="mp-line' + (s.kind === 'failed' || s.kind === 'running' ? ' mp-line--dash' : '') + '"></span>') + '</div>' +
-    '<div class="mp-sbody"><div class="mp-shead"><span class="mp-sname">' + esc(s.name) + '</span>' + innerStatePill(s.kind) +
-    (s.lost ? lostFlag() : '') + (s.unplanned ? '<span class="mp-tag">not in flow</span>' : '') + '</div>' +
-    (stats.length ? '<div class="mp-sstats">' + stats.join('') + '</div>' : '') + (errorHTML || '') + '</div></li>';
+  return '<div class="mp-sdetail" role="region" aria-label="' + esc(s.name) + ' detail"><div class="mp-shead"><span class="mp-sname">' + esc(s.name) + '</span>' +
+    gpill(tone, ic, s.label) + (s.lost ? lostFlag() : '') + (s.unplanned ? '<span class="mp-tag">not in flow</span>' : '') + '</div>' +
+    (stats.length ? '<div class="mp-sstats">' + stats.join('') + '</div>' : '') + (errorHTML || '') + '</div>';
 }
 
 /** The metrics table of an item (declared limits come from the flow). */

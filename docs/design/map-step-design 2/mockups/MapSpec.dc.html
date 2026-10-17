@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map step spec</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit}
+.app{--bg:#f6f7f9;--surface:#fff;--surface-2:#f2f4f7;--border:#e3e6eb;--border-strong:#cdd2da;--text:#0e1116;--text-2:#4a5261;--text-3:#636b7a;--accent:#3e4cc9;--accent-soft:#eef0fd;--ok:#137a3a;--ok-bg:#e7f5ec;--ok-border:#b5e0c4;--warn:#8f5300;--warn-bg:#fff3df;--warn-border:#f1cf94;--bad:#b0222a;--bad-bg:#fdecec;--bad-border:#f2bfc2;--neutral:#4a5261;--neutral-bg:#eef0f3;--neutral-border:#d8dce3;--map:#6a3fc4;--map-bg:rgba(115,73,204,.07);--shadow-1:0 1px 2px rgba(16,24,40,.05);background:var(--bg);color:var(--text);font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;min-height:100vh;-webkit-font-smoothing:antialiased}
+.app.dark{--bg:#0a0c0f;--surface:#111418;--surface-2:#181c22;--border:#232931;--border-strong:#323943;--text:#e8eaee;--text-2:#aab1bd;--text-3:#8b93a1;--accent:#949cff;--accent-soft:rgba(148,156,255,.13);--ok:#4fd789;--ok-bg:rgba(79,215,137,.12);--ok-border:rgba(79,215,137,.32);--warn:#f3b34c;--warn-bg:rgba(243,179,76,.12);--warn-border:rgba(243,179,76,.34);--bad:#ff8086;--bad-bg:rgba(255,128,134,.12);--bad-border:rgba(255,128,134,.34);--neutral:#aab1bd;--neutral-bg:#1c2128;--neutral-border:#2c333d;--map:#b9a2ff;--map-bg:rgba(185,162,255,.08);--shadow-1:none}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;font-size:.92em}
+.ic{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-1);overflow:hidden}
+.pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--neutral-border);background:var(--neutral-bg);color:var(--neutral);font-size:12px;font-weight:600;white-space:nowrap;box-sizing:border-box;line-height:1}
+.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-border)}
+.pill.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-border)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-border)}
+.pill.run{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.pill.dash{border-style:dashed}
+.pill.ghost{background:transparent;border-style:dashed;color:var(--text-2)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--text);border-color:var(--text);color:var(--surface)}
+.chip.slow{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+h2{margin:0;font-size:17px;font-weight:600;padding:16px 20px 12px;border-bottom:1px solid var(--border)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2);padding:8px 16px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+td{padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:top}
+td.n{font-weight:600;white-space:nowrap}
+td.pr{font-variant-numeric:tabular-nums;color:var(--text-2)}
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}
+.note{padding:16px 20px;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.note:nth-child(2n){border-right:0}
+.note h3{margin:0 0 6px;font-size:14px;font-weight:600}
+.note ul{margin:0;padding-left:18px;font-size:13px;color:var(--text-2);display:flex;flex-direction:column;gap:4px}
+.note li b{color:var(--text);font-weight:600}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;border:1px solid var(--border-strong);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2);color:var(--text)}
+@media (max-width:820px){.notes{grid-template-columns:minmax(0,1fr)}.note{border-right:0}}
+</style>
+</helmet>
+<div class="app {{themeCls}}">
+<main class="wrap" style="padding-top: 40px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 22px">
+<header>
+<div class="eyebrow" style="color: var(--map)">Spec</div>
+<h1 style="margin: 4px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em">Map step — states and interactions</h1>
+<p style="margin: 6px 0 0; font-size: 13px; color: var(--text-2); max-width: 760px">Every state is carried by a text label and an icon; colour only reinforces it. Counts are always “started so far” — never “x of N”, never a percentage bar.</p>
+</header>
+
+<section class="card" aria-labelledby="t1">
+<h2 id="t1">Map step node — status variants</h2>
+<div class="tw"><table>
+<thead><tr><th>State</th><th>Pill (icon + label)</th><th>Progress line</th><th>Node treatment</th><th>When</th></tr></thead>
+<tbody>
+<tr><td class="n">Running</td><td><span class="pill run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></td><td class="pr">6 done · 4 running · 0 failed</td><td>Neutral border</td><td>Loop still open, no failed item.</td></tr>
+<tr><td class="n">Running, with failures</td><td><span class="pill run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span> + <span class="pill bad"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>1 failed item</span></td><td class="pr">5 done · 4 running · <span style="color: var(--bad)">1 failed</span></td><td>Red border</td><td>Loop still open, ≥1 item failed. Stays Running until the loop closes.</td></tr>
+<tr><td class="n">Failed</td><td><span class="pill bad"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span></td><td class="pr">9 done · 0 running · <span style="color: var(--bad)">1 failed</span></td><td>Red border + failed-items pill</td><td>Loop closed, ≥1 item failed.</td></tr>
+<tr><td class="n">Done</td><td><span class="pill ok"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span></td><td class="pr">10 done · 0 running · 0 failed — or “0 items”</td><td>Neutral border</td><td>Loop closed, no failed item (also with 0 items).</td></tr>
+<tr><td class="n">Just started</td><td><span class="pill run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></td><td class="pr">0 started</td><td>Neutral border</td><td>Loop open, no item has begun.</td></tr>
+<tr><td class="n">Stalled</td><td><span class="pill warn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"></path><path d="M12 10v4M12 17v.01"></path></svg>Stalled</span></td><td class="pr">6 done · 4 stalled · 0 failed</td><td>Amber border</td><td>Run is stalled. Running items are counted and shown as stalled.</td></tr>
+<tr><td class="n">Died</td><td><span class="pill bad"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"></path><path d="M6.3 7.5a8 8 0 1 0 11.4 0"></path></svg>Died</span></td><td class="pr">5 done · 4 died · 1 failed</td><td>Red border</td><td>Run died. Running items are counted and shown as died.</td></tr>
+<tr><td class="n">Modifier · data loss</td><td><span class="pill bad dash"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>items lost data</span></td><td class="pr">—</td><td>Extra pill, any state</td><td>≥1 item had an inner step with input but 0 output.</td></tr>
+<tr><td class="n">Modifier · selected</td><td>Footer “Hide items ▴”</td><td class="pr">—</td><td>Accent outline, aria-expanded="true"</td><td>Its panel is open below the graph.</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start">
+<section class="card" aria-labelledby="t2">
+<h2 id="t2">Item status + flags</h2>
+<div class="tw"><table>
+<thead><tr><th>Pill</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><span class="pill run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></td><td>Item in progress. Duration shows a live timer “running 12 s” and the current inner step.</td></tr>
+<tr><td><span class="pill ok"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>Done</span></td><td>All inner steps finished.</td></tr>
+<tr><td><span class="pill bad"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span></td><td>An inner step raised. Row shows “transform · ValueError”.</td></tr>
+<tr><td><span class="pill warn">Stalled</span> <span class="pill bad">Died</span></td><td>Replaces Running when the run is stalled / died.</td></tr>
+<tr><td><span class="pill warn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7"></circle><path d="M12 14v-3M10 3h4M12 3v4"></path></svg>slow ×2.3 median</span></td><td>Flag. Duration (or running time) over ≈2× median. Needs ≥5 finished items.</td></tr>
+<tr><td><span class="pill bad dash"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>data lost</span></td><td>Flag. An inner step got input and returned 0. In → out shown in red.</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section class="card" aria-labelledby="t3">
+<h2 id="t3">Inner step status (inside an item)</h2>
+<div class="tw"><table>
+<thead><tr><th>Pill</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><span class="pill ok">✓ Done</span></td><td>Finished; shows in / out and duration.</td></tr>
+<tr><td><span class="pill run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>Running</span></td><td>Current step of a running item; live timer.</td></tr>
+<tr><td><span class="pill bad"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 9 6 6M15 9l-6 6"></path></svg>Failed</span></td><td>Raised. Error block: type, message, scrollable stack trace, Copy.</td></tr>
+<tr><td><span class="pill ghost"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>Not run</span></td><td>After a failed step in the same item.</td></tr>
+<tr><td><span class="pill ghost"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3v3l5 6-5 6v3M17 3v3l-5 6 5 6v3"></path></svg>Waiting</span></td><td>Item is running; this step not reached yet.</td></tr>
+<tr><td><span class="pill bad dash">data lost</span></td><td>Added next to Done when in &gt; 0 and out = 0.</td></tr>
+</tbody>
+</table></div>
+</section>
+</div>
+
+<section class="card" aria-labelledby="t4">
+<h2 id="t4">Filter chips, search and sort</h2>
+<div class="tw"><table>
+<thead><tr><th>Control</th><th>Looks</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td class="n">Status chips</td><td><span class="chip on">✓ All 10</span> <span class="chip">Failed 1</span> <span class="chip">Running 4</span> <span class="chip">Done 5</span></td><td>One-of-four toggle group, each a button with aria-pressed. Pressed = filled + check mark (not colour alone). Counts are items with a record. A chip with 0 is disabled unless it is the selected one.</td></tr>
+<tr><td class="n">Slow</td><td><span class="chip slow">✓ Slow 2</span></td><td>Independent on/off toggle; combines with the status chip (AND). Disabled with tooltip “needs 5 finished items” when there is no median.</td></tr>
+<tr><td class="n">Search</td><td><span class="mono">Search key…</span></td><td>Case-insensitive “contains” on the item key; 150 ms debounce; matches only items with a record.</td></tr>
+<tr><td class="n">Sort</td><td><span class="chip">Order started ▾</span> <span class="chip">↑ Asc</span></td><td>Labelled select (Order started · Duration · Key) + direction button whose aria-label says the current and next direction. Key sort is natural (acct-2 before acct-10).</td></tr>
+<tr><td class="n">Default on open</td><td>—</td><td>Running / Done: All, order started ↑. Failed: <b>Failed pre-selected</b> with the hint “Failed is pre-selected because this map step failed · Show all”. In All on a failed step, failed rows sort to the top.</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section class="card" aria-labelledby="t5">
+<h2 id="t5">Interaction notes</h2>
+<div class="notes">
+<div class="note"><h3>Open / close the panel</h3><ul>
+<li>Click, <kbd>Enter</kbd> or <kbd>Space</kbd> on the node toggles it; node has aria-expanded + aria-controls.</li>
+<li>Panel opens <b>directly under the graph card</b>, scrolls into view if needed; focus moves to the panel heading.</li>
+<li>Close (×) or <kbd>Esc</kbd> while focus is in the panel closes it and returns focus to the node.</li>
+<li>One map panel at a time; choosing another map node swaps the content.</li>
+</ul></div>
+<div class="note"><h3>Filter and sort</h3><ul>
+<li>Applied instantly on the client over the records already loaded; paging resets to the first 50.</li>
+<li>Result line is a polite live region: “1 failed item · sorted by duration ↓”.</li>
+<li>State is kept in the address (<span class="mono">?items=failed&amp;slow=1&amp;sort=duration-desc&amp;q=acct</span>) so a shared link opens the same view.</li>
+<li>“No items match.” offers “Clear search and filters”.</li>
+</ul></div>
+<div class="note"><h3>Show more</h3><ul>
+<li>50 rows per page. “Show more · next 50” appends the next page; focus stays on the button, new rows are announced (“50 more items shown”).</li>
+<li>Below the button: how many more records remain (“101 more failed items with a record”).</li>
+<li>Hidden when every matching record is shown. The list is never drawn all at once.</li>
+</ul></div>
+<div class="note"><h3>Open / close an item</h3><ul>
+<li>Each row is one link; click or <kbd>Enter</kbd> opens the item at its own address <span class="mono">…/steps/accounts/items/acct-7</span>.</li>
+<li>“slowest acct-7 (9.1 s)” opens the same view.</li>
+<li><kbd>Esc</kbd> or “Back to items” returns to the list with filters, scroll position and <b>focus on that row</b> restored.</li>
+<li>Link to an item without a record shows the partial-detail message and a link to the list.</li>
+</ul></div>
+<div class="note"><h3>Refreshing data</h3><ul>
+<li>While the run is active, poll every 5 s (“Live · updated 2 s ago”). Stop when the run ends, stalls or dies.</li>
+<li>Merge by item key: counts and pills update in place; new items append in order started; rows never jump under the pointer or focus.</li>
+<li>Search text, chips, sort, open panel, scroll and focused row are kept. The open item page updates its steps, timer and events the same way.</li>
+<li>Percentiles appear once 5 items have finished; before that the line reads “percentiles need 5 finished items”.</li>
+</ul></div>
+<div class="note"><h3>Text, scale and keyboard</h3><ul>
+<li>Keys, step names, errors and events are plain text in mono; long values wrap anywhere, never truncate.</li>
+<li>Thousands separators on every count; “≈” on median / p95.</li>
+<li>Tab order: node → close → slowest → search → chips → Slow → sort → direction → rows → Show more.</li>
+<li>Touch targets ≥ 44 px on mobile; list rows stack: key + status, then where / error, then duration · in → out · flags.</li>
+</ul></div>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1280,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return { themeCls: (this.props.theme ?? 'light') === 'dark' ? 'dark' : '' };
+}
+}
+</script>
+</body>
+</html>

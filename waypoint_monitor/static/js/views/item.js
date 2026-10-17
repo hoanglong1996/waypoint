@@ -7,7 +7,7 @@ import {
   currentStepOf, fmtMs, innerMetricDecl, itemStepsView, metricCheckText, panelRoute, slowRatio,
 } from '../map-model.js';
 import {
-  innerStepHTML, itemEventsHTML, itemMetricsHTML, itemStatePill, lostFlag, mapIcon, mapIconSmall, slowFlag,
+  innerStepDetailHTML, innerStepGraphHTML, innerStepListHTML, innerViewToggleHTML, itemEventsHTML, itemMetricsHTML, itemStatePill, lostFlag, mapIcon, mapIconSmall, slowFlag,
 } from '../map-ui.js';
 import { esc, fmt, formatMetricValue, hhmmss } from '../model.js';
 import { buildRoute } from '../router.js';
@@ -89,6 +89,17 @@ function headerHTML(ctx, detail) {
       : '');
 }
 
+/** The List | Graph choice: the address, then what the page remembers, then Graph for a running item and List otherwise. */
+const viewOf = (ctx, detail) => (current && current.view) || ctx.route.view || (detail.state === 'running' ? 'graph' : 'list');
+
+/** The step shown below the graph: the one picked, else the failed step, else the one running now. */
+function selectedStep(view) {
+  const pick = current && current.sel;
+  if (pick && view.some((s) => s.name === pick)) return pick;
+  const s = view.find((x) => x.kind === 'failed') || view.find((x) => x.kind === 'running');
+  return s ? s.name : null;
+}
+
 function stepsHTML(ctx, detail) {
   const m = mapOf(ctx);
   const view = itemStepsView(detail).map((s, i) => ({ ...s, liveSeconds: null, fetchedAt: detail.fetchedAt, raw: detail.steps[i] }));
@@ -96,18 +107,24 @@ function stepsHTML(ctx, detail) {
     if (s.kind === 'running' && s.raw.startedAt) s.liveSeconds = Math.max(0, (Date.now() - s.raw.startedAt.getTime()) / 1000);
   });
   const names = (m.def && m.def.map ? m.def.map.steps.map((x) => x.name) : view.map((s) => s.name)).join(' → ');
-  const rows = view.map((s, i) => {
-    const err = s.error ? errorBlockHTML({ env: ctx.run.env, id: ctx.run.id }, { name: ctx.route.key + '|' + s.name, error: s.error }, false) : '';
-    return innerStepHTML(s, i === view.length - 1, err);
-  }).join('');
+  const errorOf = (s) => (s.error ? errorBlockHTML({ env: ctx.run.env, id: ctx.run.id }, { name: ctx.route.key + '|' + s.name, error: s.error }, false) : '');
+  const mode = viewOf(ctx, detail);
   const own = detail.error
     ? '<div class="mp-own-error">' + errorBlockHTML({ env: ctx.run.env, id: ctx.run.id }, { name: ctx.route.key + '|item', error: detail.error }, false) + '</div>'
     : '';
   const compact = detail.compact
     ? '<p class="mp-note">This item has a short record: its stack trace, metrics and detailed counts are not kept for items beyond the first 1,000.</p>'
     : '';
-  return '<div class="mp-sec-h"><h2 id="mp-st-h">Inner steps</h2><span class="mp-faint">' + esc(names) + '</span></div>' +
-    own + (view.length ? '<ol class="mp-isteps">' + rows + '</ol>' : '<p class="mp-note">No inner step has reported for this item yet.</p>') + compact;
+  let body = '<p class="mp-note">No inner step has reported for this item yet.</p>';
+  if (view.length && mode === 'graph') {
+    const sel = selectedStep(view);
+    const chosen = view.find((s) => s.name === sel);
+    body = '<div class="mp-igraph">' + innerStepGraphHTML(view, sel) + (chosen ? innerStepDetailHTML(chosen, errorOf(chosen)) : '') + '</div>';
+  } else if (view.length) {
+    body = '<div class="mp-ilist">' + innerStepListHTML(view, view.map(errorOf)) + '</div>';
+  }
+  return '<div class="mp-sec-h"><h2 id="mp-st-h">Inner steps</h2><span class="mp-sec-h__tools"><span class="mp-faint">' +
+    esc(mode === 'graph' ? 'select a step to trace it' : names) + '</span>' + innerViewToggleHTML(mode) + '</span></div>' + own + body + compact;
 }
 
 function metricsHTML(ctx, detail) {
@@ -175,7 +192,14 @@ function paint() {
   const part = (k) => doc.querySelector('[data-i="' + k + '"]');
   put(part('crumb'), crumbHTML(ctx));
   put(part('head'), headerHTML(ctx, detail));
+  const held = document.activeElement instanceof Element ? document.activeElement.closest('[data-mp-view], [data-mp-step]') : null;
+  const heldSel = held ? (held.hasAttribute('data-mp-view') ? '[data-mp-view="' + held.getAttribute('data-mp-view') + '"]' : '[data-mp-step="' + CSS.escape(held.getAttribute('data-mp-step')) + '"]') : null;
   put(part('steps'), stepsHTML(ctx, detail));
+  // a live refresh redraws the section: the focused view button or node keeps the focus
+  if (heldSel && (!document.activeElement || document.activeElement === document.body)) {
+    const again = part('steps').querySelector(heldSel);
+    if (again) again.focus({ preventScroll: true });
+  }
   put(part('metrics'), metricsHTML(ctx, detail));
   const sorted = (events || []).slice().sort((a, b) => a.ts - b.ts);
   put(part('events'), itemEventsHTML(sorted, sorted.length + ' event' + (sorted.length === 1 ? '' : 's') + ' · oldest first'));
@@ -217,6 +241,7 @@ export function mountItem(el, ctx) {
   const keep = same ? current : null;
   current = {
     el, ctx, detail: keep ? keep.detail : null, events: keep ? keep.events : [], state: keep ? keep.state : 'loading', focused: keep ? keep.focused : false,
+    view: keep ? keep.view : null, sel: keep ? keep.sel : null,
   };
   if (!el.querySelector('[data-item-doc]') || !same) {
     el.innerHTML = '<div data-item-doc></div>';
@@ -235,6 +260,23 @@ function wire(el) {
   if (!el._itemWired) {
     el._itemWired = true;
     el.addEventListener('click', (ev) => {
+      const pick = ev.target instanceof Element ? ev.target.closest('[data-mp-view], [data-mp-step]') : null;
+      if (pick && current) {
+        const v = pick.getAttribute('data-mp-view');
+        if (v) current.view = v;
+        else current.sel = pick.getAttribute('data-mp-step');
+        const x = window.scrollX;
+        const y = window.scrollY;
+        const focusSel = v ? '[data-mp-view="' + v + '"]' : '[data-mp-step="' + CSS.escape(current.sel) + '"]';
+        paint();
+        const again = el.querySelector(focusSel);
+        if (again) again.focus({ preventScroll: true });
+        window.scrollTo(x, y);
+        // the choice lives in the address; replaceState does not reload the page or move the scroll position
+        const r = { ...current.ctx.route, view: current.view || viewOf(current.ctx, current.detail) };
+        history.replaceState(null, '', buildRoute(r));
+        return;
+      }
       const back = ev.target instanceof Element ? ev.target.closest('[data-mp-back], .mp-crumb__map') : null;
       if (back && current) markReturn(current.ctx.run, current.ctx.route.map);
       const t = ev.target instanceof Element ? ev.target.closest('[data-mp-copylink]') : null;

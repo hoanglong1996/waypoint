@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mapItemDetail, mapItemsPage, mapMapSummary } from '../js/api.js';
 import {
-  emptyHTML, innerStepHTML, itemEventsHTML, itemMetricsHTML, listHTML, mapNodeHTML, moreHTML, noticesHTML, panelShellHTML,
+  emptyHTML, innerStepDetailHTML, innerStepGraphHTML, innerStepListHTML, innerViewToggleHTML, itemEventsHTML, itemMetricsHTML, listHTML, mapNodeHTML, moreHTML, noticesHTML, panelShellHTML,
   preselectHTML, stripHTML, summaryHTML, toolsHTML,
 } from '../js/map-ui.js';
 import {
@@ -64,7 +64,8 @@ test('everything that comes from a pipeline is escaped on the node, the rows and
     steps: [{ name: EVIL, state: 'failed', inputs: [{ name: EVIL, value: 1 }], error: { type: EVIL, message: EVIL, traceback: EVIL } }],
   });
   const step = itemStepsView(detail)[0];
-  assert.ok(noTags(innerStepHTML(step, true, '')));
+  assert.ok(noTags(innerStepListHTML([step], [''])));
+  assert.ok(noTags(innerStepGraphHTML([step], step.name)));
   assert.ok(noTags(itemMetricsHTML([{ step: EVIL, label: EVIL, value: EVIL, check: EVIL }])));
   assert.ok(noTags(itemEventsHTML([{ ts: new Date(0), level: 'error', step: EVIL, message: EVIL, fields: { [EVIL]: EVIL } }], EVIL)));
   assert.ok(noTags(panelShellHTML({ id: 'p', label: EVIL, name: EVIL })));
@@ -88,9 +89,12 @@ test('the summary line shows loop, median, p95, the slowest as a link, rows and 
 test('item flow strip: boxes in order, failures marked in words', () => {
   const html = stripHTML(map(), [{ name: 'fetch' }, { name: 'transform' }]);
   assert.match(html, /Item flow · counts across every item/);
-  assert.match(html, /failures here/);
-  assert.match(html, /<b>10<\/b> done/);
-  assert.match(html, /<b>1<\/b> failed/);
+  assert.match(html, /gnode gnode--flow gnode--loss/);
+  assert.match(html, /1 failed<\/span>/);
+  assert.match(html, /<span class="gnode__count num">10<\/span><span class="gnode__sub">items done<\/span>/);
+  assert.match(html, /<span class="iedge__chip">items<b class="num">10<\/b>/);
+  assert.match(html, /items handed to the next inner step/);
+  assert.doesNotMatch(html, /%|<progress/);
 });
 
 test('notices for partial detail use the exact wording', () => {
@@ -154,14 +158,27 @@ test('inner steps: bubbles and pills with words, not-run is dimmed, running has 
     ],
   });
   const steps = itemStepsView(detail);
-  assert.match(innerStepHTML(steps[0], false, ''), /Done<\/span>/);
-  assert.match(innerStepHTML(steps[1], false, '<div class="step__error"></div>'), /Failed<\/span>[^]*step__error/);
-  const notRun = innerStepHTML(steps[2], true, '');
-  assert.match(notRun, /mp-dim/);
-  assert.match(notRun, /Not run<\/span>/);
-  assert.match(notRun, /Skipped because transform failed\./);
-  const live = innerStepHTML({ ...steps[0], kind: 'running', label: 'Running', liveSeconds: 11.5, fetchedAt: 5 }, false, '');
+  const list = innerStepListHTML(steps, ['', '<div class="step__error"></div>', '']);
+  assert.match(list, /class="steps steps--inner"/);
+  assert.match(list, /step--ok[^]*Done/);
+  assert.match(list, /step--loss[^]*Failed[^]*step__err"><div class="step__error">/);
+  assert.match(list, /step--missing[^]*skipped · transform failed/);
+  assert.match(list, /expects transform/);
+  const graph = innerStepGraphHTML(steps, 'transform');
+  assert.match(graph, /data-mp-step="transform" aria-pressed="true"/);
+  assert.match(graph, /data-mp-step="fetch" aria-pressed="false"/);
+  assert.match(graph, /<span class="iedge__chip">rows<b class="num">2<\/b>/);
+  assert.match(graph, /iedge--off[^]*not run/);
+  const lostView = [{ ...steps[0], outText: '0', lost: true }, { ...steps[0], name: 'next' }];
+  assert.match(innerStepGraphHTML(lostView, null), /iedge--lost[^]*rows<b class="num">0<\/b>/);
+  assert.match(innerStepGraphHTML(lostView, null), /data lost/);
+  const detail2 = innerStepDetailHTML(steps[1], '<div class="step__error"></div>');
+  assert.match(detail2, /role="region" aria-label="transform detail"[^]*Failed[^]*step__error/);
+  const live = innerStepGraphHTML([{ ...steps[0], kind: 'running', label: 'Running', liveSeconds: 11.5, fetchedAt: 5 }], null);
   assert.match(live, /data-elapsed="11.5" data-fetched="5"/);
+  const toggle = innerViewToggleHTML('graph');
+  assert.match(toggle, /data-mp-view="graph" aria-pressed="true"/);
+  assert.match(toggle, /data-mp-view="list" aria-pressed="false"/);
 });
 
 test('events are oldest first lines of plain text', () => {

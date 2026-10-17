@@ -298,6 +298,7 @@ export function itemStepsView(detail) {
       inText: ins.length ? ins.map((x) => (s.inputs.length > 1 ? x.name + ' ' : '') + fmt(x.value)).join(' · ') : null,
       outText: s.output != null ? fmt(s.output) : kind === 'failed' ? '— (none reported)' : live ? '… not yet' : null,
       tookText: s.durationMs != null ? fmtMs(s.durationMs) : null,
+      finishedAt: s.startedAt && s.durationMs != null ? new Date(s.startedAt.getTime() + s.durationMs) : null,
       lost: s.loss || (kind === 'done' && s.output === 0 && s.inputs.some((x) => x.value > 0)),
       unplanned: s.unplanned,
       error: s.error,
