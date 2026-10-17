@@ -1,15 +1,18 @@
 import json
+import math
 import re
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from app.domain.flow import parse_flow
 from app.domain.models import (
     AliveSignal,
     DiedVerdict,
     ErrorInfo,
+    FieldValue,
     Flow,
     ParseResult,
+    RunEvent,
     StartMarker,
     StepFailure,
     StepRecord,
@@ -27,6 +30,13 @@ _KEY = re.compile(rf"^{ROOT}:{_P}:step:(?P<idx>\d{{2,}})-(?P<step>.+)$")
 _MARKER_KEY = re.compile(rf"^{ROOT}:{_P}:running:(?P<idx>\d{{2,}})-(?P<step>.+)$")
 _FLOW_KEY = re.compile(rf"^{ROOT}:{_P}:flow$")
 _FAILED_KEY = re.compile(rf"^{ROOT}:{_P}:failed:(?P<idx>\d{{2,}})-(?P<step>.+)$")
+EVENT_LEVELS = ("info", "warning", "error")
+MAX_EVENT_MESSAGE = 300
+MAX_EVENT_FIELDS = 10
+MAX_EVENT_TEXT = 100
+MAX_EVENT_STEP = 200
+_FIELD_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
+_EVENTS_KEY = re.compile(rf"^{ROOT}:{_P}:events:(?P<level>info|warning|error)$")
 _ALIVE_KEY = re.compile(rf"^{ROOT}:{_P}:alive$")
 _DIED_KEY = re.compile(rf"^{ROOT}:{_P}:died$")
 _ANY_KEY = re.compile(rf"^{ROOT}:(?P<pipeline>[a-z0-9][a-z0-9_-]{{0,39}}):(?P<env>[^:]+):")
@@ -81,6 +91,10 @@ def _validate(pipeline: str, env: str, run_id: str, step: str, raw: str) -> Opti
         return None
     if finished is None:
         return None
+    began = _parse_time(data.get("started_at"))
+    duration = data.get("duration_ms")
+    if not _is_count(duration):  # wrong type: treated as absent, the record stays readable
+        duration = None
     # Only known fields are kept; anything else in the record is dropped.
     return StepRecord(
         pipeline=pipeline,
@@ -91,6 +105,8 @@ def _validate(pipeline: str, env: str, run_id: str, step: str, raw: str) -> Opti
         inputs={str(k): int(v) for k, v in inputs.items()},
         output=output,
         finished_at=finished,
+        started_at=began,
+        duration_ms=duration,
     )
 
 
@@ -184,6 +200,81 @@ def parse_failures(
         else:
             failures.append(failure)
     return failures, unreadable
+
+
+def _event_fields(raw: object) -> Optional[Dict[str, FieldValue]]:
+    """The valid entries of an event's `fields` (at most 10); None when there are none."""
+    if not isinstance(raw, dict):
+        return None
+    out: Dict[str, FieldValue] = {}
+    for name, value in raw.items():
+        if len(out) >= MAX_EVENT_FIELDS:
+            break
+        if not isinstance(name, str) or not _FIELD_NAME.match(name):
+            continue
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and not math.isfinite(value):
+                continue
+            out[name] = value
+        elif isinstance(value, str) and len(value) <= MAX_EVENT_TEXT:
+            out[name] = value
+    return out or None
+
+
+def _validate_event(
+    pipeline: str, env: str, run_id: str, level: str, raw: str
+) -> Optional[RunEvent]:
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict) or data.get("v") != 1 or data.get("level") != level:
+        return None
+    n = data.get("n")
+    ts = _parse_time(data.get("ts"))
+    if not (isinstance(n, int) and not isinstance(n, bool) and n >= 1) or ts is None:
+        return None
+    step = data.get("step")
+    message = data.get("message")
+    return RunEvent(
+        run_id=run_id,
+        level=level,
+        n=n,
+        ts=ts,
+        step=step if isinstance(step, str) and 0 < len(step) <= MAX_EVENT_STEP else None,
+        message=message[:MAX_EVENT_MESSAGE] if isinstance(message, str) and message else None,
+        fields=_event_fields(data.get("fields")),
+    )
+
+
+def parse_events(
+    env: str, pipeline: str, raw: Iterable[Tuple[str, Sequence[str]]]
+) -> Tuple[List[RunEvent], Dict[str, int]]:
+    """Validate `(key, [json, ...])` pairs of event lists: the events and the unreadable count by run.
+
+    Never raises. A damaged element is skipped and counted for its run; keys of other pipelines or
+    environments and keys that are not event lists are not ours and are ignored.
+    """
+    events: List[RunEvent] = []
+    unreadable: Dict[str, int] = {}
+    for key, elements in raw:
+        match = _EVENTS_KEY.match(key)
+        if not match or match["env"] != env or match["pipeline"] != pipeline:
+            continue
+        run_id = match["run"]
+        for element in elements:
+            event = _validate_event(pipeline, env, run_id, match["level"], element)
+            if event is None:
+                unreadable[run_id] = unreadable.get(run_id, 0) + 1
+            else:
+                events.append(event)
+    return events, unreadable
+
+
+def event_list_key(pipeline: str, env: str, run_id: str, level: str) -> str:
+    return f"{ROOT}:{pipeline}:{env}:{run_id}:events:{level}"
 
 
 def _validate_marker(

@@ -1,7 +1,7 @@
 """Where audit records go. A store only needs ``write``."""
 
 import json
-from typing import Dict, Protocol
+from typing import Dict, Protocol, Sequence, Tuple
 
 
 class StepAuditStore(Protocol):
@@ -10,6 +10,11 @@ class StepAuditStore(Protocol):
 
 class NoopStepAuditStore:
     def write(self, key: str, record: Dict[str, object], ttl_seconds: int) -> None:
+        return None
+
+    def push_events(
+        self, items: Sequence[Tuple[str, Sequence[str], int]], ttl_seconds: int
+    ) -> None:
         return None
 
 
@@ -25,3 +30,18 @@ class RedisStepAuditStore:
 
     def write(self, key: str, record: Dict[str, object], ttl_seconds: int) -> None:
         self.client.setex(key, ttl_seconds, json.dumps(record))
+
+    def push_events(
+        self, items: Sequence[Tuple[str, Sequence[str], int]], ttl_seconds: int
+    ) -> None:
+        """Append event JSON to lists, keeping the newest ``cap`` of each and refreshing the TTL.
+
+        ``items`` are ``(key, values, cap)`` triples, written in one transaction. A store that only
+        has ``write`` simply has no ``push_events``: events are then skipped.
+        """
+        pipe = self.client.pipeline(transaction=True)
+        for key, values, cap in items:
+            pipe.rpush(key, *values)
+            pipe.ltrim(key, -cap, -1)
+            pipe.expire(key, ttl_seconds)
+        pipe.execute()  # type: ignore[no-untyped-call]

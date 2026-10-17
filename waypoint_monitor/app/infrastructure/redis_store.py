@@ -1,10 +1,11 @@
 import logging
+import re
 import time
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import redis
 
-from app.domain.parsing import ROOT, pipeline_of_key
+from app.domain.parsing import EVENT_LEVELS, ROOT, event_list_key, pipeline_of_key
 from app.infrastructure.store import StoreUnavailable
 
 _BATCH = 200
@@ -53,6 +54,60 @@ class RedisRecordStore:
 
     def list_failures(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         return self._scan(f"{ROOT}:{pipeline}:{env}:*:failed:*")
+
+    def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
+        """Lengths of the warning and error lists of every run (`SCAN` for the names, one pipelined `LLEN`).
+
+        A `ResponseError` (for example `NOPERM`) is not "store unavailable": the counts are then empty.
+        """
+        pattern = re.compile(
+            rf"^{ROOT}:[^:]+:[^:]+:(?P<run>\d{{8}}T\d{{6}}Z):events:(?P<level>warning|error)$"
+        )
+        try:
+            keys = [
+                str(k)
+                for k in self.client.scan_iter(
+                    match=f"{ROOT}:{pipeline}:{env}:*:events:*", count=500
+                )
+            ]
+            wanted = [(k, m["run"], m["level"]) for k in keys if (m := pattern.match(k))]
+            if not wanted:
+                return {}
+            pipe = self.client.pipeline(transaction=False)
+            for key, _run, _level in wanted:
+                pipe.llen(key)
+            lengths = pipe.execute()  # type: ignore[no-untyped-call]
+        except redis.ResponseError as exc:
+            self._warn_once(f"Could not read event counts: {exc}")
+            return {}
+        except redis.RedisError as exc:
+            raise StoreUnavailable(str(exc)) from exc
+        counts: Dict[str, Dict[str, int]] = {}
+        for (_key, run, level), length in zip(wanted, lengths, strict=False):
+            counts.setdefault(run, {"warning": 0, "error": 0})[level] = int(length or 0)
+        return counts
+
+    def read_events(self, env: str, pipeline: str, run_id: str) -> List[Tuple[str, List[str]]]:
+        """`LRANGE 0 -1` of the three event lists of one run; a refused read gives nothing."""
+        out: List[Tuple[str, List[str]]] = []
+        try:
+            for level in EVENT_LEVELS:
+                key = event_list_key(pipeline, env, run_id, level)
+                items = self.client.lrange(key, 0, -1)
+                if items:
+                    out.append((key, [str(i) for i in items]))  # type: ignore[union-attr]
+        except redis.ResponseError as exc:
+            self._warn_once(f"Could not read events: {exc}")
+            return []
+        except redis.RedisError as exc:
+            raise StoreUnavailable(str(exc)) from exc
+        return out
+
+    def _warn_once(self, text: str) -> None:
+        now = time.monotonic()
+        if now - self._last_warning >= _WARN_EVERY_SECONDS:
+            self._last_warning = now
+            log.warning(text)
 
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
         """`SET key value NX PX <remaining life of the heartbeat item>`; False on any failure."""

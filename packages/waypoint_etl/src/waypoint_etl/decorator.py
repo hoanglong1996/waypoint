@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional, ParamSpec, TypeVar,
 
 from waypoint_etl import registry
 from waypoint_etl.auditor import StepAuditor
+from waypoint_etl.events import current_step
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -59,11 +60,14 @@ def audited_step(
                 if auditor is None:
                     return await async_fn(*args, **kwargs)
                 index = auditor.begin(name)
+                token = current_step.set(name)
                 try:
                     result = await async_fn(*args, **kwargs)
                 except Exception as exc:
                     auditor.fail(name, index, exc)
                     raise
+                finally:
+                    current_step.reset(token)
                 auditor.finish(
                     name,
                     index,
@@ -81,11 +85,14 @@ def audited_step(
             if auditor is None:
                 return fn(*args, **kwargs)
             index = auditor.begin(name)
+            token = current_step.set(name)
             try:
                 result = fn(*args, **kwargs)
             except Exception as exc:
                 auditor.fail(name, index, exc)
                 raise
+            finally:
+                current_step.reset(token)
             auditor.finish(
                 name,
                 index,

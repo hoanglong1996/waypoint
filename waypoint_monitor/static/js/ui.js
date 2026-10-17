@@ -7,6 +7,7 @@ export const I = {
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   timer: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4M9.5 2.5h5"/></svg>',
+  stopwatch: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7.5"/><path d="M12 14l3-3M9.5 2.5h5M12 2.5v4"/></svg>',
   info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
   database: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v13c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-13M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></svg>',
   dbOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 5.5c0 1.7-3.4 3-7.5 3-1.2 0-2.3-.1-3.3-.3M4.5 5.5c0-.9 1-1.7 2.6-2.3M4.5 5.5v13c0 1.7 3.4 3 7.5 3 2.9 0 5.4-.7 6.7-1.6M19.5 5.5V15M3 3l18 18"/></svg>',
@@ -57,7 +58,7 @@ export function stepsHeadHTML(name, hint) {
   return '<div class="section-head section-head--steps"><h2 class="section-title">Steps</h2>' +
     (hint ? '<span class="faint section-hint">' + hint + '</span>' : '') + viewToggleHTML(name) + '</div>';
 }
-import { ago, deltaPct, elapsedLabel, esc, fmt } from './model.js';
+import { ago, deltaPct, elapsedLabel, esc, fmt, fmtDuration, slowText } from './model.js';
 import { buildRoute } from './router.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -92,6 +93,25 @@ export function statusPill(a, size) {
   if (a.running) return '<span class="pill pill--run' + cls + '">' + I.spinner + 'Running</span>';
   if (a.complete) return '<span class="pill pill--ok' + cls + '">' + I.checkCircle + 'Complete</span>';
   return '<span class="pill pill--bad' + cls + '">' + I.xCircle + 'Incomplete</span>';
+}
+/**
+ * A duration as text with a screen-reader friendly title. `approx` (estimated from the previous step)
+ * adds the explanation as a tooltip; `running` appends the ellipsis.
+ */
+export function durationHTML(seconds, opts = {}) {
+  const text = fmtDuration(seconds, opts);
+  const title = seconds == null ? 'Duration unavailable' : opts.approx ? 'Estimated from the previous step' : opts.running ? 'Still running' : 'Duration';
+  return '<span class="dur num' + (opts.approx ? ' dur--approx' : '') + '" title="' + title + '">' + esc(text) + '</span>';
+}
+/** "Slower than usual: 35m vs 10m typical": a clock icon and words, never colour alone; never an attention state. */
+export function slowPill(run, typical, size) {
+  const cls = size ? ' pill--' + size : '';
+  return '<span class="pill pill--slow' + cls + '" title="Longer than ' + (typical ? typical.multiple + ' times the typical duration' : 'usual') + '">' +
+    I.clock + esc(slowText(run, typical)) + '</span>';
+}
+/** Marks the step that took most of the run: an icon and the word, so colour is not the only cue. */
+export function slowestTag() {
+  return '<span class="tag-slowest" title="Took the largest share of the run">' + I.stopwatch + 'Slowest</span>';
 }
 /** Elapsed time of a running or stalled step; the app's 1-second ticker keeps it counting between reloads. */
 export function elapsedHTML(s) {
@@ -262,4 +282,18 @@ export function notFoundHTML(id) {
     ' Check the address, or pick a pipeline from the list.</p>' +
     '<a class="btn btn--primary" href="#/">' + I.chev.replace('run-row__chev', 'ico ico--flip') + 'All pipelines</a></section>'
   );
+}
+
+/**
+ * Warning and error counts of a run as two small chips (icon, number and the word for screen readers);
+ * nothing at all when both are zero. `warnings` and `errors` are numbers.
+ */
+export function countChipsHTML({ warnings = 0, errors = 0 } = {}) {
+  const chip = (n, one, many, cls, icon) =>
+    '<span class="evcount evcount--' + cls + '" title="' + n + ' ' + (n === 1 ? one : many) + '">' + icon +
+    '<b class="num">' + n + '</b><span class="sr-only"> ' + (n === 1 ? one : many) + '</span></span>';
+  const parts = [];
+  if (warnings > 0) parts.push(chip(warnings, 'warning', 'warnings', 'warning', I.alert));
+  if (errors > 0) parts.push(chip(errors, 'error', 'errors', 'error', I.xCircle));
+  return parts.length ? '<span class="evcounts">' + parts.join('') + '</span>' : '';
 }

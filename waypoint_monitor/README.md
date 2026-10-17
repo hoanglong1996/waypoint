@@ -86,6 +86,9 @@ and the pipeline gets a card on the home page. Only names and counts are stored,
 | `REFRESH_SECONDS` | `5` | How often an open page reloads its data (whether or not a run is in progress). |
 | `RETRY_SECONDS` | `30` | Retry interval while the data store is unreachable. |
 | `CACHE_SECONDS` | `2` | Server-side cache so many viewers don't hammer Redis. Keep it below `REFRESH_SECONDS`, or updates appear late. |
+| `SLOW_RUN_MULTIPLE` | `2.0` | A run longer than this multiple of the median duration of recent completed runs is flagged **Slower than usual** (see "Durations"). |
+| `DURATION_WINDOW_RUNS` | `30` | How many of the newest completed runs (per pipeline and environment) the median and slow end are computed from. |
+| `DURATION_MIN_RUNS` | `5` | Fewest completed runs needed before any run is flagged. |
 | `STALL_SECONDS` | `900` | A step that has been running longer than this is shown as **Stalled** (no longer animated) and counts as where the run stopped. |
 | `HEARTBEAT_DEAD_SECONDS` | `90` | A run whose latest heartbeat is older than this, with unfinished work, is shown as **Died**. Six missed 15 s beats by default. See "Hung or dead?". |
 | `PORT` | `8080` | HTTP port. |
@@ -102,6 +105,9 @@ Per pipeline, run and environment (`waypoint:{pipeline}:{env}:{run_id}:...`, ful
 - `...:died`: the monitor's own verdict that a run died (written by the monitor, see below);
 - `...:failed:{NN}-{step}`: written by the pipeline when a step raised (error type, shortened message, shortened
   stack trace; `waypoint-etl` 0.3.0 or newer). The monitor only reads it.
+- `...:events:info`, `...:events:warning`, `...:events:error`: lists of the events a pipeline sent with
+  `waypoint_etl.log` (`waypoint-etl` 0.4.0 or newer); the finish record `...:step:{NN}-{step}` also gains `started_at`
+  and `duration_ms`. The monitor only reads them (`LLEN`, `LRANGE`).
 
 A marker with no finish record for the same step means the step is **running** (or **stalled** past
 `STALL_SECONDS`); later planned steps of that run show **Waiting**. A planned step with no record is
@@ -130,6 +136,44 @@ Error text is data from your pipeline, shown as plain text only. It is capped (m
 on both sides. Pipelines choose in `waypoint_etl.init` whether messages are stored and may pass a cleaning function
 (see the library README). No new Redis permission is needed. Older pipelines send no failure items and look as before.
 
+## Durations
+
+Every step and run shows how long it took (`37s`, `4m 05s`, `1h 04m`, `2d 03h`; `<1s` below a second; `…` while it is
+still running). The run page shows the total in its headline, the List a duration beside each step and the Graph one
+on each node; the step that took the largest share of the run is tagged **Slowest** (icon and word), and the Home card
+shows the latest run's duration. A run's duration is measured from its own start (the run id) to its last activity.
+A step's duration is exact when its pipeline uses `waypoint-etl` 0.4.0 (its finish record has the start and a monotonic
+duration); for older runs it is estimated from the previous step's end and shown with `≈`.
+
+History has a Duration column and a "Run duration" chart with the **typical** duration (median) and the slow end
+(95th percentile) of the newest `DURATION_WINDOW_RUNS` completed runs of that environment. Only runs that finished
+count (Failed, Died, Stalled, Incomplete and running runs do not). A run longer than `SLOW_RUN_MULTIPLE` times the
+median is labelled **Slower than usual**, also while it is still running; with fewer than `DURATION_MIN_RUNS`
+completed runs nothing is flagged. The label is only a flag: it never changes a run's status or the "Needs attention"
+group. Settings are global; there is no per-pipeline threshold yet.
+
+## Events
+
+The run page has a **Steps | Events** tab (`#/p/<pipeline>/runs/<env>/<run>?tab=events`, with optional `level=` and
+`step=` filters in the address). Events lists, oldest first, what the run did. Two kinds of entries are mixed by time:
+
+- **Derived by the monitor** (tagged "monitor", for every library version): run started, step started, step finished
+  (with its output and duration), step failed (error type and message, no stack trace), step stalled, run stopped at a
+  failed step, run died, run finished.
+- **Sent by the pipeline** with `waypoint_etl.log/warn/error` (`waypoint-etl` 0.4.0): message, level, step and a few
+  named values.
+
+Filter by level and step, load more (200 at a time); a running run adds new entries on every refresh without losing the
+filters. Notes above the list say when events were dropped (the sender's limit: 500 info, 200 warning, 200 error per
+run), when the run sent none (older library or nothing to say) and when records were unreadable. Home cards and History
+rows show the number of **warning** and **error** events the pipeline sent (a step failure is already shown as Failed
+and is not counted again); a step's details list its newest events and link to the timeline filtered to it.
+
+`GET /api/runs/{pipeline}/{env}/{run_id}/events?level=&step=&offset=&limit=` returns the timeline (contract:
+`../specs/012-duration-and-run-events/contracts/api.md`). Event text is data from your pipeline: shown as plain text
+only, capped on both sides, and the pipeline decides whether messages are stored (`capture_error_message`, `redact`).
+Events are Redis lists (`...:events:info|warning|error`) written by the library; the monitor only reads them.
+
 ## Hung or dead?
 
 A step that has started but not finished is **Running**, then **Stalled** after `STALL_SECONDS`. What tells a
@@ -156,8 +200,9 @@ pipeline's main process beats (the death of a child process alone is not seen).
 ## Security
 
 There is no login in v1: it is meant for an internal network and only exposes counts. Its Redis account needs
-`SCAN`, `MGET`, `PING` and `PTTL`, plus `SET` on keys matching `waypoint:*:died` (nothing else may be written);
-without `SET` the monitor still works, but a Died verdict is not kept across restarts. Put it
+`SCAN`, `MGET`, `PING`, `PTTL`, `LLEN` and `LRANGE` (the last two read the event lists, new with events), plus `SET` on keys matching `waypoint:*:died` (nothing else may be written);
+without `SET` the monitor still works, but a Died verdict is not kept across restarts, and without `LLEN`/`LRANGE`
+every page still loads but pipeline events are not shown (counts are 0 and the timeline holds only what the monitor derives). Put it
 behind your usual access control (VPN, reverse proxy with auth) before exposing it more widely.
 
 ## Development

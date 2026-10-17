@@ -55,6 +55,27 @@ class TestLoadEnvFile(unittest.TestCase):
             s = Settings.from_env()
         self.assertEqual((s.stall_seconds, s.refresh_seconds), (30.0, 9))
 
+    def test_duration_settings(self) -> None:
+        # specs/012-duration-and-run-events: defaults, overrides, invalid values fall back
+        with patch.dict(os.environ, {}, clear=True):
+            s = Settings.from_env()
+        self.assertEqual(
+            (s.slow_run_multiple, s.duration_window_runs, s.duration_min_runs), (2.0, 30, 5)
+        )
+        env = {"SLOW_RUN_MULTIPLE": "3.5", "DURATION_WINDOW_RUNS": "10", "DURATION_MIN_RUNS": "3"}
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings.from_env()
+        self.assertEqual(
+            (s.slow_run_multiple, s.duration_window_runs, s.duration_min_runs), (3.5, 10, 3)
+        )
+        for bad in ("soon", "0", "-1"):
+            env = {"SLOW_RUN_MULTIPLE": bad, "DURATION_WINDOW_RUNS": bad, "DURATION_MIN_RUNS": bad}
+            with self.subTest(bad=bad), patch.dict(os.environ, env, clear=True):
+                s = Settings.from_env()
+                self.assertEqual(
+                    (s.slow_run_multiple, s.duration_window_runs, s.duration_min_runs), (2.0, 30, 5)
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

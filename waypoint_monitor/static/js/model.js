@@ -91,7 +91,48 @@ export function analyse(run) {
     died: !!run.died,
     lastSeenAt: run.died ? run.died.lastSeenAt : null,
     failed: run.failed || null,
+    duration: run.duration || null,
+    bottleneck: run.bottleneck || null,
+    bottleneckShare: bottleneckShare(run),
   };
+}
+
+/** The pill text of a slow run: how long it took against the typical duration. */
+export function slowText(run, typical) {
+  const d = run.duration;
+  const took = d ? fmtDuration(d.seconds, { running: d.running }) : null;
+  if (!typical || took == null) return 'Slower than usual';
+  return 'Slower than usual: ' + took + ' vs ' + fmtDuration(typical.medianSeconds) + ' typical';
+}
+
+/**
+ * Points of the "Run duration" chart, oldest first (`runs` are newest first), plus the median and
+ * 95th-percentile lines. `minRuns` only words the note shown when there is no typical value yet.
+ */
+export function durationSeries(runs, typical, minRuns = 5) {
+  const points = runs.slice().reverse().map((r) => ({
+    id: r.id,
+    startedAt: r.startedAt,
+    seconds: r.duration ? r.duration.seconds : null,
+    slow: !!(r.duration && r.duration.slow),
+    running: !!(r.duration && r.duration.running),
+    complete: !!(r.duration && r.duration.complete),
+  }));
+  return {
+    points,
+    median: typical ? typical.medianSeconds : null,
+    p95: typical ? typical.p95Seconds : null,
+    enough: !!typical,
+    note: typical ? null : 'Not enough history yet (needs ' + minRuns + ' completed runs)',
+  };
+}
+
+/** The bottleneck step's share of the run's duration as a whole percent, or null when it cannot be told. */
+function bottleneckShare(run) {
+  const total = run.duration ? run.duration.seconds : null;
+  const step = run.bottleneck ? stepOf(run, run.bottleneck) : null;
+  if (!step || step.durationSeconds == null || !total || total <= 0) return null;
+  return Math.min(100, Math.round((step.durationSeconds / total) * 100));
 }
 
 /**
@@ -134,6 +175,22 @@ export function ago(h) {
   return hh >= 48 ? Math.floor(hh / 24) + 'd ' + (hh % 24) + 'h ago' : hh + 'h ' + mm + 'm ago';
 }
 
+/**
+ * A duration for people: `37s`, `4m 05s`, `1h 04m`, `2d 03h`; `<1s` below one second; a dash when unavailable.
+ * `approx` puts a leading ≈ (estimated from the previous step), `running` a trailing … (still counting).
+ */
+export function fmtDuration(seconds, { approx = false, running = false } = {}) {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
+  const s = Math.floor(seconds);
+  let text;
+  if (s < 1) text = '<1s';
+  else if (s < 60) text = s + 's';
+  else if (s < 3600) text = Math.floor(s / 60) + 'm ' + p2(s % 60) + 's';
+  else if (s < 86400) text = Math.floor(s / 3600) + 'h ' + p2(Math.floor((s % 3600) / 60)) + 'm';
+  else text = Math.floor(s / 86400) + 'd ' + p2(Math.floor((s % 86400) / 3600)) + 'h';
+  return (approx ? '≈' : '') + text + (running ? '…' : '');
+}
+
 export const dur = (s) => (s >= 60 ? Math.floor(s / 60) + 'm ' + p2(s % 60) + 's' : s + 's');
 
 export const esc = (s) =>
@@ -165,8 +222,11 @@ export function elapsedLabel(seconds) {
 export function runSignature(runs) {
   return JSON.stringify(runs.map((r) => {
     const { ageSeconds, ...rest } = r;
+    // a running run's duration counts up on every fetch: it is not a change worth a redraw
+    const duration = r.duration && r.duration.running ? { ...r.duration, seconds: null } : r.duration;
     return {
       ...rest,
+      duration,
       ageBucket: r.status === 'running' ? null : Math.floor(ageSeconds / 60),
       steps: r.steps.map(({ elapsedSeconds, fetchedAt, ...s }) => s),
     };
@@ -295,8 +355,10 @@ export function envChoices(card, applied) {
 export function overviewSignature(cards) {
   return JSON.stringify(cards.map((c) => {
     const { generatedAt, ...rest } = c;
-    const { ageSeconds, stalledSeconds, ...latest } = c.latest;
-    return { ...rest, latest: { ...latest, ageBucket: c.status === 'running' ? null : Math.floor(ageSeconds / 60) } };
+    const { ageSeconds, stalledSeconds, durationSeconds, ...latest } = c.latest;
+    // a running run's duration counts up on every fetch; a finished run's is part of what is drawn
+    const duration = c.latest.durationRunning ? null : durationSeconds;
+    return { ...rest, latest: { ...latest, duration, ageBucket: c.status === 'running' ? null : Math.floor(ageSeconds / 60) } };
   }));
 }
 
@@ -331,4 +393,35 @@ export function heroTitle(a, newest) {
   if (a.loss.length) return 'Run finished, but one step lost data';
   if (!newest) return 'Run completed';
   return a.stale ? 'Latest run completed — but it’s old' : 'Last night’s run completed';
+}
+
+/* ---------- run events (specs/012-duration-and-run-events) ---------- */
+
+/** The levels of an event in display order, with the word shown next to its icon. */
+export const EVENT_LEVELS = [
+  { key: 'info', word: 'Info' },
+  { key: 'warning', word: 'Warning' },
+  { key: 'error', word: 'Error' },
+];
+export const eventWord = (level) => (EVENT_LEVELS.find((l) => l.key === level) || EVENT_LEVELS[0]).word;
+
+/** "6 of 41 events" while filtered, "41 events" when everything matches. */
+export function filterSummary(matched, total) {
+  return matched === total ? total + ' event' + (total === 1 ? '' : 's') : matched + ' of ' + total + ' events';
+}
+
+/** The notes above the timeline: what was dropped, whether the pipeline sent anything, what was unreadable. */
+export function eventNotes({ dropped = 0, recorded = 0, unreadable = 0 }) {
+  const notes = [];
+  if (dropped > 0) notes.push(dropped + ' event' + (dropped === 1 ? ' was' : 's were') + ' dropped because the limit was reached (the oldest info events go first).');
+  if (recorded === 0) notes.push('No events were sent by this run. Pipelines on waypoint-etl 0.4.0 or later can send their own with waypoint_etl.log().');
+  if (unreadable > 0) notes.push(unreadable + ' unreadable event record' + (unreadable === 1 ? '' : 's') + ' skipped.');
+  return notes;
+}
+
+/** `step` must be one of these to be chosen in the step filter: the run's steps, then any other named by an event. */
+export function stepChoices(run, events) {
+  const names = run.steps.map((s) => s.name);
+  events.forEach((e) => { if (e.step && !names.includes(e.step)) names.push(e.step); });
+  return names;
 }

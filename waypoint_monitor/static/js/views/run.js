@@ -1,12 +1,14 @@
 /* Run page: hero, flow strip and the steps timeline of one run (the former Latest page). */
 import {
-  HEADLINE_TITLE, analyse, ago, dayLabel, dur, esc, fmt, groupLabel, headline, heroTitle, hhmm, isDone, isLoss,
+  HEADLINE_TITLE, analyse, ago, dayLabel, esc, fmt, fmtDuration, groupLabel, headline, heroTitle, hhmm, isDone, isLoss,
   isNewest, stepOf, stepState, metric,
 } from '../model.js';
 import {
-  I, deltaChip, envTag, getStepsView, lossPill, stalePill, statusPill, stepsHeadHTML, wireCopy,
+  I, deltaChip, durationHTML, envTag, getStepsView, lossPill, slowPill, stalePill, statusPill, stepsHeadHTML, wireCopy,
 } from '../ui.js';
 import { mountGraph } from './graph.js';
+import { buildRoute } from '../router.js';
+import { mountEvents, wireStepEvents } from './events.js';
 import { stepItemHTML } from './step.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -29,7 +31,16 @@ export function stepsHTML(run, runs, cfg, compact) {
   return html + '</ol>';
 }
 
-export function heroHTML(run, runs, cfg) {
+/** "Slowest: step, 62% of the run" when one step clearly dominates. */
+function slowestLine(run, a) {
+  if (!a.bottleneck) return '';
+  const step = stepOf(run, a.bottleneck);
+  const text = (step && step.durationSeconds != null ? fmtDuration(step.durationSeconds, { approx: step.durationApprox }) : '') +
+    (a.bottleneckShare != null ? ', ' + a.bottleneckShare + '% of the run' : '');
+  return '<p class="hero__slowest">' + I.stopwatch + 'Slowest: <code>' + esc(a.bottleneck) + '</code>' + (text ? ' · ' + esc(text) : '') + '</p>';
+}
+
+export function heroHTML(run, runs, cfg, typical = null) {
   const a = analyse(run);
   const h = headline(run);
   const prev = runs[runs.indexOf(run) + 1];
@@ -81,12 +92,14 @@ export function heroHTML(run, runs, cfg) {
 
   return (
     '<section class="card hero" aria-labelledby="hero-title"><div>' +
-    '<div class="hero__status">' + statusPill(a, 'lg') + envTag(run.env, true) + (a.loss.length ? lossPill(a.loss.length, 'lg') : '') + (a.stale && newest ? stalePill(a) : '') + '</div>' +
+    '<div class="hero__status">' + statusPill(a, 'lg') + envTag(run.env, true) + (a.loss.length ? lossPill(a.loss.length, 'lg') : '') + (a.stale && newest ? stalePill(a) : '') +
+    (a.duration && a.duration.slow ? slowPill(run, typical) : '') + '</div>' +
     '<h1 class="hero__title" id="hero-title" tabindex="-1">' + title + '</h1>' +
     '<div class="hero__meta">' +
     '<span>' + I.calendar + dayLabel(run.startedAt) + ', ' + run.startedAt.getFullYear() + ' · started ' + hhmm(run.startedAt) + '</span>' +
-    (a.running || a.died ? '' : '<span>' + I.clock + 'finished ' + ago(a.ageH) + '</span><span>' + I.timer + dur(a.durationS) + '</span>') +
-    '</div>' + why + '</div>' +
+    (a.running || a.died ? '' : '<span>' + I.clock + 'finished ' + ago(a.ageH) + '</span>') +
+    (a.duration && a.duration.seconds != null ? '<span title="Total run time">' + I.timer + durationHTML(a.duration.seconds, { running: a.duration.running }) + '</span>' : '') +
+    '</div>' + why + slowestLine(run, a) + '</div>' +
     '<div class="kpis">' + h.map((k) => {
       const prevStep = prev && k.step ? stepOf(prev, k.step) : null;
       return kpi(HEADLINE_TITLE[k.key], k.value, prevStep ? metric(prevStep) : null, a.running ? 'in progress' : 'not reported', k.label);
@@ -98,17 +111,35 @@ export function heroHTML(run, runs, cfg) {
   );
 }
 
+/** The Steps | Events tabs of a run page; the choice lives in the address so it can be shared. */
+export function tabsHTML(run, route) {
+  const base = { name: 'run', id: route.id, env: route.env, runId: route.runId };
+  const events = route.tab === 'events';
+  const tab = (label, active, href) =>
+    '<a class="tab' + (active ? ' tab--active' : '') + '" role="tab" aria-selected="' + active + '" href="' + esc(href) + '"' + (active ? ' aria-current="page"' : '') + '>' + label + '</a>';
+  return '<nav class="tabs" role="tablist" aria-label="Run details">' +
+    tab('Steps', !events, buildRoute(base)) + tab('Events', events, buildRoute({ ...base, tab: 'events' })) + '</nav>';
+}
+
 /** The page of one run (`run` is one of `runs`, which are newest first and of the same environment). */
-export function renderRun(el, run, runs, cfg) {
+export function renderRun(el, run, runs, cfg, typical = null, route = null) {
   wireCopy();
+  wireStepEvents();
+  const r = route || { name: 'run', id: run.pipeline, env: run.env, runId: run.id };
+  const tabs = tabsHTML(run, r);
+  if (r.tab === 'events') {
+    el.innerHTML = heroHTML(run, runs, cfg, typical) + tabs + '<div id="run-events"></div>';
+    mountEvents(document.getElementById('run-events'), { run, route: r });
+    return;
+  }
   if (getStepsView() === 'graph') {
-    el.innerHTML = heroHTML(run, runs, cfg) + stepsHeadHTML('steps-view-run', 'Select a step to trace it') +
+    el.innerHTML = heroHTML(run, runs, cfg, typical) + tabs + stepsHeadHTML('steps-view-run', 'Select a step to trace it') +
       '<section class="card graph-panel" id="run-graph" aria-label="Pipeline graph"></section>' +
       '<section class="card graph-details" id="run-graph-details" aria-live="polite" hidden></section>';
     mountGraph(document.getElementById('run-graph'), {
       cfg, run, runs, mode: 'run', details: document.getElementById('run-graph-details'),
     });
   } else {
-    el.innerHTML = heroHTML(run, runs, cfg) + stepsHeadHTML('steps-view-run', 'Output per step · sparkline = last 14 runs') + stepsHTML(run, runs, cfg, false);
+    el.innerHTML = heroHTML(run, runs, cfg, typical) + tabs + stepsHeadHTML('steps-view-run', 'Output per step · sparkline = last 14 runs') + stepsHTML(run, runs, cfg, false);
   }
 }

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,8 @@ class StepRecord:
     pipeline, run_id (`YYYYMMDDTHHMMSSZ`) and env must equal the ones in the key.
     step: non-empty (a step outside the run's flow is shown as unplanned). index: int >= 1.
     inputs: map string -> int >= 0 (values may not be null). output: int >= 0 or null.
-    finished_at: UTC ISO-8601.
+    finished_at: UTC ISO-8601. started_at (UTC ISO-8601) and duration_ms (int >= 0) are optional,
+    written by library 0.4.0; a value of the wrong type is treated as absent.
     """
 
     pipeline: str
@@ -59,6 +60,8 @@ class StepRecord:
     inputs: Dict[str, int]
     output: Optional[int]
     finished_at: datetime
+    started_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,29 @@ class StepFailure:
     started_at: datetime
     failed_at: datetime
     error: ErrorInfo
+
+
+FieldValue = Union[int, float, str]
+
+
+@dataclass(frozen=True)
+class RunEvent:
+    """One validated author-sent event (specs/012 data-model.md "Run event").
+
+    `n` is the sender's sequence number (int >= 1), `ts` a UTC time with milliseconds, `level` one of
+    info, warning, error and equal to the list the event was stored in. `step` and `message` are None
+    when absent (message is also None when the author turned message text off, or it was not a string);
+    `message` is at most 300 characters. `fields` holds at most 10 entries: names matching
+    `^[A-Za-z0-9_.-]{1,40}$`, values finite numbers or strings of at most 100 characters.
+    """
+
+    run_id: str
+    level: str
+    n: int
+    ts: datetime
+    step: Optional[str]
+    message: Optional[str]
+    fields: Optional[Dict[str, FieldValue]]
 
 
 @dataclass(frozen=True)

@@ -191,10 +191,6 @@ class TestRedisRecordStore(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestFailureItems(unittest.TestCase):
     def test_list_failures_scans_the_failed_pattern_and_never_writes(self) -> None:
         with patch(PATH) as from_url:
@@ -218,3 +214,97 @@ class TestFailureItems(unittest.TestCase):
         client.scan_iter.side_effect = redis.ConnectionError("down")
         with self.assertRaises(StoreUnavailable):
             store.list_failures("prod", "demo")
+
+
+class TestEventReads(unittest.TestCase):
+    """Specs 012 research R12: counts by LLEN, bodies by LRANGE of one run, degraded mode."""
+
+    RUN = "20261015T020000Z"
+
+    def _store(self) -> Tuple[RedisRecordStore, MagicMock]:
+        with patch(PATH) as from_url:
+            client = MagicMock()
+            from_url.return_value = client
+            store = RedisRecordStore("redis://localhost:6379/0")
+        return store, client
+
+    def test_counts_scan_the_event_keys_and_llen_the_warning_and_error_lists_only(self) -> None:
+        store, client = self._store()
+        run, other = self.RUN, "20261014T020000Z"
+        client.scan_iter.return_value = iter(
+            [
+                f"waypoint:demo:prod:{run}:events:info",
+                f"waypoint:demo:prod:{run}:events:warning",
+                f"waypoint:demo:prod:{run}:events:error",
+                f"waypoint:demo:prod:{other}:events:error",
+            ]
+        )
+        pipe = client.pipeline.return_value
+        pipe.execute.return_value = [2, 1, 4]
+        counts = store.list_event_counts("prod", "demo")
+        client.scan_iter.assert_called_once_with(match="waypoint:demo:prod:*:events:*", count=500)
+        self.assertEqual(
+            [c.args[0] for c in pipe.llen.call_args_list],
+            [
+                f"waypoint:demo:prod:{run}:events:warning",
+                f"waypoint:demo:prod:{run}:events:error",
+                f"waypoint:demo:prod:{other}:events:error",
+            ],
+        )
+        self.assertEqual(
+            counts, {run: {"warning": 2, "error": 1}, other: {"warning": 0, "error": 4}}
+        )
+        client.mget.assert_not_called()
+
+    def test_counts_without_event_keys_make_no_further_call(self) -> None:
+        store, client = self._store()
+        client.scan_iter.return_value = iter([f"waypoint:demo:prod:{self.RUN}:events:info"])
+        self.assertEqual(store.list_event_counts("prod", "demo"), {})
+        client.pipeline.assert_not_called()
+
+    def test_read_events_lranges_the_three_lists_of_that_run_only(self) -> None:
+        store, client = self._store()
+        client.lrange.side_effect = lambda key, a, b: ['{"x":1}'] if key.endswith(":info") else []
+        out = store.read_events("prod", "demo", self.RUN)
+        self.assertEqual(
+            [c.args for c in client.lrange.call_args_list],
+            [
+                (f"waypoint:demo:prod:{self.RUN}:events:info", 0, -1),
+                (f"waypoint:demo:prod:{self.RUN}:events:warning", 0, -1),
+                (f"waypoint:demo:prod:{self.RUN}:events:error", 0, -1),
+            ],
+        )
+        self.assertEqual(out, [(f"waypoint:demo:prod:{self.RUN}:events:info", ['{"x":1}'])])
+
+    def test_event_reads_never_write(self) -> None:
+        store, client = self._store()
+        client.scan_iter.return_value = iter([])
+        client.lrange.return_value = []
+        store.list_event_counts("prod", "demo")
+        store.read_events("prod", "demo", self.RUN)
+        for name in ("set", "setex", "rpush", "lpush", "ltrim", "delete", "expire"):
+            getattr(client, name).assert_not_called()
+
+    def test_a_refused_read_is_empty_not_unavailable(self) -> None:
+        store, client = self._store()
+        client.scan_iter.side_effect = redis.ResponseError("NOPERM this user has no permissions")
+        self.assertEqual(store.list_event_counts("prod", "demo"), {})
+        client.scan_iter.side_effect = None
+        client.scan_iter.return_value = iter([f"waypoint:demo:prod:{self.RUN}:events:error"])
+        client.pipeline.return_value.execute.side_effect = redis.ResponseError("NOPERM")
+        self.assertEqual(store.list_event_counts("prod", "demo"), {})
+        client.lrange.side_effect = redis.ResponseError("NOPERM")
+        self.assertEqual(store.read_events("prod", "demo", self.RUN), [])
+
+    def test_a_connection_error_is_unavailable(self) -> None:
+        store, client = self._store()
+        client.scan_iter.side_effect = redis.ConnectionError("down")
+        with self.assertRaises(StoreUnavailable):
+            store.list_event_counts("prod", "demo")
+        client.lrange.side_effect = redis.ConnectionError("down")
+        with self.assertRaises(StoreUnavailable):
+            store.read_events("prod", "demo", self.RUN)
+
+
+if __name__ == "__main__":
+    unittest.main()

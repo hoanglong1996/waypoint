@@ -1,5 +1,6 @@
 """The one active auditor of this process, set by ``init`` and read by ``audited_step``."""
 
+import atexit
 from typing import Callable, Optional
 
 from waypoint_etl.auditor import StepAuditor
@@ -8,6 +9,7 @@ from waypoint_etl.spec import PipelineSpec, validate_spec
 from waypoint_etl.stores import NoopStepAuditStore, RedisStepAuditStore, StepAuditStore
 
 _active: Optional[StepAuditor] = None
+_exit_hook = False
 
 
 def get_active() -> Optional[StepAuditor]:
@@ -19,8 +21,14 @@ def set_active(auditor: Optional[StepAuditor]) -> None:
     _active = auditor
 
 
+def _flush_at_exit() -> None:
+    """Deliver queued events when the process ends (waits at most 2 seconds)."""
+    if _active is not None:
+        _active.flush_events(2.0)
+
+
 def clear() -> None:
-    """Stop the active auditor's heartbeat and leave the process unaudited."""
+    """Stop the active auditor's heartbeat, deliver its queued events and leave the process unaudited."""
     if _active is not None:
         _active.stop()
     set_active(None)
@@ -45,6 +53,9 @@ def init(
     ``store`` replaces the Redis store (tests, other back ends). While the run is alive an
     "alive" item is refreshed every ``heartbeat_seconds`` so the monitor can tell a dead process
     from a slow one; ``None`` or 0 turns that off.
+
+    ``capture_error_message=False`` and ``redact`` cover all free text the library stores: failure
+    messages and event messages and text values.
 
     When a step raises, a failure item with the error type, a shortened message and a shortened
     stack trace (never variable values) is written and the exception is re-raised unchanged.
@@ -83,7 +94,45 @@ def init(
     auditor.start()
     set_active(auditor)
     auditor.start_heartbeat(heartbeat_seconds)
+    global _exit_hook
+    if not _exit_hook:
+        _exit_hook = True
+        atexit.register(_flush_at_exit)
     return True
 
 
-__all__ = ["NoopStepAuditStore", "clear", "get_active", "init", "set_active"]
+def log(message: str, *, level: str = "info", step: Optional[str] = None, **fields: object) -> None:
+    """Send an event: a short message with a level, an optional step and a few small named values.
+
+    ``waypoint_etl.log("Loaded batch 3", step="load", rows=1200)``. Inside a running step the event
+    belongs to that step unless ``step`` says otherwise. Does nothing, and never raises or waits on
+    the network, before ``init``, after a failed ``init`` or when Redis is unreachable.
+    """
+    try:
+        active = _active
+        if active is not None:
+            active.send_event(message, level, step, fields)
+    except Exception:
+        return
+
+
+def warn(message: str, *, step: Optional[str] = None, **fields: object) -> None:
+    """``log`` at level ``warning``."""
+    log(message, level="warning", step=step, **fields)
+
+
+def error(message: str, *, step: Optional[str] = None, **fields: object) -> None:
+    """``log`` at level ``error``."""
+    log(message, level="error", step=step, **fields)
+
+
+__all__ = [
+    "NoopStepAuditStore",
+    "clear",
+    "error",
+    "get_active",
+    "init",
+    "log",
+    "set_active",
+    "warn",
+]

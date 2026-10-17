@@ -109,6 +109,7 @@ waypoint_etl.init(
 | Step name typo between spec and decorator | Step never shown / `assert_spec_matches` fails |
 | `init` called per partner/loop | Replaces config, new run each time (prints warning) |
 | Non-str or unlisted `env` | Breaks the key, or the monitor never shows it |
+| Putting data values in `waypoint_etl.log(...)` text | Event messages and text values are stored as written (300 and 100 characters at most). Send names and counts (`waypoint_etl.log("Loaded batch", rows=n)`). `capture_error_message=False` or `redact=` in `init` cover events as well as errors. From 0.4.0; the call does nothing before `init` or with Redis down, so it is safe anywhere |
 | Expecting exceptions to stay invisible | From 0.3.0 a raising step writes a failure item (type, shortened message, frames-only trace) and the exception is re-raised untouched; shown as Failed. Messages can hold data: pass `capture_error_message=False` or `redact=` to `init` when they might |
 | Parallel steps | SDK assumes steps run one after another per run |
 

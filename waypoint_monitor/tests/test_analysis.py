@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -446,10 +447,6 @@ class TestMissingOrInvalidFlow(unittest.TestCase):
         run = _demo([], now=START4 + timedelta(seconds=5), markers=[marker])
         self.assertEqual(_states(run), ["running"])
         self.assertIsNone(run["flow"])
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 BEAT = START4 + timedelta(seconds=60)  # the run's last heartbeat: 02:01:33
@@ -912,3 +909,190 @@ class TestRunsWithoutFailureItems(unittest.TestCase):
                 self.assertIsNone(run["failed"])
                 self.assertNotIn("failed", [s["state"] for s in run["steps"]])
                 self.assertTrue(all("error" not in s for s in run["steps"]))
+
+
+class TestDurations(unittest.TestCase):
+    """Specs 012-duration-and-run-events: step and run durations in the built run."""
+
+    def step(self, run: Dict[str, Any], name: str) -> Dict[str, Any]:
+        return next(s for s in run["steps"] if s["name"] == name)
+
+    def test_exact_durations_from_library_0_4(self) -> None:
+        seconds = [10, 20, 5, 5, 5, 60, 10, 4, 6]
+        run = runs_for(make_run("prod", R1, step_seconds=seconds))[0]
+        first = self.step(run, "read_callrail_account")
+        self.assertEqual(first["duration_seconds"], 10)
+        self.assertFalse(first["duration_approx"])
+        self.assertEqual(first["started_at"], "2026-10-15T02:00:00Z")
+        self.assertEqual(self.step(run, "read_gads_clickview")["duration_seconds"], 60)
+        self.assertEqual(run["bottleneck"], "read_gads_clickview")
+        self.assertEqual(run["duration"]["seconds"], sum(seconds))
+        self.assertEqual(run["duration_seconds"], sum(seconds))
+
+    def test_older_library_gets_approximate_step_durations(self) -> None:
+        seconds = [10, 20, 5, 5, 5, 60, 10, 4, 6]
+        run = runs_for(make_run("prod", R1, step_seconds=seconds, exact=False))[0]
+        second = self.step(run, "read_callrail_call")
+        self.assertEqual(second["duration_seconds"], 20)
+        self.assertTrue(second["duration_approx"])
+        self.assertEqual(second["started_at"], "2026-10-15T02:00:10Z")
+        first = self.step(run, "read_callrail_account")
+        self.assertEqual((first["duration_seconds"], first["duration_approx"]), (10, True))
+        self.assertEqual(run["duration"]["seconds"], sum(seconds))
+
+    def test_marker_of_the_same_attempt_gives_an_exact_start(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9, exact=False)
+        marker = make_marker("prod", R1, 1, datetime(2026, 10, 15, 2, 0, 12, tzinfo=timezone.utc))
+        run = runs_for(raw, markers=[marker])[0]
+        second = self.step(run, "read_callrail_call")
+        self.assertEqual((second["duration_seconds"], second["duration_approx"]), (8, False))
+
+    def test_running_run_counts_to_now_and_open_step_keeps_elapsed(self) -> None:
+        raw = make_run("prod", R1, missing_from=2)
+        marker = make_marker("prod", R1, 2, NOW - timedelta(seconds=30))
+        run = runs_for(raw, markers=[marker])[0]
+        self.assertTrue(run["duration"]["running"])
+        self.assertEqual(run["duration"]["seconds"], 3600)
+        open_step = self.step(run, "read_partners")
+        self.assertEqual(open_step["state"], "running")
+        self.assertNotIn("duration_seconds", open_step)
+
+    def test_failed_step_duration_is_start_to_failure(self) -> None:
+        raw = make_run("prod", R1, missing_from=2)
+        start = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        failure = make_failure("prod", R1, 2, start + timedelta(seconds=31), started_at=start)
+        run = runs_for(raw, failures=[failure])[0]
+        failed = self.step(run, "read_partners")
+        self.assertEqual((failed["duration_seconds"], failed["duration_approx"]), (31, False))
+        self.assertFalse(run["duration"]["complete"])
+
+    def test_retry_uses_the_latest_attempt(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9, exact=False)
+        run = runs_for(raw)[0]
+        self.assertEqual(self.step(run, "read_partners")["duration_seconds"], 10)
+
+    def test_unavailable_when_times_are_inconsistent(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9)
+        # a finish before its own start: the duration is unavailable, never negative
+        key, value = raw[1]
+        record = json.loads(value)
+        record["started_at"] = "2026-10-15T02:05:00Z"
+        record.pop("duration_ms")
+        raw[1] = (key, json.dumps(record))
+        run = runs_for(raw)[0]
+        self.assertIsNone(self.step(run, "read_callrail_account")["duration_seconds"])
+
+    def test_no_bottleneck_for_a_single_step_or_a_tie(self) -> None:
+        run = runs_for(make_run("prod", R1, step_seconds=[10] * 9))[0]
+        self.assertIsNone(run["bottleneck"])
+        one = runs_for(make_run("prod", R1, missing_from=1, step_seconds=[10] * 9))[0]
+        self.assertIsNone(one["bottleneck"])
+
+    def test_old_runs_only_gain_new_keys(self) -> None:
+        run = runs_for(make_run("prod", R1))[0]
+        self.assertEqual(run["status"], "complete")
+        self.assertEqual(run["duration_seconds"], 72)
+        self.assertEqual(
+            run["duration"], {"seconds": 72, "running": False, "complete": True, "slow": False}
+        )
+
+
+OLD_RUN_KEYS = {
+    "run_id", "pipeline", "env", "started_at", "ended_at", "duration_seconds", "age_seconds", "stale",
+    "status", "running_step", "first_missing_step", "missing_count", "loss_steps", "unreadable", "died",
+    "failed", "flow_status", "flow_problems", "flow", "steps",
+}  # fmt: skip
+NEW_RUN_KEYS = {"duration", "bottleneck", "event_counts"}  # specs/012
+OLD_STEP_KEYS = {
+    "done": {"name", "state", "inputs", "output", "finished_at"},
+    "unplanned": {"name", "state", "inputs", "output", "finished_at"},
+    "running": {"name", "state", "started_at", "elapsed_seconds"},
+    "stalled": {"name", "state", "started_at", "elapsed_seconds"},
+    "died": {"name", "state", "started_at", "last_seen_at"},
+    "failed": {"name", "state", "started_at", "failed_at", "error"},
+    "waiting": {"name", "state"},
+    "missing": {"name", "state", "missing"},
+}
+NEW_STEP_KEYS = {
+    "done": {"duration_seconds", "duration_approx", "started_at"},
+    "unplanned": {"duration_seconds", "duration_approx", "started_at"},
+    "failed": {"duration_seconds", "duration_approx"},
+}
+
+
+class TestOldRunsOnlyGainNewKeys(unittest.TestCase):
+    """Specs 012 US7 / FR-031: every earlier scenario keeps its keys and values; only new keys appear."""
+
+    def scenarios(self) -> Dict[str, Dict[str, Any]]:
+        started = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        out: Dict[str, Dict[str, Any]] = {}
+        out["complete"] = runs_for(make_run("prod", R1))[0]
+        out["lost data"] = runs_for(make_run("prod", R1, overrides={3: 0}))[0]
+        out["incomplete"] = runs_for(make_run("prod", R1, missing_from=4))[0]
+        out["running"] = runs_for(
+            make_run("prod", R1, missing_from=2),
+            markers=[make_marker("prod", R1, 2, NOW - timedelta(seconds=30))],
+        )[0]
+        out["stalled"] = runs_for(
+            make_run("prod", R1, missing_from=2),
+            markers=[make_marker("prod", R1, 2, NOW - timedelta(seconds=2000))],
+        )[0]
+        out["died"] = runs_for(
+            make_run("prod", R1, missing_from=2),
+            markers=[make_marker("prod", R1, 2, NOW - timedelta(seconds=400))],
+            beats={R1: NOW - timedelta(seconds=300)},
+        )[0]
+        out["failed"] = runs_for(
+            make_run("prod", R1, missing_from=2),
+            failures=[
+                make_failure("prod", R1, 2, started + timedelta(seconds=9), started_at=started)
+            ],
+        )[0]
+        out["no flow"] = runs_for(make_run("prod", R1, with_flow=False))[0]
+        out["unplanned"] = runs_for(
+            make_run("prod", R1),
+            markers=[make_marker("prod", R1, 9, NOW - timedelta(seconds=20), step="surprise")],
+        )[0]
+        return out
+
+    def test_run_keys_are_the_old_ones_plus_the_new_ones(self) -> None:
+        for label, run in self.scenarios().items():
+            with self.subTest(label):
+                self.assertEqual(set(run), OLD_RUN_KEYS | NEW_RUN_KEYS)
+
+    def test_step_keys_are_the_old_ones_plus_the_new_ones(self) -> None:
+        for label, run in self.scenarios().items():
+            for step in run["steps"]:
+                state = step["state"]
+                with self.subTest(label, step=step["name"], state=state):
+                    allowed_new = NEW_STEP_KEYS.get(state, set())
+                    self.assertTrue(OLD_STEP_KEYS[state] - {"started_at"} <= set(step))
+                    self.assertTrue(set(step) <= OLD_STEP_KEYS[state] | allowed_new)
+
+    def test_statuses_and_counts_are_unchanged(self) -> None:
+        expected = {
+            "complete": ("complete", 0),
+            "lost data": ("complete", 0),
+            "incomplete": ("incomplete", 5),
+            "running": ("running", 0),
+            "stalled": ("incomplete", 7),
+            "died": ("incomplete", 7),
+            "failed": ("incomplete", 7),
+        }
+        for label, (status, missing) in expected.items():
+            run = self.scenarios()[label]
+            with self.subTest(label):
+                self.assertEqual((run["status"], run["missing_count"]), (status, missing))
+
+    def test_no_negative_or_nonsense_duration_anywhere(self) -> None:
+        for label, run in self.scenarios().items():
+            with self.subTest(label):
+                seconds = run["duration"]["seconds"]
+                self.assertTrue(seconds is None or seconds >= 0)
+                for step in run["steps"]:
+                    value = step.get("duration_seconds")
+                    self.assertTrue(value is None or value >= 0, step)
+
+
+if __name__ == "__main__":
+    unittest.main()

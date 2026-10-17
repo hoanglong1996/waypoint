@@ -1,5 +1,5 @@
 /* Hand-drawn SVG charts, themed through CSS variables. */
-import { compact, dayLabel, fmt, hhmm, isLoss, metric, niceMax, shortDay, stepOf } from './model.js';
+import { compact, dayLabel, fmt, fmtDuration, hhmm, isLoss, metric, niceMax, shortDay, stepOf } from './model.js';
 import { deltaChip } from './ui.js';
 
 /** 128x36 sparkline. `values` oldest -> newest; null breaks the line. */
@@ -148,6 +148,147 @@ export function drawTrend(box, statEl, tip, runs, stepDef) {
     const px = ((e.clientX - r.left) / r.width) * W;
     const i = Math.round((px - m.l) / ((W - m.l - m.r) / Math.max(1, series.length - 1)));
     show(Math.max(0, Math.min(series.length - 1, i)));
+  });
+  svg.addEventListener('pointerleave', hide);
+  box.onkeydown = (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    let i = cur < 0 ? last : cur;
+    i = e.key === 'Home' ? 0 : e.key === 'End' ? last : i + (e.key === 'ArrowRight' ? 1 : -1);
+    show(Math.max(0, Math.min(last, i)));
+  };
+  box.onfocus = () => show(cur < 0 ? last : cur);
+  box.onblur = hide;
+  return { show, hide };
+}
+
+
+/**
+ * "Run duration" chart: one point per run (`series` from `durationSeries`, oldest first), a dashed median
+ * line, a band up to the 95th percentile and a diamond with the word "slow" on flagged runs, so the flag is
+ * not told by colour alone. Same keyboard and pointer behaviour as `drawTrend`.
+ */
+/** Smallest axis maximum, in seconds, whose quarters are round (1m, 5m, 15m, 1h ...). */
+const DURATION_MAXES = [4, 8, 12, 20, 40, 60, 120, 240, 480, 600, 1200, 2400, 3600, 7200, 14400, 28800, 43200, 86400];
+export function niceDurationMax(v) {
+  const hit = DURATION_MAXES.find((m) => m >= v);
+  return hit || Math.ceil(v / 86400) * 86400;
+}
+
+export function drawDuration(box, statEl, tip, series) {
+  const pts = series.points;
+  const width = box.clientWidth || 900;
+  const W = Math.max(320, width);
+  const H = width < 600 ? 200 : 240;
+  const m = { l: 54, r: 12, t: 12, b: 26 };
+  const known = pts.map((p) => p.seconds).filter((v) => v != null);
+  const max = niceDurationMax(Math.max(...known, series.p95 || 0, 1) * 1.08);
+  const x = (i) => m.l + (i * (W - m.l - m.r)) / Math.max(1, pts.length - 1);
+  const y = (v) => m.t + (1 - v / max) * (H - m.t - m.b);
+
+  let g = '';
+  for (let k = 0; k <= 4; k++) {
+    const yy = y((max * k) / 4).toFixed(1);
+    g +=
+      '<line class="grid-line" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '"/>' +
+      '<text class="axis-label" x="' + (m.l - 8) + '" y="' + yy + '" text-anchor="end" dominant-baseline="middle">' + fmtDuration((max * k) / 4) + '</text>';
+  }
+  const every = Math.ceil(pts.length / (W < 600 ? 4 : 7));
+  pts.forEach((p, i) => {
+    if ((pts.length - 1 - i) % every === 0) {
+      g += '<text class="axis-label" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + shortDay(p.startedAt) + '</text>';
+    }
+  });
+
+  let band = '';
+  let lines = '';
+  if (series.enough) {
+    const top = y(series.p95).toFixed(1);
+    const mid = y(series.median).toFixed(1);
+    band = '<rect class="dband" x="' + m.l + '" y="' + top + '" width="' + (W - m.l - m.r) + '" height="' + Math.max(0, mid - top).toFixed(1) + '"/>';
+    lines =
+      '<line class="dmedian" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + mid + '" y2="' + mid + '"/>' +
+      '<text class="axis-label dlabel" x="' + (m.l + 6) + '" y="' + (Number(mid) - 4) + '" text-anchor="start">median ' + fmtDuration(series.median) + '</text>' +
+      '<text class="axis-label dlabel" x="' + (m.l + 6) + '" y="' + (Number(top) - 4) + '" text-anchor="start">p95 ' + fmtDuration(series.p95) + '</text>';
+  }
+
+  let line = '';
+  let seg = [];
+  const flush = () => {
+    if (seg.length) line += 'M' + seg.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
+    seg = [];
+  };
+  let dots = '';
+  pts.forEach((p, i) => {
+    if (p.seconds == null) {
+      flush();
+      dots += '<circle class="pt pt--gap" cx="' + x(i).toFixed(1) + '" cy="' + y(0).toFixed(1) + '" r="3.5"/>';
+      return;
+    }
+    seg.push([x(i), y(p.seconds)]);
+    const cx = x(i).toFixed(1);
+    const cy = y(p.seconds).toFixed(1);
+    if (p.slow) {
+      dots += '<path class="pt pt--slow" d="M' + cx + ' ' + (cy - 6) + 'L' + (Number(cx) + 6) + ' ' + cy + 'L' + cx + ' ' + (Number(cy) + 6) + 'L' + (Number(cx) - 6) + ' ' + cy + 'Z"/>' +
+        '<text class="axis-label dslow" x="' + cx + '" y="' + (cy - 10) + '" text-anchor="middle">slow</text>';
+    } else {
+      dots += '<circle class="pt' + (p.complete ? '' : ' pt--open') + '" cx="' + cx + '" cy="' + cy + '" r="2.5"/>';
+    }
+  });
+  flush();
+
+  box.innerHTML =
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" style="height:' + H + 'px" aria-hidden="true">' + g + band + lines +
+    '<path class="line" d="' + line + '"/>' + dots +
+    '<line class="cross" id="dcross" x1="0" x2="0" y1="' + m.t + '" y2="' + (H - m.b) + '" visibility="hidden"/></svg>';
+
+  const last = pts.length - 1;
+  const lp = pts[last];
+  statEl.innerHTML = series.enough
+    ? '<span class="trend__value num">' + fmtDuration(series.median) + '</span><span class="trend__label">Typical (median) · slow end ' +
+      fmtDuration(series.p95) + ' · ' + 'over the newest completed runs</span>'
+    : '<span class="trend__label">' + series.note + '</span>';
+  box.setAttribute('aria-label', 'Run duration for the last ' + pts.length + ' runs. Latest ' + fmtDuration(lp ? lp.seconds : null, { running: lp && lp.running }) + '.' +
+    (series.enough ? ' Typical ' + fmtDuration(series.median) + '.' : ''));
+
+  const cross = box.querySelector('#dcross');
+  const svg = box.querySelector('svg');
+  let cur = -1;
+  function show(i) {
+    cur = i;
+    const p = pts[i];
+    const cx = x(i);
+    cross.setAttribute('x1', cx);
+    cross.setAttribute('x2', cx);
+    cross.setAttribute('visibility', 'visible');
+    tip.innerHTML =
+      '<div class="tooltip__date">' + dayLabel(p.startedAt) + ' · ' + hhmm(p.startedAt) + '</div>' +
+      '<div class="tooltip__val num">' + (p.seconds == null ? '<span class="faint">unavailable</span>' : fmtDuration(p.seconds, { running: p.running })) + '</div>' +
+      (series.enough ? '<div class="faint">median ' + fmtDuration(series.median) + '</div>' : '') +
+      (p.slow ? '<div style="color:var(--warn);margin-top:4px">Slower than usual</div>' : '') +
+      (!p.complete && p.seconds != null && !p.running ? '<div class="faint">not completed: not part of the typical value</div>' : '');
+    tip.hidden = false;
+    const cy = p.seconds == null ? y(0) : y(p.seconds);
+    const r = svg.getBoundingClientRect();
+    const sx = r.left + (cx / W) * r.width;
+    const sy = r.top + (cy / H) * r.height;
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    const left = Math.min(window.innerWidth - tw - 8, Math.max(8, sx - tw / 2));
+    let top = sy - th - 14;
+    if (top < 64) top = sy + 14;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+  function hide() {
+    tip.hidden = true;
+    cross.setAttribute('visibility', 'hidden');
+  }
+  svg.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    const i = Math.round((px - m.l) / ((W - m.l - m.r) / Math.max(1, pts.length - 1)));
+    show(Math.max(0, Math.min(last, i)));
   });
   svg.addEventListener('pointerleave', hide);
   box.onkeydown = (e) => {

@@ -148,9 +148,21 @@ class TestFailureRecord(Case):
         self.assertEqual(self.store.failures(), [])
         ((key, record, _),) = [e for e in self.store.records if ":step:" in e[0]]
         self.assertEqual(key, "waypoint:demo:qa:R:step:01-extract")
+        # 0.4.0 adds the optional started_at and duration_ms (specs/012); nothing is removed
         self.assertEqual(
             set(record),
-            {"pipeline", "run_id", "env", "step", "index", "inputs", "output", "finished_at"},
+            {
+                "pipeline",
+                "run_id",
+                "env",
+                "step",
+                "index",
+                "inputs",
+                "output",
+                "finished_at",
+                "started_at",
+                "duration_ms",
+            },
         )
 
     def test_a_retry_has_a_higher_index_and_its_own_key(self) -> None:

@@ -1,8 +1,9 @@
 /* One step as a timeline item (<li>). Used by the run page's list and the graph's "Selected step" panel. */
 import { sparkline } from '../chart.js';
+import { stepEventsHTML } from './events.js';
 import { esc, fmt, hhmmss, isDone, isLoss, metric, stepOf, stepState } from '../model.js';
 import {
-  I, copyButtonHTML, deltaChip, elapsedHTML, lossPill,
+  I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, slowestTag,
 } from '../ui.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -46,12 +47,17 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
   html += '<div class="step__name"><div class="step__title">' + name + '</div><div class="step__time">';
   if (missing) html += '<span>No record</span>';
   else if (live === 'waiting') html += '<span>Not started</span>';
-  else if (failed) html += '<span>Started ' + (s.startedAt ? hhmmss(s.startedAt) : '') + ' · failed ' + (s.failedAt ? hhmmss(s.failedAt) : '') + '</span>';
+  else if (failed) {
+    html += '<span>Started ' + (s.startedAt ? hhmmss(s.startedAt) : '') + ' · failed ' + (s.failedAt ? hhmmss(s.failedAt) : '') + '</span>';
+    if (s.durationSeconds != null) html += '<span class="step__dur">' + I.stopwatch.replace('<svg', '<svg class="ico--sm" style="width:12px;height:12px"') + durationHTML(s.durationSeconds, { approx: s.durationApprox }) + '</span>';
+  }
   else if (isLive || died) html += '<span>Started ' + (s.startedAt ? hhmmss(s.startedAt) : '') + '</span>';
   else if (!s.finishedAt) html += '<span>No finish time</span>';
   else {
     html += '<span title="Finished at">' + I.check.replace('<svg', '<svg class="ico--sm" style="width:12px;height:12px"') + '</span><span>' + hhmmss(s.finishedAt) + '</span>';
+    if (s.durationSeconds != null) html += '<span class="step__dur">' + I.stopwatch.replace('<svg', '<svg class="ico--sm" style="width:12px;height:12px"') + durationHTML(s.durationSeconds, { approx: s.durationApprox }) + '</span>';
   }
+  if (run.bottleneck === s.name) html += slowestTag();
   if (loss) html += lossPill(1, 'sm');
   if (unplanned) html += '<span class="pill pill--neutral pill--sm" title="Reported, but not in this run’s flow description">not in flow</span>';
   html += '</div></div>';
@@ -109,6 +115,7 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
     html += '<div class="step__spark" title="Last ' + vals.length + ' runs">' + sparkline(vals) +
       '<div class="spark-cap">' + (s.output == null && isDone(s) ? 'input · ' : '') + vals.length + ' runs</div></div>';
   }
+  if (!missing && live !== 'waiting' && run.pipeline) html += stepEventsHTML(run, s.name);
   html += '</article></li>';
   return html;
 }

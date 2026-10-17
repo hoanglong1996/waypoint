@@ -63,6 +63,10 @@ class FakeStore:
         self.alive: Raw = []
         self.died: Raw = []
         self.failures: Raw = []
+        # run id -> level -> raw JSON elements, oldest first (the three event lists of a run)
+        self.events: Dict[str, Dict[str, List[str]]] = {}
+        self.events_denied = False  # the account may not read the event lists (NOPERM)
+        self.read_events_calls = 0
         self.fail = False
         self.fail_write = False
         self.calls = 0
@@ -114,6 +118,53 @@ class FakeStore:
         self._check()
         prefix = _prefix(pipeline, env)
         return [(k, v) for k, v in self.failures if k.startswith(prefix)]
+
+    def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
+        self._check()
+        if self.events_denied:
+            return {}
+        return {
+            run_id: {
+                "warning": len(levels.get("warning", [])),
+                "error": len(levels.get("error", [])),
+            }
+            for run_id, levels in self.events.items()
+        }
+
+    def read_events(self, env: str, pipeline: str, run_id: str) -> List[Tuple[str, List[str]]]:
+        self.read_events_calls += 1
+        self._check()
+        if self.events_denied:
+            return []
+        levels = self.events.get(run_id, {})
+        return [
+            (f"{_prefix(pipeline, env)}{run_id}:events:{level}", list(levels[level]))
+            for level in ("info", "warning", "error")
+            if levels.get(level)
+        ]
+
+    def add_event(
+        self,
+        run_id: str,
+        level: str,
+        n: int,
+        ts: str,
+        message: Optional[str] = "hello",
+        step: Optional[str] = None,
+        fields: Optional[Dict[str, Any]] = None,
+        raw: Optional[str] = None,
+    ) -> None:
+        """Append an author-sent event to the run's list of `level` (`raw` replaces the JSON)."""
+        event: Dict[str, Any] = {"v": 1, "n": n, "ts": ts, "level": level}
+        if message is not None:
+            event["message"] = message
+        if step is not None:
+            event["step"] = step
+        if fields is not None:
+            event["fields"] = fields
+        self.events.setdefault(run_id, {}).setdefault(level, []).append(
+            raw if raw is not None else json.dumps(event)
+        )
 
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
         self.write_calls.append((key, value, alive_key))
@@ -192,8 +243,15 @@ def make_run(
     corrupt: Sequence[int] = (),
     pipeline: str = PIPELINE,
     with_flow: bool = True,
+    step_seconds: Optional[Sequence[float]] = None,
+    exact: bool = True,
 ) -> Raw:
-    """The flow plus the step records of one CallRail run. `missing_from` drops steps from that index."""
+    """The flow plus the step records of one CallRail run. `missing_from` drops steps from that index.
+
+    `step_seconds` gives each step's duration (the steps run back to back from the run's start); with
+    `exact` the records carry `started_at` and `duration_ms` like library 0.4.0, without it they look
+    like records of library 0.2.0/0.3.0.
+    """
     outputs = list(SAMPLE_OUTPUT)
     for i, v in (overrides or {}).items():
         outputs[i] = v
@@ -203,8 +261,13 @@ def make_run(
         if missing_from is not None and i >= missing_from:
             continue
         counts = {n: int(outputs[_INDEX[src]] or 0) for n, src in inputs}
-        finished = (start + timedelta(seconds=(i + 1) * 8)).astimezone(timezone.utc)
-        record = {
+        if step_seconds is not None:
+            began = start + timedelta(seconds=sum(step_seconds[:i]))
+            finished = began + timedelta(seconds=step_seconds[i])
+        else:
+            began = None
+            finished = (start + timedelta(seconds=(i + 1) * 8)).astimezone(timezone.utc)
+        record: Dict[str, Any] = {
             "pipeline": pipeline,
             "run_id": run_id,
             "env": env,
@@ -214,6 +277,9 @@ def make_run(
             "output": outputs[i],
             "finished_at": finished.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
+        if began is not None and exact:
+            record["started_at"] = began.strftime("%Y-%m-%dT%H:%M:%SZ")
+            record["duration_ms"] = round(step_seconds[i] * 1000)  # type: ignore[index]
         value = "{not json" if i in corrupt else json.dumps(record)
         out.append((f"{_prefix(pipeline, env)}{run_id}:step:{i + 1:02d}-{name}", value))
     return out

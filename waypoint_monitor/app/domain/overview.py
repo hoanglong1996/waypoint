@@ -93,6 +93,8 @@ def _summary(run: Run) -> Dict[str, Any]:
     stalled = next((s for s in run["steps"] if s.get("state") == "stalled"), None)
     died = run.get("died")
     died_step = next((s for s in run["steps"] if s.get("state") == "died"), None)
+    duration = run.get("duration") or {}
+    counts = run.get("event_counts") or {}
     return {
         "run_id": run["run_id"],
         "env": run["env"],
@@ -108,6 +110,11 @@ def _summary(run: Run) -> Dict[str, Any]:
         "died_step": died_step["name"] if died_step else None,
         "last_seen_at": died["last_seen_at"] if died else None,
         "unreadable": run["unreadable"],
+        "duration_seconds": duration.get("seconds"),
+        "duration_running": bool(duration.get("running")),
+        "slow": bool(duration.get("slow")),
+        "warnings": int(counts.get("warning", 0)),
+        "errors": int(counts.get("error", 0)),
         "headline": _headline(run),
         **_failure(run),
     }

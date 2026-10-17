@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
@@ -8,22 +9,27 @@ from fastapi.responses import JSONResponse
 
 from app.config import Settings
 from app.domain.analysis import build_runs
+from app.domain.durations import flag_slow, typical
 from app.domain.models import ParseResult
 from app.domain.overview import build_overview
 from app.domain.parsing import (
+    EVENT_LEVELS,
     PIPELINE_NAME,
     alive_key,
     died_key,
     parse_alive,
     parse_died,
+    parse_events,
     parse_failures,
     parse_flows,
     parse_markers,
     parse_records,
 )
+from app.domain.timeline import derive_events, dropped, merge, public, recorded_entries, select
 from app.infrastructure.store import RecordStore, StoreUnavailable
 
 UNAVAILABLE = "Data store unavailable"
+_RUN_ID = re.compile(r"^\d{8}T\d{6}Z$")
 
 Raw = List[Tuple[str, str]]
 
@@ -38,6 +44,7 @@ class Window(NamedTuple):
     alive: Raw
     died: Raw
     failures: Raw
+    event_counts: Dict[str, Dict[str, int]]
 
 
 def _error(status: int, message: str, **extra: Any) -> JSONResponse:
@@ -69,6 +76,7 @@ def build_router(
                 store.list_alive(env, pipeline),
                 store.list_died(env, pipeline),
                 store.list_failures(env, pipeline),
+                store.list_event_counts(env, pipeline),
             )
         except StoreUnavailable:
             cache.pop((env, pipeline), None)  # never answer an unreachable store from old data
@@ -105,7 +113,9 @@ def build_router(
         if attempted:
             cache.pop((env, pipeline), None)  # the next view reads back what is stored
 
-    def build(env: str, pipeline: str, moment: datetime) -> Tuple[Any, List[Dict[str, Any]]]:
+    def build(
+        env: str, pipeline: str, moment: datetime
+    ) -> Tuple[Any, List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         window = keys_for(env, pipeline)
         parsed = parse_records(env, pipeline, window.records)
         failures, failure_unreadable = parse_failures(env, pipeline, window.failures)
@@ -127,10 +137,19 @@ def build_router(
             alive=parse_alive(env, pipeline, window.alive),
             verdicts=parse_died(env, pipeline, window.died),
             failures=failures,
+            event_counts=window.event_counts,
             dead_seconds=settings.heartbeat_dead_seconds,
         )
         record_verdicts(env, pipeline, built)
-        return parsed, built
+        # typical durations come from every run read, not only the slice a client asks for
+        usual = typical(
+            built,
+            settings.duration_window_runs,
+            settings.duration_min_runs,
+            settings.slow_run_multiple,
+        )
+        flag_slow(built, usual)
+        return parsed, built, usual
 
     @router.get("/health")
     def health() -> JSONResponse:
@@ -149,6 +168,9 @@ def build_router(
             "stale_hours": settings.stale_hours,
             "stall_seconds": settings.stall_seconds,
             "heartbeat_dead_seconds": settings.heartbeat_dead_seconds,
+            "slow_run_multiple": settings.slow_run_multiple,
+            "duration_window_runs": settings.duration_window_runs,
+            "duration_min_runs": settings.duration_min_runs,
         }
 
     @router.get("/pipelines")
@@ -160,7 +182,7 @@ def build_router(
             moment = now()
             found: List[Dict[str, Any]] = []
             for name in names:
-                _, built = build(env, name, moment)
+                _, built, _ = build(env, name, moment)
                 newest = built[0] if built else None
                 label = newest["flow"]["label"] if newest and newest["flow"] else None
                 found.append(
@@ -184,7 +206,7 @@ def build_router(
             for env in settings.environments:
                 runs[env] = {}
                 for name in store.list_pipelines(env):
-                    parsed, built = build(env, name, moment)
+                    parsed, built, _ = build(env, name, moment)
                     runs[env][name] = built
                     unreadable += parsed.unreadable_total
         except StoreUnavailable:
@@ -207,7 +229,7 @@ def build_router(
             return _error(400, f"Invalid pipeline '{pipeline}'")
         moment = now()
         try:
-            parsed, built = build(env, pipeline, moment)
+            parsed, built, usual = build(env, pipeline, moment)
         except StoreUnavailable:
             return _error(503, UNAVAILABLE)
         body: Dict[str, Optional[Any]] = {
@@ -215,8 +237,59 @@ def build_router(
             "pipeline": pipeline,
             "generated_at": moment.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "unreadable_total": parsed.unreadable_total,
+            "typical": usual,
             "runs": built[:limit],
         }
         return JSONResponse(body)
+
+    @router.get("/runs/{pipeline}/{env}/{run_id}/events")
+    def run_events(
+        pipeline: str,
+        env: str,
+        run_id: str,
+        level: Optional[str] = Query(None),
+        step: Optional[str] = Query(None),
+        offset: int = Query(0),
+        limit: int = Query(200),
+    ) -> JSONResponse:
+        """The timeline of one run: recorded events merged with the events derived from its records."""
+        if env not in settings.environments:
+            return _error(400, f"Unknown environment '{env}'")
+        if not PIPELINE_NAME.match(pipeline):
+            return _error(400, f"Invalid pipeline '{pipeline}'")
+        if not _RUN_ID.match(run_id):
+            return _error(400, f"Invalid run id '{run_id}'")
+        levels = [part.strip() for part in level.split(",") if part.strip()] if level else None
+        if levels and any(part not in EVENT_LEVELS for part in levels):
+            return _error(400, "level must be info, warning or error")
+        if offset < 0 or not 1 <= limit <= 500:
+            return _error(400, "offset must be 0 or more and limit between 1 and 500")
+        moment = now()
+        try:
+            _, built, _ = build(env, pipeline, moment)
+            raw = store.read_events(env, pipeline, run_id)
+        except StoreUnavailable:
+            return _error(503, UNAVAILABLE)
+        run = next((r for r in built if r["run_id"] == run_id), None)
+        recorded, unreadable = parse_events(env, pipeline, raw)
+        derived = derive_events(run, settings.stall_seconds) if run else []
+        entries = merge(derived, recorded_entries(recorded))
+        page, matched = select(entries, levels, step, offset, limit)
+        return JSONResponse(
+            {
+                "env": env,
+                "pipeline": pipeline,
+                "run_id": run_id,
+                "generated_at": moment.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "total": len(entries),
+                "matched": matched,
+                "offset": offset,
+                "has_more": offset + len(page) < matched,
+                "recorded": len(recorded),
+                "dropped": dropped(recorded),
+                "unreadable": unreadable.get(run_id, 0),
+                "events": [public(e) for e in page],
+            }
+        )
 
     return router

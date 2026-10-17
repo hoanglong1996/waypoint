@@ -100,7 +100,10 @@ class TestRuns(unittest.TestCase):
                 "steps",
                 "running_step",
                 "died",
-                "failed",  # specs/011: the only new key on a run
+                "failed",  # specs/011
+                "duration",  # specs/012
+                "bottleneck",
+                "event_counts",
             },
         )
 
@@ -438,6 +441,11 @@ class TestOverview(unittest.TestCase):
         "failed_step",
         "failed_at",
         "error",
+        "duration_seconds",  # specs/012
+        "duration_running",
+        "slow",
+        "warnings",
+        "errors",
     }
 
     def overview(self, store: FakeStore, **kw: Any) -> Dict[str, Any]:
@@ -810,6 +818,368 @@ class TestFailed(unittest.TestCase):
         self.assertIsNone(run["failed"])
         (card,) = client_for(store).get("/api/overview").json()["pipelines"]
         self.assertEqual((card["latest"]["failed_step"], card["latest"]["error"]), (None, None))
+
+
+class TestRunsDurations(unittest.TestCase):
+    """Specs 012: /api/runs durations; /api/overview latest duration."""
+
+    def test_runs_carry_step_and_run_durations(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10, 20, 5, 5, 5, 60, 10, 4, 6])
+        body = (
+            client_for(FakeStore(raw))
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()
+        )
+        run = body["runs"][0]
+        self.assertEqual(
+            run["duration"], {"seconds": 125, "running": False, "complete": True, "slow": False}
+        )
+        self.assertEqual(run["bottleneck"], "read_gads_clickview")
+        step = run["steps"][1]
+        self.assertEqual((step["duration_seconds"], step["duration_approx"]), (20, False))
+
+    def test_old_library_runs_are_approximate(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9, exact=False)
+        body = (
+            client_for(FakeStore(raw))
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()
+        )
+        self.assertTrue(all(s["duration_approx"] for s in body["runs"][0]["steps"]))
+
+    def test_overview_latest_duration(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9)
+        card = client_for(FakeStore(raw)).get("/api/overview").json()["pipelines"][0]
+        self.assertEqual(card["latest"]["duration_seconds"], 90)
+        self.assertFalse(card["latest"]["duration_running"])
+        self.assertEqual(card["card_status"], "ok")
+
+
+def history(durations: List[int], env: str = "prod", day: int = 1) -> List[Tuple[str, str]]:
+    """One finished run per entry (oldest first, one hour apart) whose nine steps add up to it."""
+    raw: List[Tuple[str, str]] = []
+    for i, total in enumerate(durations):
+        run_id = f"202610{day:02d}T{i:02d}0000Z"
+        steps = [total // 9] * 9
+        steps[-1] += total - sum(steps)
+        raw += make_run(env, run_id, step_seconds=steps)
+    return raw
+
+
+class TestSlowRuns(unittest.TestCase):
+    """Specs 012: typical durations and the Slower than usual flag."""
+
+    def runs(self, raw: List[Tuple[str, str]], **kw: object) -> Dict[str, Any]:
+        client = client_for(
+            FakeStore(raw), now=datetime(2026, 10, 2, 12, tzinfo=timezone.utc), **kw
+        )
+        return client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+
+    def test_typical_values_and_the_one_slow_run(self) -> None:
+        body = self.runs(history([600] * 7 + [2100]))
+        self.assertEqual(body["typical"]["median_seconds"], 600)
+        self.assertEqual(body["typical"]["sample"], 8)
+        self.assertEqual(body["typical"]["slow_after_seconds"], 1200)
+        slow = [r["run_id"] for r in body["runs"] if r["duration"]["slow"]]
+        self.assertEqual(slow, ["20261001T070000Z"])
+
+    def test_typical_covers_every_run_read_not_only_the_limit(self) -> None:
+        raw = history([600] * 7 + [2100])
+        client = client_for(FakeStore(raw), now=datetime(2026, 10, 2, 12, tzinfo=timezone.utc))
+        body = client.get(
+            "/api/runs", params={"env": "prod", "pipeline": "callrail", "limit": 1}
+        ).json()
+        self.assertEqual(len(body["runs"]), 1)
+        self.assertEqual(body["typical"]["sample"], 8)
+        self.assertTrue(body["runs"][0]["duration"]["slow"])
+
+    def test_typical_is_null_below_the_minimum_and_nothing_is_flagged(self) -> None:
+        body = self.runs(history([600, 600, 600, 5000]))
+        self.assertIsNone(body["typical"])
+        self.assertFalse(any(r["duration"]["slow"] for r in body["runs"]))
+
+    def test_settings_change_the_result(self) -> None:
+        raw = history([600] * 7 + [1000])
+        self.assertFalse(self.runs(raw)["runs"][0]["duration"]["slow"])
+        tight = self.runs(raw, slow_run_multiple=1.5)
+        self.assertTrue(tight["runs"][0]["duration"]["slow"])
+        few = self.runs(raw, duration_min_runs=20)
+        self.assertIsNone(few["typical"])
+
+    def test_overview_marks_the_latest_run_but_not_its_status_or_order(self) -> None:
+        raw = history([600] * 7 + [2100]) + make_run("prod", "20261001T000000Z", pipeline="other")
+        client = client_for(FakeStore(raw), now=datetime(2026, 10, 1, 9, tzinfo=timezone.utc))
+        cards = {c["name"]: c for c in client.get("/api/overview").json()["pipelines"]}
+        self.assertTrue(cards["callrail"]["latest"]["slow"])
+        self.assertEqual(cards["callrail"]["card_status"], "ok")
+        self.assertFalse(cards["callrail"]["needs_attention"])
+        self.assertFalse(cards["other"]["latest"]["slow"])
+
+
+class TestEventsEndpoint(unittest.TestCase):
+    """Specs 012 contracts/api.md: GET /api/runs/{pipeline}/{env}/{run_id}/events."""
+
+    URL = f"/api/runs/callrail/prod/{R1}/events"
+
+    def store(self) -> FakeStore:
+        store = FakeStore(make_run("prod", R1, step_seconds=[10] * 9))
+        store.add_event(
+            R1,
+            "info",
+            1,
+            "2026-10-15T02:00:20.250Z",
+            "Loaded batch 3",
+            "read_partners",
+            {"rows": 1200},
+        )
+        store.add_event(
+            R1, "warning", 2, "2026-10-15T02:00:25.100Z", "slow source", "read_partners"
+        )
+        store.add_event(R1, "error", 3, "2026-10-15T02:00:26.000Z", "one batch skipped")
+        return store
+
+    def get(self, store: Optional[FakeStore] = None, **params: object) -> Any:
+        return client_for(store or self.store()).get(self.URL, params=params)  # type: ignore[arg-type]
+
+    def test_shape_and_merge_of_derived_and_recorded_events(self) -> None:
+        body = self.get().json()
+        self.assertEqual(
+            set(body),
+            {
+                "env",
+                "pipeline",
+                "run_id",
+                "generated_at",
+                "total",
+                "matched",
+                "offset",
+                "has_more",
+                "recorded",
+                "dropped",
+                "unreadable",
+                "events",
+            },
+        )
+        self.assertEqual((body["env"], body["pipeline"], body["run_id"]), ("prod", "callrail", R1))
+        self.assertEqual((body["recorded"], body["dropped"], body["unreadable"]), (3, 0, 0))
+        self.assertEqual(body["total"], body["matched"])
+        self.assertEqual((body["offset"], body["has_more"]), (0, False))
+        events = body["events"]
+        self.assertEqual(events[0]["kind"], "run_started")
+        self.assertEqual(
+            set(events[0]), {"id", "ts", "level", "step", "message", "fields", "source", "kind"}
+        )
+        custom = [e for e in events if e["source"] == "pipeline"]
+        self.assertEqual([e["id"] for e in custom], ["r:info:1", "r:warning:2", "r:error:3"])
+        self.assertEqual(custom[0]["fields"], {"rows": 1200})
+        self.assertEqual([e["ts"] for e in events], sorted(e["ts"] for e in events))
+
+    def test_defaults_and_paging(self) -> None:
+        full = self.get().json()["events"]
+        first = self.get(limit=5).json()
+        self.assertEqual((len(first["events"]), first["has_more"]), (5, True))
+        second = self.get(limit=5, offset=5).json()
+        self.assertEqual(first["events"] + second["events"], full[:10])
+        last = self.get(offset=len(full) - 1).json()
+        self.assertEqual((len(last["events"]), last["has_more"]), (1, False))
+
+    def test_level_and_step_filters(self) -> None:
+        body = self.get(level="warning,error").json()
+        self.assertEqual({e["level"] for e in body["events"]}, {"warning", "error"})
+        self.assertEqual(body["matched"], 2)
+        self.assertGreater(body["total"], 2)
+        body = self.get(step="read_partners").json()
+        self.assertEqual({e["step"] for e in body["events"]}, {"read_partners"})
+        self.assertEqual(self.get(step="nope").json()["matched"], 0)
+
+    def test_bad_parameters_are_400(self) -> None:
+        for params in ({"level": "debug"}, {"limit": 0}, {"limit": 501}, {"offset": -1}):
+            with self.subTest(params=params):
+                self.assertEqual(self.get(**params).status_code, 400)
+        client = client_for(self.store())
+        self.assertEqual(client.get(f"/api/runs/callrail/nope/{R1}/events").status_code, 400)
+        self.assertEqual(client.get(f"/api/runs/Bad Name/prod/{R1}/events").status_code, 400)
+        self.assertEqual(client.get("/api/runs/callrail/prod/notarun/events").status_code, 400)
+
+    def test_an_unknown_run_is_an_empty_timeline_not_404(self) -> None:
+        response = client_for(self.store()).get("/api/runs/callrail/prod/20200101T000000Z/events")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual((body["total"], body["matched"], body["events"]), (0, 0, []))
+
+    def test_a_run_without_author_events_is_the_derived_timeline(self) -> None:
+        store = FakeStore(make_run("prod", R1, step_seconds=[10] * 9, exact=False))
+        body = self.get(store).json()
+        self.assertEqual((body["recorded"], body["dropped"]), (0, 0))
+        self.assertGreater(body["total"], 0)
+        self.assertTrue(all(e["source"] == "monitor" for e in body["events"]))
+
+    def test_a_damaged_element_is_counted_and_the_rest_is_shown(self) -> None:
+        store = self.store()
+        store.add_event(R1, "info", 4, "x", raw="{nope")
+        body = self.get(store).json()
+        self.assertEqual((body["recorded"], body["unreadable"]), (3, 1))
+
+    def test_dropped_events_are_reported(self) -> None:
+        store = self.store()
+        store.add_event(R1, "info", 40, "2026-10-15T02:00:30.000Z")
+        body = self.get(store).json()
+        self.assertEqual(body["recorded"], 4)
+        self.assertEqual(body["dropped"], 36)
+
+    def test_a_failure_is_an_error_entry_without_a_traceback(self) -> None:
+        start = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        store = FakeStore(make_run("prod", R1, missing_from=2))
+        store.failures.append(
+            make_failure("prod", R1, 2, start + timedelta(seconds=31), started_at=start)
+        )
+        body = self.get(store, level="error").json()
+        kinds = [e["kind"] for e in body["events"]]
+        self.assertEqual(kinds, ["step_failed", "run_stopped"])
+        self.assertNotIn("File", json.dumps(body))
+
+    def test_store_down_is_503(self) -> None:
+        store = self.store()
+        store.fail = True
+        self.assertEqual(self.get(store).status_code, 503)
+
+    def test_a_refused_event_read_still_gives_the_derived_timeline(self) -> None:
+        store = self.store()
+        store.events_denied = True
+        body = self.get(store).json()
+        self.assertEqual(body["recorded"], 0)
+        self.assertGreater(body["total"], 0)
+
+    def test_the_endpoint_never_writes(self) -> None:
+        store = self.store()
+        self.get(store)
+        self.assertEqual(store.write_calls, [])
+
+
+class TestEventCounts(unittest.TestCase):
+    """Specs 012 US5: warning and error counts come from list lengths, never from event bodies."""
+
+    def store(self) -> FakeStore:
+        store = FakeStore(make_run("prod", R1) + make_run("prod", R2))
+        store.add_event(R1, "info", 1, "2026-10-15T02:00:20.000Z")
+        for n in (2, 3):
+            store.add_event(R1, "warning", n, "2026-10-15T02:00:21.000Z")
+        store.add_event(R1, "error", 4, "2026-10-15T02:00:22.000Z")
+        return store
+
+    def test_runs_carry_counts_zero_when_none(self) -> None:
+        body = (
+            client_for(self.store())
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()
+        )
+        by_id = {r["run_id"]: r for r in body["runs"]}
+        self.assertEqual(by_id[R1]["event_counts"], {"warning": 2, "error": 1})
+        self.assertEqual(by_id[R2]["event_counts"], {"warning": 0, "error": 0})
+
+    def test_overview_card_has_the_latest_runs_counts(self) -> None:
+        card = client_for(self.store()).get("/api/overview").json()["pipelines"][0]
+        self.assertEqual((card["latest"]["warnings"], card["latest"]["errors"]), (2, 1))
+
+    def test_runs_and_overview_never_read_event_bodies(self) -> None:
+        store = self.store()
+        client = client_for(store)
+        client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+        client.get("/api/overview")
+        self.assertEqual(store.read_events_calls, 0)
+
+    def test_a_step_failure_is_not_counted_again(self) -> None:
+        start = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        store = FakeStore(make_run("prod", R1, missing_from=2))
+        store.failures.append(
+            make_failure("prod", R1, 2, start + timedelta(seconds=5), started_at=start)
+        )
+        run = (
+            client_for(store)
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()["runs"][0]
+        )
+        self.assertIsNotNone(run["failed"])
+        self.assertEqual(run["event_counts"], {"warning": 0, "error": 0})
+
+    def test_a_refused_count_read_gives_zeros_and_pages_still_load(self) -> None:
+        store = self.store()
+        store.events_denied = True
+        client = client_for(store)
+        run = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()[
+            "runs"
+        ][0]
+        self.assertEqual(run["event_counts"], {"warning": 0, "error": 0})
+        self.assertEqual(client.get("/api/overview").status_code, 200)
+
+    def test_event_counts_cached_with_the_window(self) -> None:
+        store = self.store()
+        clock = Clock()
+        client = client_for(store, clock=clock)
+        first = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+        store.add_event(R1, "error", 9, "2026-10-15T02:00:30.000Z")
+        cached = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+        self.assertEqual(first["runs"][0]["event_counts"], cached["runs"][0]["event_counts"])
+        clock.t = 60
+        fresh = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"}).json()
+        self.assertEqual(fresh["runs"][0]["event_counts"]["error"], 2)
+
+
+class TestOlderPipelinesAndMonitors(unittest.TestCase):
+    """Specs 012 US7: data from library 0.2.0/0.3.0 shows fully, without banners or errors."""
+
+    def old_store(self) -> FakeStore:
+        return FakeStore(make_run("prod", R1, step_seconds=[10] * 9, exact=False))
+
+    def test_every_endpoint_answers_for_a_run_without_the_new_data(self) -> None:
+        client = client_for(self.old_store())
+        runs = client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+        overview = client.get("/api/overview")
+        events = client.get(f"/api/runs/callrail/prod/{R1}/events")
+        for response in (runs, overview, events):
+            self.assertEqual(response.status_code, 200)
+        run = runs.json()["runs"][0]
+        self.assertTrue(all(s["duration_approx"] for s in run["steps"]))
+        self.assertEqual(run["duration"]["seconds"], 90)
+        self.assertEqual(runs.json()["unreadable_total"], 0)
+        self.assertEqual(overview.json()["unreadable_total"], 0)
+        body = events.json()
+        self.assertEqual((body["recorded"], body["dropped"], body["unreadable"]), (0, 0, 0))
+
+    def test_inconsistent_times_give_no_duration_and_nothing_negative(self) -> None:
+        raw = make_run("prod", R1, step_seconds=[10] * 9)
+        key, value = raw[1]
+        record = json.loads(value)
+        record["started_at"] = "2026-10-15T02:30:00Z"  # after its own finish
+        record.pop("duration_ms")
+        raw[1] = (key, json.dumps(record))
+        body = (
+            client_for(FakeStore(raw))
+            .get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+            .json()
+        )
+        first = body["runs"][0]["steps"][0]
+        self.assertIsNone(first["duration_seconds"])
+        self.assertNotIn(
+            "-",
+            json.dumps([s.get("duration_seconds") for s in body["runs"][0]["steps"]]).replace(
+                "null", ""
+            ),
+        )
+
+    def test_the_monitor_makes_no_write_but_the_died_verdict(self) -> None:
+        start = datetime(2026, 10, 15, 2, 0, 16, tzinfo=timezone.utc)
+        store = FakeStore(make_run("prod", R1, missing_from=2, step_seconds=[10] * 9))
+        store.markers.append(make_marker("prod", R1, 2, NOW - timedelta(seconds=400)))
+        store.alive.append(make_alive("prod", R1, NOW - timedelta(seconds=300)))
+        store.add_event(R1, "warning", 1, "2026-10-15T02:00:20.000Z")
+        client = client_for(store)
+        client.get("/api/runs", params={"env": "prod", "pipeline": "callrail"})
+        client.get("/api/overview")
+        client.get(f"/api/runs/callrail/prod/{R1}/events")
+        self.assertTrue(store.write_calls)
+        self.assertTrue(all(call[0].endswith(":died") for call in store.write_calls))
+        self.assertEqual(start.year, 2026)
 
 
 if __name__ == "__main__":

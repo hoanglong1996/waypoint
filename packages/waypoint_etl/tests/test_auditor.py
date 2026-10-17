@@ -2,6 +2,7 @@ import json
 import unittest
 from dataclasses import replace
 from typing import Dict, List, Tuple
+from unittest import mock
 
 from waypoint_etl.auditor import StepAuditor, count_items
 from waypoint_etl.keys import START_MARKER_TTL_SECONDS
@@ -287,6 +288,53 @@ class TestStartMarker(unittest.TestCase):
     def test_noop_store_works(self) -> None:
         a = StepAuditor(NoopStepAuditStore(), SPEC, env="", ttl_seconds=0, run_id="R")
         self.assertEqual(a.run("read_x", lambda: 5), 5)
+
+
+class TestFinishTimes(unittest.TestCase):
+    """Specs 012: the finish record carries the step's start time and a monotonic duration."""
+
+    def test_finish_has_started_at_and_duration(self) -> None:
+        store = FakeStore()
+        a = auditor(store)
+        index = a.begin("read_x")
+        a.finish("read_x", index, {}, [1])
+        record = finished(store)[0][1]
+        self.assertEqual(record["started_at"], markers(store)[0][1]["started_at"])
+        self.assertIsInstance(record["duration_ms"], int)
+        self.assertGreaterEqual(record["duration_ms"], 0)  # type: ignore[operator]
+        for key in (
+            "pipeline",
+            "run_id",
+            "env",
+            "step",
+            "index",
+            "inputs",
+            "output",
+            "finished_at",
+        ):
+            self.assertIn(key, record)
+
+    def test_duration_uses_monotonic_clock(self) -> None:
+        store = FakeStore()
+        a = auditor(store)
+        with mock.patch("waypoint_etl.auditor.time.monotonic", side_effect=[100.0, 102.5]):
+            index = a.begin("read_x")
+            a.finish("read_x", index, {}, None)
+        self.assertEqual(finished(store)[0][1]["duration_ms"], 2500)
+
+    def test_finish_of_unknown_index_omits_new_fields(self) -> None:
+        store = FakeStore()
+        auditor(store).finish("read_x", 7, {}, None)
+        record = finished(store)[0][1]
+        self.assertNotIn("started_at", record)
+        self.assertNotIn("duration_ms", record)
+
+    def test_run_writes_them_too(self) -> None:
+        store = FakeStore()
+        auditor(store).run("read_x", lambda: [1, 2])
+        record = finished(store)[0][1]
+        self.assertIn("started_at", record)
+        self.assertIn("duration_ms", record)
 
 
 if __name__ == "__main__":

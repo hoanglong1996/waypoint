@@ -55,6 +55,9 @@ Set as environment variables or in the `.env.<name>` file selected with `-c <nam
 | `REDIS_URL` | none | Redis that pipelines write to. |
 | `ENVIRONMENTS` | `prod,qa,test` | Environments the dashboard reads. |
 | `STALE_HOURS` | `26` | A pipeline whose newest run is older than this is marked **Stale**. |
+| `SLOW_RUN_MULTIPLE` | `2.0` | A run longer than this multiple of the median is flagged **Slower than usual**. |
+| `DURATION_WINDOW_RUNS` | `30` | Newest completed runs used for the median and slow end. |
+| `DURATION_MIN_RUNS` | `5` | Completed runs needed before any run is flagged. |
 | `STALL_SECONDS` | `900` | A step running longer than this is **Stalled**. |
 | `HEARTBEAT_DEAD_SECONDS` | `90` | Heartbeat older than this, with unfinished work, means **Died**. |
 | `REFRESH_SECONDS` | `5` | How often an open page reloads. |
@@ -66,7 +69,7 @@ Full list and behaviour: [`waypoint_monitor/README.md`](waypoint_monitor/README.
 
 - The dashboard has **no login**. Keep it on an internal network or behind a VPN / authenticating reverse proxy.
 - Redis is not published to the host by the compose file. To let a pipeline elsewhere write to it, publish the port or use your own Redis, and protect it with a password.
-- Redis permissions: pipelines write `waypoint:*`. The monitor only needs `SCAN`, `MGET`, `PING`, `PTTL`, plus `SET` on `waypoint:*:died`.
+- Redis permissions: pipelines write `waypoint:*`. The monitor only needs `SCAN`, `MGET`, `PING`, `PTTL`, `LLEN` and `LRANGE` (to read events), plus `SET` on `waypoint:*:died`.
 
 ---
 
@@ -77,10 +80,10 @@ Full list and behaviour: [`waypoint_monitor/README.md`](waypoint_monitor/README.
 The SDK is installed straight from this repository by git tag. It is not on PyPI, so always use the full URL:
 
 ```bash
-pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.3.0#subdirectory=packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.4.0#subdirectory=packages/waypoint_etl"
 ```
 
-(Step errors shown as **Failed**, with their stack trace, need `waypoint-etl` 0.3.0 or newer; the monitor works with any version.)
+(Step errors shown as **Failed**, with their stack trace, need `waypoint-etl` 0.3.0 or newer. Exact step durations and `waypoint_etl.log` events need 0.4.0 or newer; durations and the run timeline also work for older pipelines, with estimated step times. The monitor works with any version.)
 
 In `requirements.txt`, use the same line without `pip install`. Requires Python 3.10+.
 
@@ -102,7 +105,7 @@ Then open Claude Code in your project and paste this prompt (fill in the three v
 ```text
 Use the adopting-waypoint-etl skill to add Waypoint tracking to this pipeline.
 
-- SDK tag: waypoint-etl-v0.3.0
+- SDK tag: waypoint-etl-v0.4.0
 - Environment name: qa            (must match the monitor's ENVIRONMENTS)
 - Redis URL: read from the REDIS_URL env var (do not hard-code or print it)
 

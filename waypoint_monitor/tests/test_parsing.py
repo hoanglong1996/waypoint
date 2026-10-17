@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from app.domain.parsing import (
     parse_alive,
     parse_died,
+    parse_events,
     parse_failures,
     parse_flows,
     parse_markers,
@@ -61,6 +62,41 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(len(result.records), 1)
         self.assertNotIn("caller_name", repr(result.records[0]))
         self.assertNotIn("Jane", repr(result.records[0]))
+
+    def test_optional_finish_fields_are_parsed(self) -> None:
+        # specs/012: library 0.4.0 adds started_at and duration_ms to the finish record
+        key, value = split(make_run("prod", RUN))[1][0]
+        data = json.loads(value)
+        data["started_at"] = "2026-10-15T02:00:01Z"
+        data["duration_ms"] = 1500
+        record = parse_records("prod", PIPELINE, [(key, json.dumps(data))]).records[0]
+        self.assertEqual(record.started_at, datetime(2026, 10, 15, 2, 0, 1, tzinfo=timezone.utc))
+        self.assertEqual(record.duration_ms, 1500)
+
+    def test_finish_fields_are_none_on_older_records(self) -> None:
+        record = parse_records("prod", PIPELINE, split(make_run("prod", RUN))[1]).records[0]
+        self.assertIsNone(record.started_at)
+        self.assertIsNone(record.duration_ms)
+
+    def test_bad_optional_finish_fields_are_ignored_not_unreadable(self) -> None:
+        key, value = split(make_run("prod", RUN))[1][0]
+        base = json.loads(value)
+        bad_cases = [
+            {"duration_ms": "5"},
+            {"duration_ms": -1},
+            {"duration_ms": True},
+            {"duration_ms": 1.5},
+            {"started_at": "x"},
+            {"started_at": 5},
+        ]
+        for extra in bad_cases:
+            with self.subTest(extra=extra):
+                result = parse_records("prod", PIPELINE, [(key, json.dumps({**base, **extra}))])
+                self.assertEqual(result.unreadable_total, 0)
+                (record,) = result.records
+                self.assertIsNone(
+                    record.duration_ms if "duration_ms" in extra else record.started_at
+                )
 
     def test_step_names_are_not_whitelisted(self) -> None:
         key = f"waypoint:other:prod:{RUN}:step:01-anything_goes"
@@ -323,3 +359,134 @@ class TestParseFailures(unittest.TestCase):
         data = {**json.loads(value), "extra": "x"}
         (f,) = parse_failures("prod", PIPELINE, [(key, json.dumps(data))])[0]
         self.assertFalse(hasattr(f, "extra"))
+
+
+def event_json(level: str = "info", **over: object) -> str:
+    base = {
+        "v": 1,
+        "n": 1,
+        "ts": "2026-10-15T02:03:41.482Z",
+        "level": level,
+        "message": "Loaded batch 3",
+    }
+    return json.dumps({**base, **over})
+
+
+def event_key(
+    level: str = "info", run: str = RUN, pipeline: str = PIPELINE, env: str = "prod"
+) -> str:
+    return f"waypoint:{pipeline}:{env}:{run}:events:{level}"
+
+
+class TestParseEvents(unittest.TestCase):
+    """Specs 012 data-model.md "Run event"."""
+
+    def parse(self, key: str, *elements: str):  # type: ignore[no-untyped-def]
+        return parse_events("prod", PIPELINE, [(key, list(elements))])
+
+    def test_a_valid_event_parses(self) -> None:
+        events, unreadable = self.parse(
+            event_key("warning"),
+            event_json("warning", n=4, step="load", fields={"rows": 1200, "source": "api"}),
+        )
+        self.assertEqual(unreadable, {})
+        (e,) = events
+        self.assertEqual((e.run_id, e.level, e.n, e.step), (RUN, "warning", 4, "load"))
+        self.assertEqual(e.message, "Loaded batch 3")
+        self.assertEqual(e.fields, {"rows": 1200, "source": "api"})
+        self.assertEqual(e.ts, datetime(2026, 10, 15, 2, 3, 41, 482000, tzinfo=timezone.utc))
+
+    def test_damaged_elements_are_skipped_and_counted_for_their_run(self) -> None:
+        cases = {
+            "bad json": "{nope",
+            "not an object": "[1]",
+            "wrong version": event_json(v=2),
+            "no version": json.dumps({"n": 1, "ts": "2026-10-15T02:03:41Z", "level": "info"}),
+            "level differs from the list": event_json("error"),
+            "missing ts": event_json(ts=None),
+            "bad ts": event_json(ts="yesterday"),
+            "n zero": event_json(n=0),
+            "n text": event_json(n="1"),
+            "n bool": event_json(n=True),
+        }
+        for label, raw in cases.items():
+            with self.subTest(label):
+                events, unreadable = self.parse(event_key("info"), raw)
+                self.assertEqual(events, [])
+                self.assertEqual(unreadable, {RUN: 1})
+
+    def test_the_rest_survives_a_damaged_element(self) -> None:
+        events, unreadable = self.parse(event_key(), event_json(n=1), "{x", event_json(n=3))
+        self.assertEqual([e.n for e in events], [1, 3])
+        self.assertEqual(unreadable, {RUN: 1})
+
+    def test_long_message_is_shortened_not_rejected(self) -> None:
+        (e,), _ = self.parse(event_key(), event_json(message="x" * 900))
+        self.assertEqual(len(e.message or ""), 300)
+
+    def test_missing_or_wrong_type_message_and_step_are_none(self) -> None:
+        for extra in ({"message": None}, {"message": 5}, {"message": ""}):
+            with self.subTest(extra=extra):
+                (e,), _ = self.parse(event_key(), event_json(**extra))
+                self.assertIsNone(e.message)
+        (e,), _ = self.parse(event_key(), event_json(step=7))
+        self.assertIsNone(e.step)
+        (e,), _ = self.parse(event_key(), event_json(step=""))
+        self.assertIsNone(e.step)
+
+    def test_fields_are_limited_and_filtered_not_rejected(self) -> None:
+        many = {f"f{i}": i for i in range(15)}
+        (e,), _ = self.parse(event_key(), event_json(fields=many))
+        self.assertEqual(len(e.fields or {}), 10)
+        bad = {
+            "ok": 1,
+            "bad name!": 2,
+            "x" * 41: 3,
+            "flag": True,
+            "list": [1],
+            "obj": {"a": 1},
+            "long": "y" * 101,
+            "text": "short",
+            "pi": 3.14,
+            "none": None,
+        }
+        (e,), unreadable = self.parse(event_key(), event_json(fields=bad))
+        self.assertEqual(e.fields, {"ok": 1, "text": "short", "pi": 3.14})
+        self.assertEqual(unreadable, {})
+        (e,), _ = self.parse(event_key(), event_json(fields={"bad name!": 1}))
+        self.assertIsNone(e.fields)
+        (e,), _ = self.parse(event_key(), event_json(fields="nope"))
+        self.assertIsNone(e.fields)
+
+    def test_non_finite_numbers_are_dropped(self) -> None:
+        raw = '{"v":1,"n":1,"ts":"2026-10-15T02:03:41Z","level":"info","fields":{"a":NaN,"b":Infinity,"c":2}}'
+        (e,), _ = self.parse(event_key(), raw)
+        self.assertEqual(e.fields, {"c": 2})
+
+    def test_other_pipelines_envs_and_non_event_keys_are_ignored_not_counted(self) -> None:
+        pairs = [
+            (event_key(pipeline="demo"), ["{x"]),
+            (event_key(env="qa"), ["{x"]),
+            (f"waypoint:{PIPELINE}:prod:{RUN}:events:debug", ["{x"]),
+            (f"waypoint:{PIPELINE}:prod:{RUN}:step:01-a", ["{x"]),
+            (f"waypoint:{PIPELINE}:prod:{RUN}:events", ["{x"]),
+        ]
+        events, unreadable = parse_events("prod", PIPELINE, pairs)
+        self.assertEqual((events, unreadable), ([], {}))
+
+    def test_events_of_all_levels_and_runs_are_gathered(self) -> None:
+        other = "20261014T020000Z"
+        pairs = [
+            (event_key("info"), [event_json(n=1)]),
+            (event_key("error"), [event_json("error", n=2)]),
+            (event_key("info", run=other), [event_json(n=1)]),
+        ]
+        events, _ = parse_events("prod", PIPELINE, pairs)
+        self.assertEqual(
+            sorted((e.run_id, e.level) for e in events),
+            [(other, "info"), (RUN, "error"), (RUN, "info")],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

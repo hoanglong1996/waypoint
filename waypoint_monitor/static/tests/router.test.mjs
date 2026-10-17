@@ -70,3 +70,33 @@ test('the page title follows the route', () => {
   assert.equal(routeTitle({ name: 'run', id: 'c', env: 'prod', runId: '20261015T020000Z' }), 'c · Run · Waypoint Monitor');
   assert.equal(routeTitle({ name: 'notfound', id: 'x' }), 'Pipeline not found · Waypoint Monitor');
 });
+
+test('a run page can ask for the Events tab, with level and step filters', () => {
+  const base = '#/p/callrail/runs/prod/20261015T020000Z';
+  assert.deepEqual(parseRoute(base + '?tab=events'), {
+    name: 'run', id: 'callrail', env: 'prod', runId: '20261015T020000Z', tab: 'events', levels: [], step: null,
+  });
+  assert.deepEqual(parseRoute(base + '?tab=events&level=warning,error&step=load'), {
+    name: 'run', id: 'callrail', env: 'prod', runId: '20261015T020000Z', tab: 'events', levels: ['warning', 'error'], step: 'load',
+  });
+  // unknown levels are dropped; any other tab is the default Steps tab
+  assert.deepEqual(parseRoute(base + '?tab=events&level=debug,info').levels, ['info']);
+  assert.deepEqual(parseRoute(base + '?tab=steps'), { name: 'run', id: 'callrail', env: 'prod', runId: '20261015T020000Z' });
+});
+
+test('Events tab addresses round-trip, including encoded step names', () => {
+  for (const hash of [
+    '#/p/a/runs/prod/20261015T020000Z?tab=events',
+    '#/p/a/runs/prod/20261015T020000Z?tab=events&level=error',
+    '#/p/a/runs/prod/20261015T020000Z?tab=events&level=info,warning&step=read%20x',
+  ]) {
+    assert.equal(buildRoute(parseRoute(hash)), hash);
+  }
+  const route = { name: 'run', id: 'a', env: 'qa', runId: '20261015T020000Z', tab: 'events', levels: [], step: 'a/b' };
+  assert.deepEqual(parseRoute(buildRoute(route)), route);
+});
+
+test('a run address without the tab has no query', () => {
+  const route = { name: 'run', id: 'a', env: 'qa', runId: '20261015T020000Z', tab: 'steps', levels: ['error'] };
+  assert.equal(buildRoute(route), '#/p/a/runs/qa/20261015T020000Z');
+});

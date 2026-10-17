@@ -27,6 +27,8 @@ def run(
     flow_steps: Optional[List[Dict[str, Any]]] = None,
     died: Optional[Dict[str, Any]] = None,
     failed: Optional[Dict[str, Any]] = None,
+    duration: Optional[Dict[str, Any]] = None,
+    event_counts: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     steps = steps if steps is not None else [step("a", output=5), step("b", output=9, inputs=5)]
     flow = None
@@ -51,6 +53,8 @@ def run(
         "failed": failed,
         "flow": flow,
         "steps": steps,
+        **({"duration": duration} if duration is not None else {}),
+        **({"event_counts": event_counts} if event_counts is not None else {}),
     }
 
 
@@ -334,6 +338,53 @@ class TestFailedCard(unittest.TestCase):
             [c["name"] for c in cards],
             ["f_failed", "g_failed", "b_lost", "c_inc", "d_stale", "e_died", "a_ok"],
         )
+
+
+class TestDurationFields(unittest.TestCase):
+    """Specs 012: the card carries the latest run's duration, slow flag and event counts."""
+
+    def test_duration_fields_come_from_the_latest_run(self) -> None:
+        d = {"seconds": 655, "running": False, "complete": True, "slow": False}
+        card = one({"prod": [run("prod", "20261016T020000Z", duration=d)]})
+        self.assertEqual(card["latest"]["duration_seconds"], 655)
+        self.assertFalse(card["latest"]["duration_running"])
+        self.assertFalse(card["latest"]["slow"])
+
+    def test_running_and_slow_flags(self) -> None:
+        d = {"seconds": 4000, "running": True, "complete": False, "slow": True}
+        latest = one({"prod": [run("prod", "20261016T020000Z", status="running", duration=d)]})[
+            "latest"
+        ]
+        self.assertTrue(latest["duration_running"])
+        self.assertTrue(latest["slow"])
+
+    def test_a_run_without_the_keys_has_empty_values(self) -> None:
+        latest = one({"prod": [run("prod", "20261016T020000Z")]})["latest"]
+        self.assertIsNone(latest["duration_seconds"])
+        self.assertEqual((latest["duration_running"], latest["slow"]), (False, False))
+        self.assertEqual((latest["warnings"], latest["errors"]), (0, 0))
+
+    def test_event_counts(self) -> None:
+        card = one(
+            {"prod": [run("prod", "20261016T020000Z", event_counts={"warning": 2, "error": 1})]}
+        )
+        self.assertEqual((card["latest"]["warnings"], card["latest"]["errors"]), (2, 1))
+
+    def test_duration_never_changes_status_or_order(self) -> None:
+        slow = {"seconds": 9999, "running": False, "complete": True, "slow": True}
+        fast = {"seconds": 5, "running": False, "complete": True, "slow": False}
+        cards = build_overview(
+            {
+                "prod": {
+                    "a": [run("prod", "20261016T020000Z", duration=slow)],
+                    "b": [run("prod", "20261016T020000Z", duration=fast)],
+                }
+            },
+            ORDER,
+        )
+        self.assertEqual([c["name"] for c in cards], ["a", "b"])
+        self.assertEqual({c["card_status"] for c in cards}, {"ok"})
+        self.assertFalse(any(c["needs_attention"] for c in cards))
 
 
 if __name__ == "__main__":

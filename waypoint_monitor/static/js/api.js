@@ -26,6 +26,7 @@ export async function loadConfig() {
     retrySeconds: c.retry_seconds,
     staleHours: c.stale_hours,
     stallSeconds: c.stall_seconds,
+    durationMinRuns: c.duration_min_runs || 5,
   };
 }
 
@@ -68,6 +69,11 @@ export function mapOverview(body) {
         failedAt: p.latest.failed_at ? new Date(p.latest.failed_at) : null,
         error: p.latest.error || null,
         unreadable: p.latest.unreadable,
+        durationSeconds: p.latest.duration_seconds == null ? null : p.latest.duration_seconds,
+        durationRunning: !!p.latest.duration_running,
+        slow: !!p.latest.slow,
+        warnings: p.latest.warnings || 0,
+        errors: p.latest.errors || 0,
         headline: p.latest.headline,
       },
     })),
@@ -87,6 +93,8 @@ function mapStep(s) {
       finishedAt: null,
       startedAt: s.started_at ? new Date(s.started_at) : null,
       failedAt: s.failed_at ? new Date(s.failed_at) : null,
+      durationSeconds: s.duration_seconds == null ? null : s.duration_seconds,
+      durationApprox: !!s.duration_approx,
       error: {
         type: typeof error.type === 'string' ? error.type : 'Error',
         message: typeof error.message === 'string' ? error.message : null,
@@ -125,6 +133,9 @@ function mapStep(s) {
     inputs: (s.inputs || []).map((i) => ({ name: i.name, value: i.value })),
     output: s.output == null ? null : s.output,
     finishedAt: s.finished_at ? new Date(s.finished_at) : null,
+    startedAt: s.started_at ? new Date(s.started_at) : null,
+    durationSeconds: s.duration_seconds == null ? null : s.duration_seconds,
+    durationApprox: !!s.duration_approx,
   };
 }
 
@@ -172,6 +183,11 @@ export function mapRun(r) {
     startedAt: new Date(r.started_at),
     endedAt: new Date(r.ended_at),
     durationSeconds: r.duration_seconds,
+    duration: r.duration
+      ? { seconds: r.duration.seconds == null ? null : r.duration.seconds, running: !!r.duration.running, complete: !!r.duration.complete, slow: !!r.duration.slow }
+      : null,
+    bottleneck: r.bottleneck || null,
+    eventCounts: { warning: (r.event_counts && r.event_counts.warning) || 0, error: (r.event_counts && r.event_counts.error) || 0 },
     ageSeconds: r.age_seconds,
     stale: r.stale,
     status: r.status,
@@ -194,6 +210,15 @@ export function mapRun(r) {
   };
 }
 
+/** The typical durations of a pipeline and environment (specs/012 data-model.md), or null. */
+export function mapTypical(t) {
+  if (!t) return null;
+  return {
+    medianSeconds: t.median_seconds, p95Seconds: t.p95_seconds, sample: t.sample, window: t.window,
+    multiple: t.multiple, slowAfterSeconds: t.slow_after_seconds,
+  };
+}
+
 /**
  * Runs of `pipeline`, newest first: from the one environment `env`, or merged from every environment when
  * `env` is not given. `limit` is how many to ask each environment for (the API allows up to 100).
@@ -204,5 +229,41 @@ export async function loadRuns(environments, pipeline, env, limit = 30) {
     '/api/runs?env=' + encodeURIComponent(e) + '&pipeline=' + encodeURIComponent(pipeline) + '&limit=' + limit,
   )));
   const runs = bodies.flatMap((body) => body.runs.map(mapRun)).sort((x, y) => (y.id < x.id ? -1 : y.id > x.id ? 1 : 0));
-  return { runs: runs.slice(0, limit), unreadableTotal: bodies.reduce((n, body) => n + body.unreadable_total, 0) };
+  // typical values belong to one environment: only an answer for a single environment has them
+  const typical = bodies.length === 1 ? mapTypical(bodies[0].typical) : null;
+  return { runs: runs.slice(0, limit), unreadableTotal: bodies.reduce((n, body) => n + body.unreadable_total, 0), typical };
+}
+
+/** One timeline entry of the events endpoint as the views use it (all text stays text). */
+export function mapEvent(e) {
+  return {
+    id: e.id,
+    ts: new Date(e.ts),
+    level: e.level,
+    step: e.step || null,
+    message: typeof e.message === 'string' ? e.message : null,
+    fields: e.fields && typeof e.fields === 'object' ? e.fields : null,
+    source: e.source === 'monitor' ? 'monitor' : 'pipeline',
+    kind: e.kind || 'custom',
+  };
+}
+
+/**
+ * A page of a run's timeline (GET /api/runs/{pipeline}/{env}/{run}/events, contracts/api.md).
+ * `levels` is a list of levels (empty = all), `step` an exact step name or null.
+ */
+export async function loadEvents(pipeline, env, runId, { levels = [], step = null, offset = 0, limit = 200 } = {}) {
+  const q = ['offset=' + offset, 'limit=' + limit];
+  if (levels.length) q.push('level=' + levels.join(','));
+  if (step) q.push('step=' + encodeURIComponent(step));
+  const body = await getJson('/api/runs/' + encodeURIComponent(pipeline) + '/' + encodeURIComponent(env) + '/' + encodeURIComponent(runId) + '/events?' + q.join('&'));
+  return {
+    events: body.events.map(mapEvent),
+    total: body.total,
+    matched: body.matched,
+    hasMore: !!body.has_more,
+    recorded: body.recorded || 0,
+    dropped: body.dropped || 0,
+    unreadable: body.unreadable || 0,
+  };
 }

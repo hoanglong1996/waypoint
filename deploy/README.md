@@ -16,10 +16,11 @@ keep it on an internal network or behind your usual access control.
 
 ## Redis permissions
 
-The pipeline account writes `waypoint:*`. The monitor's account reads (`SCAN`, `MGET`, `PING`) and has exactly one
+The pipeline account writes `waypoint:*`. The monitor's account reads (`SCAN`, `MGET`, `PING`, and `LLEN`, `LRANGE` for
+the event lists) and has exactly one
 write: `SET` (with `PTTL`) on keys matching `waypoint:*:died`, the verdict it stores when a run's process is
 gone (`specs/009-run-liveness-heartbeat/contracts/redis-keys.md`). With read-only access the monitor still works, but
-a Died verdict is then not kept across monitor restarts.
+a Died verdict is then not kept across monitor restarts; without `LLEN`/`LRANGE` pipeline events are not shown.
 
 ## Point a pipeline at it
 
@@ -31,7 +32,7 @@ Set `REDIS_URL` for the pipeline (CallRail reads it through `src/utils/config.py
 ## Install the library from another repository
 
 ```bash
-pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.3.0#subdirectory=packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.4.0#subdirectory=packages/waypoint_etl"
 ```
 
 For a private repository use `git+ssh://git@github.com/hoanglong1996/waypoint.git@...` (deploy key) or

@@ -31,6 +31,20 @@ class TestKeys(unittest.TestCase):
             keys.failed_key("p", "qa", "R", 12, "load"), "waypoint:p:qa:R:failed:12-load"
         )
 
+    def test_events_key(self) -> None:
+        # specs/012-duration-and-run-events/contracts/redis-keys.md
+        self.assertEqual(
+            keys.events_key("callrail", "prod", "20261017T020000Z", "warning"),
+            "waypoint:callrail:prod:20261017T020000Z:events:warning",
+        )
+        for level in ("info", "warning", "error"):
+            self.assertTrue(keys.events_key("p", "qa", "R", level).endswith(f":events:{level}"))
+        with self.assertRaises(ValueError):
+            keys.events_key("p", "qa", "R", "debug")
+
+    def test_event_caps(self) -> None:
+        self.assertEqual(keys.EVENT_CAPS, {"info": 500, "warning": 200, "error": 200})
+
     def test_flow_version_unchanged(self) -> None:
         self.assertEqual(keys.FLOW_VERSION, 1)
 

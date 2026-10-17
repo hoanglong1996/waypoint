@@ -8,8 +8,13 @@ never code from the pipeline.
 
 Without pipeline names it writes `demo` (one step running), `facebook` (complete), `google_ads`
 (a step that lost data) and `crashed` (a step was open and its last heartbeat is 3 minutes old, so
-the monitor shows it as Died: specs/009-run-liveness-heartbeat). A name you give is written as a
-complete run with that name as its label.
+the monitor shows it as Died: specs/009-run-liveness-heartbeat). `events` writes one finished run
+with author events (500 info events of which 100 were dropped, warnings and errors on two steps).
+`history` writes
+ten finished runs hours apart (specs/012-duration-and-run-events): seven of about 10 minutes with exact
+step durations, one that took 35 minutes (flagged Slower than usual), one from an older library
+(no step start times) and one whose last step failed. A name you give is written as a complete run
+with that name as its label.
 """
 
 import json
@@ -45,6 +50,8 @@ DEFAULTS = {
     "facebook": ("Facebook Ads", "complete"),
     "google_ads": ("Google Ads", "loss"),
     "crashed": ("Crashed pipeline", "died"),
+    "history": ("History demo", "history"),
+    "events": ("Events demo", "events"),
 }
 
 
@@ -119,6 +126,129 @@ def seed(client: redis.Redis, env: str, name: str, label: str, outcome: str) -> 
     return written
 
 
+def _stamp(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def seed_history(client: redis.Redis, env: str, name: str, label: str) -> List[str]:
+    """Ten finished runs, newest first one hour back: see the module docstring."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    ttl = 86400
+    written: List[str] = []
+    # (hours back, seconds per step extract/clean/load, kind)
+    plan = [(1, (60, 330, 210), "ok"), (2, (210, 1500, 390), "slow"), (3, (65, 300, 240), "old")]
+    plan += [(4, (70, 320, 230), "failed")]
+    plan += [(h, (55 + h, 310 + h * 5, 225), "ok") for h in range(5, 11)]
+    for hours, seconds, kind in plan:
+        start = (now - timedelta(hours=hours)).replace(minute=0, second=0)
+        run_id = start.strftime("%Y%m%dT%H%M%SZ")
+        root = f"waypoint:{name}:{env}:{run_id}"
+
+        def put(key: str, value: dict) -> None:  # type: ignore[type-arg]
+            client.setex(key, ttl, json.dumps(value))
+            written.append(key)
+
+        put(
+            f"{root}:flow",
+            {
+                "v": 1,
+                "pipeline": name,
+                "env": env,
+                "run_id": run_id,
+                "label": label,
+                "groups": GROUPS,
+                "steps": STEPS,
+            },
+        )
+        clock = start
+        steps = STEPS[:2] if kind == "failed" else STEPS
+        for index, step in enumerate(steps, start=1):
+            began, clock = clock, clock + timedelta(seconds=seconds[index - 1])
+            inputs, output = COUNTS[step["name"]]  # type: ignore[index]
+            record = {
+                "pipeline": name,
+                "run_id": run_id,
+                "env": env,
+                "step": step["name"],
+                "index": index,
+                "inputs": {} if inputs is None else {"rows": inputs},
+                "output": output,
+                "finished_at": _stamp(clock),
+            }
+            if kind != "old":
+                record["started_at"] = _stamp(began)
+                record["duration_ms"] = seconds[index - 1] * 1000
+            if kind == "failed" and index == 2:
+                put(
+                    f"{root}:failed:{index:02d}-{step['name']}",
+                    {
+                        "v": 1,
+                        "pipeline": name,
+                        "env": env,
+                        "run_id": run_id,
+                        "step": step["name"],
+                        "index": index,
+                        "started_at": _stamp(began),
+                        "failed_at": _stamp(clock),
+                        "error": {
+                            "type": "ValueError",
+                            "message": "bad row",
+                            "traceback": '  File "clean.py", line 9, in run\n    raise ValueError()\n',
+                        },
+                    },
+                )
+                continue
+            put(f"{root}:step:{index:02d}-{step['name']}", record)
+    return written
+
+
+def seed_events(client: redis.Redis, env: str, name: str, label: str) -> List[str]:
+    """One finished run (seed() with outcome complete) plus author events in the three event lists."""
+    written = seed(client, env, name, label, "complete")
+    run_id = next(k for k in written if k.endswith(":flow")).split(":")[3]
+    start = datetime.strptime(run_id, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    ttl = 3600
+
+    def stamp(offset_ms: int) -> str:
+        return (start + timedelta(milliseconds=offset_ms)).strftime("%Y-%m-%dT%H:%M:%S.%f")[
+            :-3
+        ] + "Z"
+
+    def element(n: int, level: str, offset_ms: int, message: str, step: str, fields: dict) -> str:  # type: ignore[type-arg]
+        value = {
+            "v": 1,
+            "n": n,
+            "ts": stamp(offset_ms),
+            "level": level,
+            "step": step,
+            "message": message,
+        }
+        if fields:
+            value["fields"] = fields
+        return json.dumps(value)
+
+    info = [
+        element(100 + i, "info", 100 + i * 4, f"Loaded batch {i}", "clean", {"rows": 100 + i})
+        for i in range(1, 501)
+    ]
+    warning = [
+        element(601, "warning", 1100, "slow source, retrying", "extract", {"retries": 2}),
+        element(602, "warning", 1400, "12 rows had no phone number", "clean", {"rows": 12}),
+        element(603, "warning", 1900, "<b>markup</b> in a message is shown as text", "load", {}),
+    ]
+    error = [
+        element(604, "error", 1500, "one batch skipped", "clean", {"batch": 7}),
+        element(605, "error", 2000, "could not reach the audit endpoint", "load", {}),
+    ]
+    for level, items in (("info", info), ("warning", warning), ("error", error)):
+        key = f"waypoint:{name}:{env}:{run_id}:events:{level}"
+        client.delete(key)
+        client.rpush(key, *items)
+        client.expire(key, ttl)
+        written.append(key)
+    return written
+
+
 def main() -> None:
     env = sys.argv[1] if len(sys.argv) > 1 else "qa"
     names = sys.argv[2:]
@@ -126,7 +256,12 @@ def main() -> None:
     plan = [(n, n, "complete") for n in names] if names else [(n, *DEFAULTS[n]) for n in DEFAULTS]
     written: List[str] = []
     for name, label, outcome in plan:
-        written += seed(client, env, name, label, outcome)
+        if outcome == "history":
+            written += seed_history(client, env, name, label)
+        elif outcome == "events":
+            written += seed_events(client, env, name, label)
+        else:
+            written += seed(client, env, name, label, outcome)
     print("\n".join(written))
 
 

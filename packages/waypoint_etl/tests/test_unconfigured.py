@@ -44,6 +44,41 @@ class TestUnconfigured(unittest.TestCase):
 
         self.assertEqual(fetch(), [1, 2])
 
+    def test_events_before_init_do_nothing_and_say_nothing(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        import waypoint_etl
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertIsNone(waypoint_etl.log("a", rows=1))
+            self.assertIsNone(waypoint_etl.warn("b", step="extract"))
+            self.assertIsNone(waypoint_etl.error("c"))
+        self.assertEqual(out.getvalue(), "")
+
+    def test_events_after_a_failed_init_do_nothing(self) -> None:
+        import waypoint_etl
+
+        self.assertFalse(waypoint_etl.init(pipeline=SPEC, redis_url=None, env="qa"))
+        self.assertIsNone(waypoint_etl.log("still fine"))
+
+    def test_events_after_clear_do_nothing(self) -> None:
+        import waypoint_etl
+
+        registry.set_active(StepAuditor(RaisingStore(), SPEC, env="qa", ttl_seconds=1))
+        registry.clear()
+        self.assertIsNone(waypoint_etl.log("gone"))
+
+    def test_bad_arguments_never_raise(self) -> None:
+        import waypoint_etl
+
+        registry.set_active(StepAuditor(RaisingStore(), SPEC, env="qa", ttl_seconds=1))
+        for message in (None, 5, object()):
+            waypoint_etl.log(message)  # type: ignore[arg-type]
+        waypoint_etl.log("x", level=None)  # type: ignore[arg-type]
+        waypoint_etl.log("x", **{"bad name": object()})
+
 
 if __name__ == "__main__":
     unittest.main()

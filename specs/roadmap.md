@@ -5,15 +5,15 @@ trả lời đủ ba câu hỏi: *step nào hỏng và vì sao*, *chạy mất b
 
 | # | Tính năng | Phụ thuộc | Thay đổi chính |
 | --- | --- | --- | --- |
-| 1 | Lỗi của step (failed + stack trace) | không | SDK + Monitor + UI |
-| 2 | Thời lượng (duration) | không (tận dụng được #1) | Monitor + UI, SDK ít thay đổi |
-| 3 | Log/event của run | #1 (lỗi là một loại event) | SDK + Monitor + UI |
+| 1 | Lỗi của step (failed + stack trace) ✅ | không | SDK + Monitor + UI |
+| 2 | Thời lượng (duration) ✅ | không (tận dụng được #1) | Monitor + UI, SDK ít thay đổi |
+| 3 | Log/event của run ✅ | #1 (lỗi là một loại event) | SDK + Monitor + UI |
 | 4 | Freshness/SLA theo từng pipeline | #2 (dùng duration cho "chạy quá lâu") | SDK (spec) + Monitor + UI |
 | 5 | Metric tuỳ chọn theo step | #3 (dùng chung kênh ghi của event) | SDK + Monitor + UI |
 | 6 | Alerting (Slack/webhook/email) | #1, #4 (cần trạng thái Failed và Late) | Monitor + cấu hình |
 | 7 | Map step / fan-out *(làm sau)* | #1, #2, #3, #5 (thêm chiều `item_key` vào các record đó) | SDK + Monitor + UI, đổi định dạng record |
 
-Thứ tự đề xuất: **1 → 2 → 3 → 4 → 5 → 6**. Mỗi tính năng là một spec riêng (speckit); #1–#3 và #4–#5 mỗi
+Thứ tự đề xuất (#1–#3 đã xong): **1 → 2 → 3 → 4 → 5 → 6**. Mỗi tính năng là một spec riêng (speckit); #1–#3 và #4–#5 mỗi
 nhóm có thể chung một bản phát hành SDK. #6 chỉ thay đổi Monitor.
 #7 là giai đoạn sau, chỉ làm khi đạt các điều kiện ghi trong mục đó.
 
@@ -28,7 +28,9 @@ nhóm có thể chung một bản phát hành SDK. #6 chỉ thay đổi Monitor.
 
 ---
 
-## 1. Lỗi của step (failed + stack trace)
+## 1. Lỗi của step (failed + stack trace) — ✅ Đã xong
+
+**Trạng thái:** đã làm xong, spec `011-step-failure-errors`, phát hành `waypoint-etl 0.3.0`.
 
 **Vấn đề hiện tại:** khi step raise exception, SDK để lại start marker và không ghi finish record
 (`auditor.py`). Monitor không phân biệt được *Failed* với *Stalled* hoặc *Died*, và không có thông báo lỗi.
@@ -37,28 +39,36 @@ nhóm có thể chung một bản phát hành SDK. #6 chỉ thay đổi Monitor.
 trace rút gọn.
 
 ### SDK (`waypoint-etl`)
-- [ ] Bắt exception trong `audited_step`: ghi record lỗi rồi **re-raise nguyên bản** (không đổi kết quả hay
+- [x] Bắt exception trong `audited_step`: ghi record lỗi rồi **re-raise nguyên bản** (không đổi kết quả hay
       exception của step, kể cả `async`).
-- [ ] Định dạng record lỗi, ví dụ `waypoint:{pipeline}:{env}:{run_id}:failed:{NN}-{step}`:
+- [x] Định dạng record lỗi, ví dụ `waypoint:{pipeline}:{env}:{run_id}:failed:{NN}-{step}`:
       `{"v":1, pipeline, env, run_id, step, index, failed_at, error: {type, message, traceback}}`.
-- [ ] Giới hạn kích thước: cắt `message` (~500 ký tự) và `traceback` (~8 KB, giữ các frame cuối).
-- [ ] Làm sạch: không đưa giá trị biến cục bộ vào traceback; thông báo lỗi có thể chứa dữ liệu nên cho phép
+- [x] Giới hạn kích thước: cắt `message` (~500 ký tự) và `traceback` (~8 KB, giữ các frame cuối).
+- [x] Làm sạch: không đưa giá trị biến cục bộ vào traceback; thông báo lỗi có thể chứa dữ liệu nên cho phép
       tắt hoặc che bằng `init(capture_error_message=...)` và một hàm `redact` tuỳ chọn.
-- [ ] Khi step lỗi, xoá hoặc đánh dấu start marker để không bị hiểu là Running.
-- [ ] Test: lỗi được ghi, exception được re-raise nguyên vẹn, Redis hỏng thì không ảnh hưởng, sync và async.
+- [x] Khi step lỗi, xoá hoặc đánh dấu start marker để không bị hiểu là Running.
+- [x] Test: lỗi được ghi, exception được re-raise nguyên vẹn, Redis hỏng thì không ảnh hưởng, sync và async.
 
 ### Monitor
-- [ ] Parse record `failed` (bỏ qua và đếm "unreadable" nếu hỏng, theo cách hiện tại).
-- [ ] Thêm trạng thái step **Failed** và trạng thái run **Failed**. Thứ tự ưu tiên trạng thái run:
+- [x] Parse record `failed` (bỏ qua và đếm "unreadable" nếu hỏng, theo cách hiện tại).
+- [x] Thêm trạng thái step **Failed** và trạng thái run **Failed**. Thứ tự ưu tiên trạng thái run:
       Running, **Failed**, Died, Stale, Incomplete, Lost data, Completed (cần xác nhận khi viết spec).
-- [ ] `/api/runs` và `/api/overview` trả thêm `error` của step lỗi.
-- [ ] Các step phía sau step lỗi hiện **Not reached**; run hiện "dừng tại step X".
+- [x] `/api/runs` và `/api/overview` trả thêm `error` của step lỗi.
+- [x] Các step phía sau step lỗi hiện **Not reached**; run hiện "dừng tại step X".
 
 ### UI
-- [ ] Card Home: trạng thái Failed, ưu tiên cao nhất trong nhóm "cần chú ý".
-- [ ] Graph: node Failed (màu và biểu tượng riêng, không chỉ dựa vào màu).
-- [ ] Drawer của step: hiện loại lỗi, thông báo, stack trace (cuộn, có nút copy).
-- [ ] History: đánh dấu run Failed, thêm vào bộ lọc/trend nếu có.
+- [x] Card Home: trạng thái Failed, ưu tiên cao nhất trong nhóm "cần chú ý".
+- [x] Graph: node Failed (màu và biểu tượng riêng, không chỉ dựa vào màu).
+- [x] Drawer của step: hiện loại lỗi, thông báo, stack trace (cuộn, có nút copy).
+- [x] History: đánh dấu run Failed, thêm vào bộ lọc/trend nếu có.
+
+### Khác với đề xuất ban đầu
+- Start marker **không bị xoá**: Monitor cho failure ưu tiên hơn marker (so theo `index` của lần thử), nên
+  store không cần thêm `delete` (research R6, R7).
+- Run chỉ là **Failed** khi lỗi làm pipeline dừng (failure có `index` cao nhất của run); lỗi đã được bắt rồi
+  chạy tiếp thì run là Incomplete (R8).
+- Chỉ ghi `Exception`; không ghi `KeyboardInterrupt`/`SystemExit`/`CancelledError` (R1).
+- `message` được lưu mặc định; tắt bằng `init(capture_error_message=False)` hoặc che bằng `redact` (R4).
 
 ### Tiêu chí hoàn thành
 - Step raise exception → trong vài giây (không chờ heartbeat) Monitor hiện Failed kèm stack trace.
@@ -66,7 +76,9 @@ trace rút gọn.
 
 ---
 
-## 2. Thời lượng (duration)
+## 2. Thời lượng (duration) — ✅ Đã xong
+
+**Trạng thái:** đã làm xong cùng #3 trong spec `012-duration-and-run-events`, phát hành `waypoint-etl 0.4.0`.
 
 **Hiện có:** step marker có `started_at` và finish record có `finished_at`, nên phần lớn tính được ở phía
 Monitor mà không cần đổi định dạng.
@@ -74,26 +86,35 @@ Monitor mà không cần đổi định dạng.
 **Kết quả mong muốn:** biết mỗi step và mỗi run chạy bao lâu, và thấy run chậm bất thường.
 
 ### SDK
-- [ ] Xác nhận finish record chứa cả `started_at` và `finished_at` (nếu thiếu thì thêm `duration_ms` đo bằng
+- [x] Xác nhận finish record chứa cả `started_at` và `finished_at` (nếu thiếu thì thêm `duration_ms` đo bằng
       đồng hồ monotonic để không phụ thuộc lệch giờ).
-- [ ] Record `failed` của #1 cũng ghi `started_at` để tính thời gian đến lúc lỗi.
+- [x] Record `failed` của #1 cũng ghi `started_at` để tính thời gian đến lúc lỗi.
 
 ### Monitor
-- [ ] Tính `duration` cho từng step (done, failed) và cho cả run (từ step đầu đến step cuối hoặc đến bây giờ
+- [x] Tính `duration` cho từng step (done, failed) và cho cả run (từ step đầu đến step cuối hoặc đến bây giờ
       nếu đang chạy).
-- [ ] Step đang chạy: trả `elapsed` tính theo thời gian hiện tại.
-- [ ] `/api/runs` trả thêm `duration_ms` cho run và từng step.
-- [ ] Thống kê cho History: trung vị (p50) và p95 của thời lượng theo pipeline và môi trường, trong cửa sổ
+- [x] Step đang chạy: trả `elapsed` tính theo thời gian hiện tại.
+- [x] `/api/runs` trả thêm `duration_ms` cho run và từng step.
+- [x] Thống kê cho History: trung vị (p50) và p95 của thời lượng theo pipeline và môi trường, trong cửa sổ
       các run gần nhất.
-- [ ] Cờ **Slower than usual** khi một run vượt n lần trung vị (n cấu hình, mặc định ví dụ 2×).
+- [x] Cờ **Slower than usual** khi một run vượt n lần trung vị (n cấu hình, mặc định ví dụ 2×).
       Đây là cảnh báo hiển thị, chưa phải thông báo gửi đi.
 
 ### UI
-- [ ] Run page: tổng thời lượng ở phần headline; thời lượng cạnh mỗi step trong List; nhãn thời lượng trên
+- [x] Run page: tổng thời lượng ở phần headline; thời lượng cạnh mỗi step trong List; nhãn thời lượng trên
       node Graph; làm nổi bật step chiếm phần lớn thời gian (bottleneck).
-- [ ] History: biểu đồ thời lượng theo thời gian cạnh trend số đếm; cột Duration trong danh sách run.
-- [ ] Card Home: hiện thời lượng của run mới nhất.
-- [ ] Định dạng dễ đọc (`1h 04m`, `37s`), và `…` khi đang chạy.
+- [x] History: biểu đồ thời lượng theo thời gian cạnh trend số đếm; cột Duration trong danh sách run.
+- [x] Card Home: hiện thời lượng của run mới nhất.
+- [x] Định dạng dễ đọc (`1h 04m`, `37s`), và `…` khi đang chạy.
+
+### Khác với đề xuất ban đầu
+- Finish record **không** có `started_at` (marker hết hạn sau 24 giờ), nên SDK 0.4.0 ghi thêm `started_at` và
+  `duration_ms` vào finish record. Run của SDK 0.2.0/0.3.0 chỉ có thời lượng step **ước lượng** (từ lúc step trước
+  kết thúc, hiện `≈`); thời lượng cả run vẫn chính xác.
+- API trả `duration_seconds` / `duration_approx` cho từng step và object `duration` cho run (không dùng `duration_ms`).
+- Ngưỡng và cửa sổ là cấu hình **toàn cục**: `SLOW_RUN_MULTIPLE=2.0`, `DURATION_WINDOW_RUNS=30`,
+  `DURATION_MIN_RUNS=5`; chỉ run đã hoàn tất (Completed, kể cả Lost data) được tính vào median/p95. Cờ chỉ ở mức run,
+  không có cờ theo từng step và không đổi trạng thái hay nhóm "cần chú ý".
 
 ### Tiêu chí hoàn thành
 - Mọi run đã hoàn tất, kể cả của SDK 0.2.0, hiện thời lượng đúng.
@@ -101,7 +122,9 @@ Monitor mà không cần đổi định dạng.
 
 ---
 
-## 3. Log/event của run
+## 3. Log/event của run — ✅ Đã xong
+
+**Trạng thái:** đã làm xong cùng #2 trong spec `012-duration-and-run-events`, phát hành `waypoint-etl 0.4.0`.
 
 **Kết quả mong muốn:** một timeline theo run, để biết run đã làm gì và theo thứ tự nào, không cần mở log của
 máy chạy. Bám nguyên tắc "không lưu nội dung dữ liệu": event là thông điệp ngắn do pipeline chủ động gửi.
@@ -114,27 +137,38 @@ máy chạy. Bám nguyên tắc "không lưu nội dung dữ liệu": event là 
 - `fields` chỉ chấp nhận giá trị số/chuỗi ngắn, giới hạn số lượng và độ dài.
 
 ### SDK
-- [ ] API `waypoint_etl.log(message, *, level="info", step=None, **fields)` và `waypoint_etl.warn/error`.
+- [x] API `waypoint_etl.log(message, *, level="info", step=None, **fields)` và `waypoint_etl.warn/error`.
       Gọi trước `init` hoặc khi init lỗi thì là no-op, không raise.
-- [ ] Lưu event vào Redis (Redis Stream hoặc List có giới hạn độ dài và TTL), key ví dụ
+- [x] Lưu event vào Redis (Redis Stream hoặc List có giới hạn độ dài và TTL), key ví dụ
       `waypoint:{pipeline}:{env}:{run_id}:events`.
-- [ ] Giới hạn: số event tối đa mỗi run (ví dụ 500; khi vượt thì bỏ event `info` cũ nhất, giữ `warning` và
+- [x] Giới hạn: số event tối đa mỗi run (ví dụ 500; khi vượt thì bỏ event `info` cũ nhất, giữ `warning` và
       `error`), độ dài message tối đa, ghi theo lô hoặc không chặn step.
-- [ ] Event tự sinh từ decorator (không cần người dùng sửa code).
-- [ ] Test: không chặn pipeline, giới hạn đúng, hỏng Redis không ảnh hưởng, an toàn khi đa luồng.
+- [x] Event tự sinh từ decorator (không cần người dùng sửa code).
+- [x] Test: không chặn pipeline, giới hạn đúng, hỏng Redis không ảnh hưởng, an toàn khi đa luồng.
 
 ### Monitor
-- [ ] Endpoint đọc event của một run (có phân trang và lọc theo `level`, `step`), ví dụ
+- [x] Endpoint đọc event của một run (có phân trang và lọc theo `level`, `step`), ví dụ
       `GET /api/runs/{pipeline}/{env}/{run_id}/events`.
-- [ ] Hợp nhất event tự sinh với event do người dùng gửi theo thời gian; thêm event suy ra (Died, Stalled).
-- [ ] Giữ quyền chỉ đọc của Monitor (cần thêm quyền `XRANGE`/`LRANGE` nếu dùng stream/list; cập nhật mục
+- [x] Hợp nhất event tự sinh với event do người dùng gửi theo thời gian; thêm event suy ra (Died, Stalled).
+- [x] Giữ quyền chỉ đọc của Monitor (cần thêm quyền `XRANGE`/`LRANGE` nếu dùng stream/list; cập nhật mục
       Security trong README).
 
 ### UI
-- [ ] Tab **Events** trong Run page: timeline theo thời gian, lọc theo level và step, tô màu theo level.
-- [ ] Từ node/step trong Graph, mở drawer và thấy event của step đó.
-- [ ] Run đang chạy: tự cập nhật event mới theo `REFRESH_SECONDS`.
-- [ ] Hiện số lượng warning/error trên card Home và dòng run trong History.
+- [x] Tab **Events** trong Run page: timeline theo thời gian, lọc theo level và step, tô màu theo level.
+- [x] Từ node/step trong Graph, mở drawer và thấy event của step đó.
+- [x] Run đang chạy: tự cập nhật event mới theo `REFRESH_SECONDS`.
+- [x] Hiện số lượng warning/error trên card Home và dòng run trong History.
+
+### Khác với đề xuất ban đầu
+- Event do người dùng gửi lưu bằng **ba Redis List** mỗi run (`...:events:info|warning|error`, giữ 500/200/200 event
+  mới nhất, `LTRIM` nên event info cũ nhất bị bỏ trước và error không bị đẩy ra), không dùng Stream. Monitor cần thêm
+  quyền đọc `LLEN` và `LRANGE`; thiếu quyền thì mọi trang vẫn chạy, chỉ không có event của pipeline.
+- Event tự sinh (run/step bắt đầu, kết thúc, lỗi, died, stalled) do **Monitor suy ra** từ các record đã có, SDK không
+  ghi thêm: chạy đúng với mọi phiên bản SDK và không tốn lượt ghi.
+- `waypoint_etl.log/warn/error` đi qua hàng đợi trong bộ nhớ và một luồng nền (không bao giờ chờ mạng hay raise);
+  `capture_error_message` và `redact` áp dụng cho cả nội dung event (message và giá trị chuỗi).
+- Số lượng warning/error trên card Home và dòng History chỉ đếm event do pipeline gửi; lỗi step đã thể hiện bằng
+  trạng thái Failed. Endpoint: `GET /api/runs/{pipeline}/{env}/{run_id}/events` (lọc `level`, `step`, phân trang).
 
 ### Tiêu chí hoàn thành
 - Run đang chạy cho thấy timeline event cập nhật gần thời gian thực.
@@ -327,12 +361,12 @@ Chỉ làm map step khi có **một trong các dấu hiệu**:
 
 ## Cần quyết định trước khi bắt đầu
 
-1. **Trạng thái Failed vs Died/Stalled:** step lỗi nhưng pipeline bắt lỗi và tiếp tục thì run có Failed không?
+1. ✅ *Đã quyết định (spec 011):* **Trạng thái Failed vs Died/Stalled:** step lỗi nhưng pipeline bắt lỗi và tiếp tục thì run có Failed không?
    (Đề xuất: Failed nếu có bất kỳ step failed chưa được thay thế bởi lần chạy lại thành công.)
-2. **Che dữ liệu nhạy cảm trong lỗi:** mặc định lưu `message` hay chỉ lưu `type` và traceback?
-3. **Cấu trúc lưu event:** Redis Stream (tiện phân trang) hay List (đơn giản, quyền đọc ít hơn)?
-4. **Phiên bản SDK:** gộp cả ba vào `0.3.0` hay phát hành `0.3.0` (#1+#2) và `0.4.0` (#3)?
-5. **Ngưỡng "chậm bất thường":** cấu hình toàn cục hay theo từng `PipelineSpec`?
+2. ✅ *Đã quyết định (spec 011):* **Che dữ liệu nhạy cảm trong lỗi:** mặc định lưu `message` hay chỉ lưu `type` và traceback?
+3. ✅ *Đã quyết định (spec 012):* **Cấu trúc lưu event:** Redis Stream (tiện phân trang) hay List (đơn giản, quyền đọc ít hơn)? → List, ba list theo level.
+4. ✅ *Đã quyết định (spec 012):* **Phiên bản SDK:** `0.3.0` chỉ có #1; #2 và #3 cùng phát hành trong `0.4.0`.
+5. ✅ *Đã quyết định (spec 012):* **Ngưỡng "chậm bất thường":** cấu hình toàn cục (chưa có theo từng `PipelineSpec`).
 6. **SLA và `STALE_HOURS`:** Late có thay hẳn Stale cho pipeline đã khai báo SLA không, hay hai trạng thái
    cùng tồn tại?
 7. **Key `meta` sống lâu hơn run:** có chấp nhận thêm một key ngoài TTL của run (để phát hiện "không bao giờ

@@ -5,10 +5,14 @@ never be serialised here. A storage failure is logged and swallowed - the audit 
 must not change what the pipeline does.
 """
 
+import itertools
+import threading
+import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional, TypeVar
+from typing import Callable, Dict, List, Mapping, Optional, TypeVar
 
 from waypoint_etl.errors import build_error
+from waypoint_etl.events import EventWriter, build_event, current_step
 from waypoint_etl.heartbeat import Heartbeat
 from waypoint_etl.keys import (
     FLOW_VERSION,
@@ -94,6 +98,12 @@ class StepAuditor:
         self.redact = redact
         self._index = 0
         self._begun: Dict[int, str] = {}
+        self._begun_mono: Dict[int, float] = {}
+        self._open: Dict[int, str] = {}
+        self._event_numbers = itertools.count(1)
+        self._event_lock = threading.Lock()
+        self._events: Optional[EventWriter] = None
+        self._events_warned = False
         self._heartbeat: Optional[Heartbeat] = None
         self._started = False
         self._spec_ok = True
@@ -130,9 +140,66 @@ class StepAuditor:
         self._heartbeat.start()
 
     def stop(self) -> None:
-        """Stop the heartbeat. Safe to call more than once."""
+        """Stop the heartbeat and deliver queued events. Safe to call more than once."""
         if self._heartbeat is not None:
             self._heartbeat.stop()
+        if self._events is not None:
+            self._events.stop()
+
+    def flush_events(self, timeout: float = 2.0) -> None:
+        """Write what is queued, waiting at most ``timeout`` seconds. Never raises."""
+        try:
+            if self._events is not None:
+                self._events.flush(timeout)
+        except Exception:
+            return
+
+    def current_open_step(self) -> Optional[str]:
+        """The one step that has begun and not ended, else None (steps are sequential)."""
+        names = list(self._open.values())
+        return names[0] if len(names) == 1 else None
+
+    def send_event(
+        self,
+        message: str,
+        level: str = "info",
+        step: Optional[str] = None,
+        fields: Optional[Mapping[str, object]] = None,
+    ) -> None:
+        """Queue an author-sent event for the writer thread. Never raises, never blocks."""
+        try:
+            writer = self._event_writer()
+            if writer is None:
+                return
+            named = step or current_step.get() or self.current_open_step()
+            with self._event_lock:
+                n = next(self._event_numbers)
+            writer.submit(
+                build_event(
+                    message,
+                    n=n,
+                    level=level,
+                    step=named,
+                    fields=fields,
+                    capture_message=self.capture_error_message,
+                    redact=self.redact,
+                )
+            )
+        except Exception:
+            return
+
+    def _event_writer(self) -> Optional[EventWriter]:
+        if self._events is None:
+            push = getattr(self.store, "push_events", None)
+            if push is None:
+                if not self._events_warned:
+                    self._events_warned = True
+                    print("Warning: Waypoint store cannot take events (no push_events); skipped")
+                return None
+            self._events = EventWriter(
+                push, self.spec.name, self.env, self.run_id, self.ttl_seconds
+            )
+        return self._events
 
     def _beat(self) -> None:
         pipeline = self.spec.name
@@ -153,6 +220,8 @@ class StepAuditor:
         pipeline = self.spec.name
         started_at = _stamp(datetime.now(timezone.utc))
         self._begun[index] = started_at
+        self._begun_mono[index] = time.monotonic()
+        self._open[index] = name
         if self._spec_ok and name not in {s.name for s in self.spec.steps}:
             print(f"Warning: step {name} is not in pipeline spec {pipeline}")
         try:
@@ -174,9 +243,14 @@ class StepAuditor:
         return index
 
     def finish(self, name: str, index: int, inputs: Dict[str, object], result: object) -> None:
-        """Write the finish record for a step that returned. Never raises."""
+        """Write the finish record (with the step's start time and duration) for a step that returned.
+
+        Never raises. Contract: specs/012-duration-and-run-events/contracts/redis-keys.md
+        """
         pipeline = self.spec.name
-        self._begun.pop(index, None)
+        began = self._begun.pop(index, None)
+        began_mono = self._begun_mono.pop(index, None)
+        self._open.pop(index, None)
         try:
             now = datetime.now(timezone.utc)
             record: Dict[str, object] = {
@@ -189,6 +263,10 @@ class StepAuditor:
                 "output": count_items(result),
                 "finished_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
+            if began is not None:
+                record["started_at"] = began
+            if began_mono is not None:
+                record["duration_ms"] = max(0, round((time.monotonic() - began_mono) * 1000))
             self.store.write(
                 step_key(pipeline, self.env, self.run_id, index, name), record, self.ttl_seconds
             )
@@ -203,6 +281,8 @@ class StepAuditor:
         """
         pipeline = self.spec.name
         started_at = self._begun.pop(index, None)
+        self._begun_mono.pop(index, None)
+        self._open.pop(index, None)
         try:
             now = _stamp(datetime.now(timezone.utc))
             record: Dict[str, object] = {
@@ -239,10 +319,13 @@ class StepAuditor:
         (the monitor shows it as unplanned) after a warning.
         """
         index = self.begin(name)
+        token = current_step.set(name)
         try:
             result = fn(*args)
         except Exception as exc:
             self.fail(name, index, exc)
             raise
+        finally:
+            current_step.reset(token)
         self.finish(name, index, inputs or {}, result)
         return result

@@ -1,10 +1,10 @@
 /* Home page: one card per pipeline (newest run in any environment), needs-attention group first.
    A card opens that pipeline's history on the environment of the run it shows. */
 import {
-  ago, cardNumbers, cardReason, cardStatus, cardWhen, elapsedLabel, esc, fmt, groupCards, homeSummary,
+  ago, cardNumbers, cardReason, cardStatus, cardWhen, elapsedLabel, esc, fmt, fmtDuration, groupCards, homeSummary,
 } from '../model.js';
 import { buildRoute } from '../router.js';
-import { I, elapsedHTML, envTag } from '../ui.js';
+import { I, countChipsHTML, durationHTML, elapsedHTML, envTag } from '../ui.js';
 
 const ICON = {
   running: I.spinner, failed: I.failed, died: I.power, stale: I.clock, incomplete: I.xCircle, lost: I.octagon, ok: I.checkCircle,
@@ -46,7 +46,9 @@ export function cardHTML(card, cfg) {
   const placeholder = card.status === 'running' ? 'in progress' : 'not reported';
   const reason = cardReason(card, cfg.staleHours);
   const aria = card.label + ', ' + l.env + ', ' + st.text + (st.attn ? ', needs attention' : '') + ', ' + whenText(w) + '. ' +
-    nums.map((n) => n.role + ' ' + n.label + ': ' + (n.value == null ? placeholder : fmt(n.value))).join(', ') + '.';
+    nums.map((n) => n.role + ' ' + n.label + ': ' + (n.value == null ? placeholder : fmt(n.value))).join(', ') + '.' +
+    (l.durationSeconds != null ? ' Latest run took ' + fmtDuration(l.durationSeconds, { running: l.durationRunning }) + '.' : '') +
+    (l.warnings ? ' ' + l.warnings + (l.warnings === 1 ? ' warning.' : ' warnings.') : '') + (l.errors ? ' ' + l.errors + (l.errors === 1 ? ' error.' : ' errors.') : '');
   const tone = st.tone === 'running' ? 'run' : st.tone;
   return (
     '<li class="pgrid__item"><a class="pcard pcard--' + st.key + (st.attn ? ' pcard--attn pcard--' + st.tone : '') +
@@ -55,6 +57,9 @@ export function cardHTML(card, cfg) {
     '<span class="pcard__top"><span class="pcard__name" title="' + esc(card.label) + '">' + esc(card.label) + '</span>' + envTag(l.env) + '</span>' +
     '<span class="pcard__status"><span class="pill pill--sm pill--' + tone + '">' + ICON[st.key] + st.text + '</span>' +
     '<span class="pcard__when">' + whenHTML(card, w) + '</span></span>' +
+    (l.durationSeconds != null || l.warnings || l.errors
+      ? '<span class="pcard__dur">' + (l.durationSeconds != null ? '<span title="Duration of the latest run">' + I.stopwatch + durationHTML(l.durationSeconds, { running: l.durationRunning }) + '</span>' : '') +
+        countChipsHTML({ warnings: l.warnings, errors: l.errors }) + '</span>' : '') +
     (reason ? '<span class="pcard__reason">' + reasonHTML(reason) + '</span>' : '') +
     '<span class="pcard__nums">' + nums.map((n) =>
       '<span class="pnum' + (n.value == null ? ' pnum--missing' : '') + '"><span class="eyebrow pnum__label">' + esc(n.label) + '</span>' +

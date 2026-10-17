@@ -1,16 +1,16 @@
 /* History view: step trend chart and the runs list. A run opens as its own page (views/run.js). */
-import { drawTrend } from '../chart.js';
+import { drawDuration, drawTrend } from '../chart.js';
 import {
-  HEADLINE_TITLE, analyse, dayLabel, dur, esc, filterRuns, fmt, headline, hhmm, runRoute,
+  HEADLINE_TITLE, analyse, dayLabel, durationSeries, esc, filterRuns, fmt, fmtDuration, headline, hhmm, runRoute,
 } from '../model.js';
 import { buildRoute } from '../router.js';
 import {
-  I, emptyHTML, lossPill, statusPill, unreadablePill,
+  I, countChipsHTML, emptyHTML, lossPill, slowPill, statusPill, unreadablePill,
 } from '../ui.js';
 
 let trendStep = null;
 let show = 'all'; // the run list filter: 'all' or 'failed' (client side; the trend always uses every run)
-let ctx = { runs: [], cfg: null };
+let ctx = { runs: [], cfg: null, typical: null };
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,8 +60,8 @@ function wireEnv(el, info) {
  * `envInfo` = {choices, applied, label, pipelineId, onChange}: the environment filter. The runs are already the
  * ones of the applied environment, so the trend and the list follow it.
  */
-export function renderHistory(el, runs, cfg, envInfo) {
-  ctx = { runs, cfg };
+export function renderHistory(el, runs, cfg, envInfo, typical = null) {
+  ctx = { runs, cfg, typical };
   const bar = envInfo ? envBarHTML(envInfo, runs.length) : '';
   if (!runs.length) {
     el.innerHTML = bar + (envInfo ? noRunsEnvHTML(envInfo) : emptyHTML());
@@ -84,10 +84,11 @@ export function renderHistory(el, runs, cfg, envInfo) {
       const h = headline(r);
       return (
         '<li><a class="run-row" href="' + esc(buildRoute(runRoute(pipelineId, r))) + '" data-id="' + esc(r.id) + '">' +
-        '<span class="run-row__date">' + dayLabel(r.startedAt) + (i === 0 && show === 'all' ? '<span class="tag-new">Newest</span>' : '') + '<small>' + hhmm(r.startedAt) + ' · ' + dur(a.durationS) + '</small></span>' +
-        '<span class="run-row__status">' + statusPill(a, 'sm') + '</span>' +
+        '<span class="run-row__date">' + dayLabel(r.startedAt) + (i === 0 && show === 'all' ? '<span class="tag-new">Newest</span>' : '') + '<small>' + hhmm(r.startedAt) + '</small></span>' +
+        '<span class="run-row__dur num" title="Run duration">' + esc(fmtDuration(a.duration ? a.duration.seconds : a.durationS, { running: a.duration && a.duration.running })) + '</span>' +
+        '<span class="run-row__status">' + statusPill(a, 'sm') + (a.duration && a.duration.slow ? slowPill(r, typical, 'sm') : '') + '</span>' +
         h.map((k) => num(k.value, HEADLINE_TITLE[k.key])).join('') +
-        '<span class="run-row__flags">' + (a.loss.length ? lossPill(a.loss.length, 'sm') : '') + unreadablePill(r.unreadable) + '</span>' +
+        '<span class="run-row__flags">' + (a.loss.length ? lossPill(a.loss.length, 'sm') : '') + countChipsHTML({ warnings: r.eventCounts.warning, errors: r.eventCounts.error }) + unreadablePill(r.unreadable) + '</span>' +
         I.chev + '</a></li>'
       );
     })
@@ -100,17 +101,22 @@ export function renderHistory(el, runs, cfg, envInfo) {
     '<div class="trend__stat" id="trend-stat"></div></div>' +
     '<div class="chart" id="chart" tabindex="0" role="img" aria-roledescription="line chart"></div>' +
     '<div class="chart__legend"><span><i class="lg-dot"></i>value per run</span><span><i class="lg-dot lg-dot--bad"></i>0 with input (possible loss)</span><span><i class="lg-dot lg-dot--gap"></i>step not recorded</span><span>Use ← → to move between runs</span></div></section>' +
+    '<section class="card trend trend--duration" aria-labelledby="dur-title"><div class="trend__head">' +
+    '<div class="trend__pick"><h2 class="section-title" id="dur-title">Run duration</h2></div>' +
+    '<div class="trend__stat" id="dur-stat"></div></div>' +
+    '<div class="chart" id="dur-chart" tabindex="0" role="img" aria-roledescription="line chart"></div>' +
+    '<div class="chart__legend"><span><i class="lg-dot"></i>run duration</span><span><i class="lg-diamond"></i>slower than usual</span><span><i class="lg-dot lg-dot--open"></i>not completed</span><span>Dashed line: median · shaded band: up to the slow end (95th percentile)</span></div></section>' +
     '<section class="card runs" aria-labelledby="runs-title">' +
     '<div class="section-head" style="padding:16px 20px"><h2 class="section-title" id="runs-title">Runs</h2><span class="faint" style="font-size:12px">' +
     (show === 'failed' ? shown.length + ' failed of ' + runs.length + ' runs' : runs.length + ' runs') + ' · newest first</span>' + showFilterHTML() + '</div>' +
-    '<div class="runs__head" aria-hidden="true"><span>Run</span><span>Status</span>' + ['first', 'peak', 'last'].map((k) => '<span class="r">' + HEADLINE_TITLE[k] + '</span>').join('') + '<span>Flags</span><span></span></div>' +
+    '<div class="runs__head" aria-hidden="true"><span>Run</span><span>Duration</span><span>Status</span>' + ['first', 'peak', 'last'].map((k) => '<span class="r">' + HEADLINE_TITLE[k] + '</span>').join('') + '<span>Flags</span><span></span></div>' +
     '<ul class="runs__list">' + (rows || '<li class="runs__none" role="status">No failed runs among these ' + runs.length + '.</li>') + '</ul></section>';
 
   if (envInfo) wireEnv(el, envInfo);
   el.querySelectorAll('input[name="show"]').forEach((r) =>
     r.addEventListener('change', () => {
       show = r.value === 'failed' ? 'failed' : 'all';
-      renderHistory(el, runs, cfg, envInfo);
+      renderHistory(el, runs, cfg, envInfo, typical);
     }),
   );
   $('trend-step').addEventListener('change', (e) => {
@@ -121,6 +127,10 @@ export function renderHistory(el, runs, cfg, envInfo) {
 }
 
 export function redrawTrend() {
+  const dbox = $('dur-chart');
+  if (dbox && ctx.runs.length) {
+    drawDuration(dbox, $('dur-stat'), $('tooltip'), durationSeries(ctx.runs, ctx.typical, ctx.cfg ? ctx.cfg.durationMinRuns : 5));
+  }
   const box = $('chart');
   if (!box || !ctx.runs.length) return;
   const def = trendSteps(ctx.runs).find((s) => s.name === trendStep);

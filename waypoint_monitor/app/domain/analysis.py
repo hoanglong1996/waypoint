@@ -1,6 +1,12 @@
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from app.domain.durations import (
+    failed_timing,
+    find_bottleneck,
+    finished_timing,
+    run_duration,
+)
 from app.domain.models import (
     AliveSignal,
     DiedVerdict,
@@ -133,11 +139,19 @@ def _build_run(
     verdict: Optional[DiedVerdict],
     dead_seconds: float,
     failures: Sequence[StepFailure] = (),
+    counts: Optional[Mapping[str, int]] = None,
 ) -> Dict[str, Any]:
     started = parse_run_id(run_id)
     planned: List[FlowStep] = list(flow.steps) if flow else []
     planned_names = {s.name for s in planned}
     current = _current_failures(failures, reported, run_markers)
+
+    def previous_end(index: int) -> datetime:
+        """End of the latest attempt that ran before attempt `index`, or the run's start."""
+        ends = [r.finished_at for r in reported.values() if r.index < index]
+        ends += [f.failed_at for f in failures if f.index < index]
+        return max(ends, default=started)
+
     # a failure that stopped the pipeline: no other attempt of the run has a higher index
     top = max(
         [r.index for r in reported.values()]
@@ -221,6 +235,7 @@ def _build_run(
             missing.append(name)
 
     def add_failed(name: str, failure: StepFailure, planned_step: bool) -> None:
+        timing = failed_timing(failure)
         out_steps.append(
             {
                 "name": name,
@@ -228,6 +243,8 @@ def _build_run(
                 "started_at": _iso(failure.started_at),
                 "failed_at": _iso(failure.failed_at),
                 "error": _error_json(failure),
+                "duration_seconds": timing.seconds,
+                "duration_approx": timing.approx,
             }
         )
         if planned_step:
@@ -236,15 +253,19 @@ def _build_run(
     def add_done(name: str, found: StepRecord, declared: Sequence[str], planned_step: bool) -> None:
         inputs = _ordered_inputs(declared, found.inputs)
         state = "done" if planned_step or flow is None else "unplanned"
-        out_steps.append(
-            {
-                "name": name,
-                "state": state,
-                "inputs": inputs,
-                "output": found.output,
-                "finished_at": _iso(found.finished_at),
-            }
-        )
+        timing = finished_timing(found, run_markers.get(name), previous_end(found.index))
+        step_json: Dict[str, Any] = {
+            "name": name,
+            "state": state,
+            "inputs": inputs,
+            "output": found.output,
+            "finished_at": _iso(found.finished_at),
+            "duration_seconds": timing.seconds,
+            "duration_approx": timing.approx,
+        }
+        if timing.started_at is not None:
+            step_json["started_at"] = _iso(timing.started_at)
+        out_steps.append(step_json)
         if planned_step and _is_loss(found.output, inputs):
             loss.append(name)
 
@@ -280,6 +301,11 @@ def _build_run(
     )
     age = max(0, int((now - ended).total_seconds()))
     running = running_step is not None or starting
+    status = (
+        "running"
+        if running
+        else ("complete" if not missing and died is None and not current else "incomplete")
+    )
     return {
         "run_id": run_id,
         "pipeline": pipeline,
@@ -289,10 +315,14 @@ def _build_run(
         "duration_seconds": max(0, int((ended - started).total_seconds())),
         "age_seconds": age,
         "stale": not running and age > stale_hours * 3600,
-        "status": (
-            "running"
-            if running
-            else ("complete" if not missing and died is None and not current else "incomplete")
+        "status": status,
+        "duration": run_duration(started, ended, now, running, status == "complete"),
+        "event_counts": {
+            "warning": int((counts or {}).get("warning", 0)),
+            "error": int((counts or {}).get("error", 0)),
+        },
+        "bottleneck": find_bottleneck(
+            [(str(x["name"]), x.get("duration_seconds")) for x in out_steps]
         ),
         "running_step": running_step,
         "first_missing_step": missing[0] if missing else None,
@@ -329,6 +359,7 @@ def build_runs(
     verdicts: Optional[Mapping[str, DiedVerdict]] = None,
     dead_seconds: float = 90.0,
     failures: Sequence[StepFailure] = (),
+    event_counts: Optional[Mapping[str, Mapping[str, int]]] = None,
 ) -> List[Dict[str, Any]]:
     """Group records into runs (newest first), each drawn from its own flow description.
 
@@ -388,6 +419,7 @@ def build_runs(
             verdicts.get(run_id),
             dead_seconds,
             failures_by_run.get(run_id, ()),
+            (event_counts or {}).get(run_id),
         )
         for run_id in sorted(by_run, reverse=True)
     ]

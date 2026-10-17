@@ -20,6 +20,16 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _positive_float(name: str, default: float) -> float:
+    value = _float(name, default)
+    return value if value > 0 else default
+
+
+def _positive_int(name: str, default: int) -> int:
+    value = _int(name, default)
+    return value if value >= 1 else default
+
+
 def _envs() -> List[str]:
     raw = os.getenv("ENVIRONMENTS", "prod,qa")
     return [e.strip() for e in raw.split(",") if e.strip()] or ["prod", "qa"]
@@ -38,6 +48,9 @@ class Settings:
     cache_seconds: int = 2
     stall_seconds: float = 900.0
     heartbeat_dead_seconds: float = 90.0
+    slow_run_multiple: float = 2.0
+    duration_window_runs: int = 30
+    duration_min_runs: int = 5
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -51,6 +64,9 @@ class Settings:
             cache_seconds=_int("CACHE_SECONDS", 2),
             stall_seconds=_float("STALL_SECONDS", 900.0),
             heartbeat_dead_seconds=_float("HEARTBEAT_DEAD_SECONDS", 90.0),
+            slow_run_multiple=_positive_float("SLOW_RUN_MULTIPLE", 2.0),
+            duration_window_runs=_positive_int("DURATION_WINDOW_RUNS", 30),
+            duration_min_runs=_positive_int("DURATION_MIN_RUNS", 5),
         )
 
 

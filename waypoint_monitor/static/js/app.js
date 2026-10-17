@@ -12,6 +12,7 @@ import {
 import { mountGraph, refreshGraph } from './views/graph.js';
 import { redrawTrend, renderHistory } from './views/history.js';
 import { homeErrorHTML, homeSkeletonHTML, renderHome } from './views/home.js';
+import { refreshEvents } from './views/events.js';
 import { renderRun } from './views/run.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +24,7 @@ const state = {
   overview: null, // {cards, unreadableTotal, generatedAt}; null until the first load
   runs: [], // one environment's runs: the newest 30 for History, up to 100 for a run page
   unreadableTotal: 0,
+  typical: null, // typical durations of the environment shown (History and run pages)
   status: 'loading', // loading | ok | error
   lastOkAt: null,
   nextAt: null,
@@ -211,7 +213,7 @@ function render() {
     return;
   }
   if (view.kind === 'run') {
-    renderRun(runEl, view.run, state.runs, cfg);
+    renderRun(runEl, view.run, state.runs, cfg, state.typical, state.route);
     refreshGraph($('run-graph')); // laid out while hidden
     if (state.focusRun) {
       state.focusRun = false;
@@ -220,7 +222,7 @@ function render() {
     }
     return;
   }
-  renderHistory(history, state.runs, cfg, envInfo(view.card));
+  renderHistory(history, state.runs, cfg, envInfo(view.card), state.typical);
   redrawTrend();
   if (state.focusEnv) {
     state.focusEnv = false;
@@ -270,7 +272,7 @@ async function refresh() {
     }
     const overview = await loadOverview();
     if (gen !== state.gen) return;
-    let data = { runs: [], unreadableTotal: 0 };
+    let data = { runs: [], unreadableTotal: 0, typical: null };
     const card = route.name === 'pipeline' || route.name === 'run' ? overview.cards.find((c) => c.name === route.id) : null;
     if (card && route.name === 'pipeline') {
       // one environment; one that has no runs is not asked for
@@ -286,11 +288,12 @@ async function refresh() {
     if (gen !== state.gen) return;
     // A reload every few seconds must not restart spinners or drop focus, so redraw only when
     // something other than elapsed time / same-minute age changed.
-    const sig = location.hash + '|' + overviewSignature(overview.cards) + '|' + overview.unreadableTotal + '|' + runSignature(data.runs) + '|' + data.unreadableTotal;
+    const sig = location.hash + '|' + overviewSignature(overview.cards) + '|' + overview.unreadableTotal + '|' + runSignature(data.runs) + '|' + data.unreadableTotal + '|' + JSON.stringify(data.typical);
     const unchanged = state.status === 'ok' && sig === state.signature;
     state.overview = overview;
     state.runs = data.runs;
     state.unreadableTotal = data.unreadableTotal;
+    state.typical = data.typical;
     state.status = 'ok';
     state.lastOkAt = Date.now();
     if (unchanged) syncLive();
@@ -298,6 +301,8 @@ async function refresh() {
       state.signature = sig;
       render();
     }
+    // a running run keeps adding events: reload the ones shown (filters and scroll stay)
+    if (route.name === 'run' && route.tab === 'events') refreshEvents();
     schedule(state.cfg.refreshSeconds);
   } catch (err) {
     if (gen !== state.gen) return;
@@ -328,6 +333,12 @@ window.addEventListener('hashchange', () => {
   state.route = parseRoute(location.hash);
   const route = state.route;
   const sameHistory = before.name === 'pipeline' && route.name === 'pipeline' && before.id === route.id;
+  // Same run, only the tab or the events filters changed: the data is loaded, so just redraw.
+  if (state.status === 'ok' && before.name === 'run' && route.name === 'run' && before.id === route.id
+    && before.env === route.env && before.runId === route.runId) {
+    render();
+    return;
+  }
   state.focusRun = route.name === 'run';
   if (!state.focusEnv) window.scrollTo(0, 0);
   // From a history to one of its runs the run is already loaded: show it at once, then refresh.

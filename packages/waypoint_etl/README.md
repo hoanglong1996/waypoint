@@ -88,6 +88,31 @@ outside.
 
   A `redact` that raises drops the message instead of storing it raw. Older monitors ignore the item
   (the step then looks Stalled or Died as before); the monitor shows it as **Failed** from this release on.
+- **Step durations** (0.4.0): each finish record also carries `started_at` and `duration_ms` (measured with a
+  monotonic clock, so a clock change cannot distort it). Older records still work: the monitor then estimates a step's
+  duration from the previous step's end and marks it with `≈`.
+- **Events** (0.4.0): send a short message to the run's timeline from anywhere in your code:
+
+  ```python
+  waypoint_etl.log("Loaded batch 3", rows=1200)             # info, attached to the running step
+  waypoint_etl.warn("12 rows had no phone number", rows=12)
+  waypoint_etl.error("one batch skipped", step="load", batch=7)
+  ```
+
+  An event has a message (300 characters at most), a level (`info`, `warning`, `error`), an optional step (the step
+  you are inside, per thread or async task, unless you pass `step=`) and up to 10 named values: numbers or strings of
+  at most 100 characters, names of letters, digits, `_`, `.`, `-` (anything else is dropped silently). The call goes
+  onto an in-memory queue and a background thread writes it in batches, so it **never waits on Redis and never
+  raises**: before `init`, after a failed `init` or with Redis down it does nothing. Redis keeps at most 500 `info`,
+  200 `warning` and 200 `error` events per run (the oldest of a level go first, so errors survive a flood of info);
+  they expire with the run. Events are delivered within about a second; at exit (and on
+  `waypoint_etl.registry.clear()`) the queue is flushed, waiting at most 2 seconds, so only a killed process
+  (`SIGKILL`) loses the last second. The monitor builds the rest of the timeline itself (run and step start, finish,
+  failure, died, stalled) from the records above, so you only send what is worth saying.
+  **Keep data values out of event text**: what you write is stored as written. `capture_error_message=False`
+  and `redact=` (above) also cover events: with capture off the message and text values are dropped (numbers stay),
+  with `redact` every message and text value is cleaned first. Store back ends other than Redis need a
+  `push_events(items, ttl_seconds)` method (`items` are `(key, values, cap)` triples) to receive events.
 - **Heartbeat** (0.2.0): after `init`, a daemon thread refreshes `waypoint:{pipeline}:{env}:{run_id}:alive`
   (`{"v":1, "pipeline", "env", "run_id", "beat_at"}`, same TTL as the run) right away and then every
   `heartbeat_seconds` (15). It keeps beating while a step is blocked and stops when the process dies, so the

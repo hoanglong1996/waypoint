@@ -1,4 +1,4 @@
-from typing import List, Protocol, Tuple
+from typing import Dict, List, Protocol, Tuple
 
 
 class StoreUnavailable(Exception):
@@ -32,6 +32,20 @@ class RecordStore(Protocol):
 
     def list_failures(self, env: str, pipeline: str) -> List[Tuple[str, str]]:
         """Return `(key, raw_json)` pairs for every failure item. Read only."""
+        ...
+
+    def list_event_counts(self, env: str, pipeline: str) -> Dict[str, Dict[str, int]]:
+        """Return `{run_id: {"warning": n, "error": m}}` from the lengths of the event lists. Read only.
+
+        Event bodies are not read. A refused read (no permission) gives an empty result.
+        """
+        ...
+
+    def read_events(self, env: str, pipeline: str, run_id: str) -> List[Tuple[str, List[str]]]:
+        """Return `(key, [raw_json, ...])` for each event list of one run. Read only.
+
+        A refused read (no permission) gives an empty result.
+        """
         ...
 
     def record_died(self, key: str, value: str, alive_key: str) -> bool:
