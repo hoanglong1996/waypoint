@@ -31,15 +31,6 @@ export function stepsHTML(run, runs, cfg, compact) {
   return html + '</ol>';
 }
 
-/** "Slowest: step, 62% of the run" when one step clearly dominates. */
-function slowestLine(run, a) {
-  if (!a.bottleneck) return '';
-  const step = stepOf(run, a.bottleneck);
-  const text = (step && step.durationSeconds != null ? fmtDuration(step.durationSeconds, { approx: step.durationApprox }) : '') +
-    (a.bottleneckShare != null ? ', ' + a.bottleneckShare + '% of the run' : '');
-  return '<p class="hero__slowest">' + I.stopwatch + 'Slowest: <code>' + esc(a.bottleneck) + '</code>' + (text ? ' · ' + esc(text) : '') + '</p>';
-}
-
 export function heroHTML(run, runs, cfg, typical = null) {
   const a = analyse(run);
   const h = headline(run);
@@ -99,7 +90,7 @@ export function heroHTML(run, runs, cfg, typical = null) {
     '<span>' + I.calendar + dayLabel(run.startedAt) + ', ' + run.startedAt.getFullYear() + ' · started ' + hhmm(run.startedAt) + '</span>' +
     (a.running || a.died ? '' : '<span>' + I.clock + 'finished ' + ago(a.ageH) + '</span>') +
     (a.duration && a.duration.seconds != null ? '<span title="Total run time">' + I.timer + durationHTML(a.duration.seconds, { running: a.duration.running }) + '</span>' : '') +
-    '</div>' + why + slowestLine(run, a) + '</div>' +
+    '</div>' + why + '</div>' +
     '<div class="kpis">' + h.map((k) => {
       const prevStep = prev && k.step ? stepOf(prev, k.step) : null;
       return kpi(HEADLINE_TITLE[k.key], k.value, prevStep ? metric(prevStep) : null, a.running ? 'in progress' : 'not reported', k.label);

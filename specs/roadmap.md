@@ -102,12 +102,14 @@ Monitor mà không cần đổi định dạng.
 
 ### UI
 - [x] Run page: tổng thời lượng ở phần headline; thời lượng cạnh mỗi step trong List; nhãn thời lượng trên
-      node Graph; làm nổi bật step chiếm phần lớn thời gian (bottleneck).
+      node Graph.
 - [x] History: biểu đồ thời lượng theo thời gian cạnh trend số đếm; cột Duration trong danh sách run.
 - [x] Card Home: hiện thời lượng của run mới nhất.
 - [x] Định dạng dễ đọc (`1h 04m`, `37s`), và `…` khi đang chạy.
 
 ### Khác với đề xuất ban đầu
+- **Bỏ** việc làm nổi bật step chậm nhất ("Slowest"/bottleneck): API không còn trả `bottleneck`, UI không còn
+  tag/dòng "Slowest".
 - Finish record **không** có `started_at` (marker hết hạn sau 24 giờ), nên SDK 0.4.0 ghi thêm `started_at` và
   `duration_ms` vào finish record. Run của SDK 0.2.0/0.3.0 chỉ có thời lượng step **ước lượng** (từ lúc step trước
   kết thúc, hiện `≈`); thời lượng cả run vẫn chính xác.

@@ -1077,20 +1077,9 @@ a.ctxbar__name:hover { text-decoration: underline; }
 .dur { font-variant-numeric: tabular-nums; }
 .dur--approx { cursor: help; }
 .step__time svg, .hero__meta svg { flex: none; }
-.tag-slowest {
-  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px 0 6px; border-radius: 999px;
-  font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--warn); background: var(--warn-bg);
-  border: 1px solid var(--warn-border); letter-spacing: .02em; white-space: nowrap;
-}
-.tag-slowest svg { width: 12px; height: 12px; stroke-width: 2.2; }
-.hero__slowest { display: flex; align-items: center; gap: 6px; margin: var(--s-2) 0 0; font-size: var(--fs-sm); color: var(--text-2); }
-.hero__slowest svg { width: 14px; height: 14px; stroke-width: 2; flex: none; color: var(--warn); }
-.hero__slowest code { font-family: var(--font-mono); color: var(--text); background: var(--surface-2); padding: 1px 5px; border-radius: var(--r-xs); font-size: .92em; }
-.gpill--slowest { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
 .gnode__namerow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); min-width: 0; }
 .gnode__namerow .gnode__name { min-width: 0; }
 .gnode__dur { margin-left: auto; flex: none; font-size: var(--fs-2xs); color: var(--text-2); line-height: 16px; white-space: nowrap; }
-.gnode:has(.gpill--slowest) { outline: 2px solid var(--warn); outline-offset: -2px; }
 .pcard__dur { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-2); margin-top: -4px; }
 .pcard__dur svg { width: 13px; height: 13px; stroke-width: 2; flex: none; }
 .step__dur { display: inline-flex; align-items: center; gap: 4px; }

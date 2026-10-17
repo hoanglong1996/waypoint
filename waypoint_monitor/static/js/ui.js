@@ -111,10 +111,6 @@ export function slowPill(run, typical, size) {
   return '<span class="pill pill--slow' + cls + '" title="Longer than ' + (typical ? typical.multiple + ' times the typical duration' : 'usual') + '">' +
     I.clock + esc(slowText(run, typical)) + '</span>';
 }
-/** Marks the step that took most of the run: an icon and the word, so colour is not the only cue. */
-export function slowestTag() {
-  return '<span class="tag-slowest" title="Took the largest share of the run">' + I.stopwatch + 'Slowest</span>';
-}
 /** Elapsed time of a running or stalled step; the app's 1-second ticker keeps it counting between reloads. */
 export function elapsedHTML(s) {
   const secs = s.elapsedSeconds == null ? 0 : s.elapsedSeconds;

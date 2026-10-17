@@ -143,8 +143,7 @@ on both sides. Pipelines choose in `waypoint_etl.init` whether messages are stor
 
 Every step and run shows how long it took (`37s`, `4m 05s`, `1h 04m`, `2d 03h`; `<1s` below a second; `…` while it is
 still running). The run page shows the total in its headline, the List a duration beside each step and the Graph one
-on each node; the step that took the largest share of the run is tagged **Slowest** (icon and word), and the Home card
-shows the latest run's duration. A run's duration is measured from its own start (the run id) to its last activity.
+on each node, and the Home card shows the latest run's duration. A run's duration is measured from its own start (the run id) to its last activity.
 A step's duration is exact when its pipeline uses `waypoint-etl` 0.4.0 (its finish record has the start and a monotonic
 duration); for older runs it is estimated from the previous step's end and shown with `≈`.
 

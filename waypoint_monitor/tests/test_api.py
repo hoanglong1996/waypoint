@@ -104,7 +104,6 @@ class TestRuns(unittest.TestCase):
                 "died",
                 "failed",  # specs/011
                 "duration",  # specs/012
-                "bottleneck",
                 "event_counts",
                 "metrics_over",
             },
@@ -837,7 +836,6 @@ class TestRunsDurations(unittest.TestCase):
         self.assertEqual(
             run["duration"], {"seconds": 125, "running": False, "complete": True, "slow": False}
         )
-        self.assertEqual(run["bottleneck"], "read_gads_clickview")
         step = run["steps"][1]
         self.assertEqual((step["duration_seconds"], step["duration_approx"]), (20, False))
 

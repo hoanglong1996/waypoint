@@ -6,7 +6,7 @@ Pure functions over validated records; nothing here reads a store or the clock.
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence
 
 from app.domain.models import StartMarker, StepFailure, StepRecord
 
@@ -65,16 +65,6 @@ def run_duration(
     return {"seconds": seconds, "running": running, "complete": complete, "slow": False}
 
 
-def find_bottleneck(durations: Sequence[Tuple[str, Optional[int]]]) -> Optional[str]:
-    """The step with the strictly largest duration, when at least two steps have one."""
-    known = [(name, value) for name, value in durations if value is not None]
-    if len(known) < 2:
-        return None
-    top = max(value for _, value in known)
-    leaders = [name for name, value in known if value == top]
-    return leaders[0] if len(leaders) == 1 else None
-
-
 def typical(
     runs: Sequence[Dict[str, Any]], window: int, min_runs: int, multiple: float
 ) -> Optional[Dict[str, Any]]:
@@ -123,7 +113,6 @@ __all__ = [
     "StepTiming",
     "UNKNOWN",
     "failed_timing",
-    "find_bottleneck",
     "flag_slow",
     "finished_timing",
     "run_duration",

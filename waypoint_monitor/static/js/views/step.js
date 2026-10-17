@@ -3,7 +3,7 @@ import { sparkline } from '../chart.js';
 import { stepEventsHTML } from './events.js';
 import { esc, fmt, hhmmss, isDone, isLoss, metric, metricsOver, stepOf, stepState } from '../model.js';
 import {
-  I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, metricBadgeHTML, metricsTableHTML, slowestTag,
+  I, copyButtonHTML, deltaChip, durationHTML, elapsedHTML, lossPill, metricBadgeHTML, metricsTableHTML,
 } from '../ui.js';
 
 const svgClass = (svg, cls) => svg.replace('<svg', '<svg class="' + cls + '"');
@@ -57,7 +57,6 @@ export function stepItemHTML(run, runs, cfg, i, compact) {
     html += '<span title="Finished at">' + I.check.replace('<svg', '<svg class="ico--sm" style="width:12px;height:12px"') + '</span><span>' + hhmmss(s.finishedAt) + '</span>';
     if (s.durationSeconds != null) html += '<span class="step__dur">' + I.stopwatch.replace('<svg', '<svg class="ico--sm" style="width:12px;height:12px"') + durationHTML(s.durationSeconds, { approx: s.durationApprox }) + '</span>';
   }
-  if (run.bottleneck === s.name) html += slowestTag();
   if (loss) html += lossPill(1, 'sm');
   html += metricBadgeHTML(metricsOver(s));
   if (unplanned) html += '<span class="pill pill--neutral pill--sm" title="Reported, but not in this run’s flow description">not in flow</span>';

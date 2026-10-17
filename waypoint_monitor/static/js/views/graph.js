@@ -104,7 +104,6 @@ function build(el, o) {
     else count = '<span class="gnode__count num">' + fmt(s.output) + '</span>';
     if (mode === 'run' && isDone(s)) time = '<span class="gnode__time num">' + hhmmss(s.finishedAt) + '</span>';
     const gname = def.group ? groupLabel(run, def.group) : '';
-    const slowest = mode === 'run' && run.bottleneck === def.name;
     const over = mode === 'run' && s ? metricsOver(s) : 0;
     const dur = mode === 'run' && s && s.durationSeconds != null && (isDone(s) || st === 'failed')
       ? '<span class="gnode__dur num" title="' + (s.durationApprox ? 'Estimated from the previous step' : 'Duration') + '">' + esc(fmtDuration(s.durationSeconds, { approx: s.durationApprox })) + '</span>'
@@ -112,14 +111,12 @@ function build(el, o) {
     const aria = labelOf(def) + ', ' + def.name + (gname ? ', ' + gname : '') + '. ' +
       (mode === 'ghost' ? 'No data.' : 'State: ' + STATE_LONG[st] + '. ' + (isDone(s) ? 'Output ' + (s.output == null ? 'n/a' : fmt(s.output)) + '.' : '')) +
       (s && s.durationSeconds != null && mode === 'run' ? ' Took ' + fmtDuration(s.durationSeconds, { approx: s.durationApprox }) + '.' : '') +
-      (slowest ? ' Slowest step of the run.' : '') +
       (over ? ' ' + overText(over) + '.' : '') +
       (aff ? ' Downstream of a data-loss step.' : '');
     return '<button type="button" class="gnode gnode--' + st + (aff ? ' is-affected' : '') + '" data-i="' + i + '" style="' + style + '" aria-label="' + esc(aria) + '"' + (mode !== 'run' ? ' tabindex="-1"' : '') + '>' +
       '<span class="gnode__head">' +
         (mode === 'run' ? '<span class="gpill gpill--' + st + '">' + stateIcon(st) + '<span class="gpill__txt">' + STATE_TXT[st] + '</span></span>' : '') +
         (aff ? '<span class="gpill gpill--affected" title="Downstream of a data-loss step">' + I.down + '<span class="gpill__txt">affected</span></span>' : '') +
-        (slowest ? '<span class="gpill gpill--slowest" title="Took the largest share of the run">' + I.stopwatch + '<span class="gpill__txt">Slowest</span></span>' : '') +
         (over ? '<span class="gpill gpill--metric" title="' + esc(overText(over)) + '">' + I.alert + '<span class="gpill__txt">' + over + (L.kind === 'compact' ? '' : ' over limit') + '</span></span>' : '') +
       '</span>' +
       '<span class="gnode__label"><i class="gdot g-' + slot + '" aria-hidden="true"></i>' + esc(labelOf(def)) + '</span>' +
@@ -234,7 +231,7 @@ function wire(el, o, L, edges, steps) {
     const out = !isDone(s) ? '—' : s.output == null ? 'n/a (returns nothing)' : fmt(s.output);
     return '<div class="tooltip__date"><span class="mono">' + esc(def.name) + '</span> · ' + esc(def.group ? groupLabel(run, def.group) : 'no group') + '</div>' +
       '<div class="tooltip__rows">' + ins + '<div>out: <b>' + out + '</b></div>' +
-      (s.durationSeconds != null ? '<div>took <b>' + esc(fmtDuration(s.durationSeconds, { approx: s.durationApprox })) + '</b>' + (run.bottleneck === def.name ? ' · slowest step' : '') + '</div>' : '') +
+      (s.durationSeconds != null ? '<div>took <b>' + esc(fmtDuration(s.durationSeconds, { approx: s.durationApprox })) + '</b>' + '</div>' : '') +
       '<div class="faint">' + (isDone(s) ? 'finished ' + hhmmss(s.finishedAt) + ' · ' + STATE_LONG[states[i]]
         : s.startedAt ? 'started ' + hhmmss(s.startedAt) + ' · ' + STATE_LONG[states[i]] : STATE_LONG[states[i]]) + '</div></div>';
   }

@@ -92,8 +92,6 @@ export function analyse(run) {
     lastSeenAt: run.died ? run.died.lastSeenAt : null,
     failed: run.failed || null,
     duration: run.duration || null,
-    bottleneck: run.bottleneck || null,
-    bottleneckShare: bottleneckShare(run),
   };
 }
 
@@ -125,14 +123,6 @@ export function durationSeries(runs, typical, minRuns = 5) {
     enough: !!typical,
     note: typical ? null : 'Not enough history yet (needs ' + minRuns + ' completed runs)',
   };
-}
-
-/** The bottleneck step's share of the run's duration as a whole percent, or null when it cannot be told. */
-function bottleneckShare(run) {
-  const total = run.duration ? run.duration.seconds : null;
-  const step = run.bottleneck ? stepOf(run, run.bottleneck) : null;
-  if (!step || step.durationSeconds == null || !total || total <= 0) return null;
-  return Math.min(100, Math.round((step.durationSeconds / total) * 100));
 }
 
 /**

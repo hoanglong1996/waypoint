@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from app.domain.durations import (
     failed_timing,
-    find_bottleneck,
     finished_timing,
     run_duration,
 )
@@ -354,9 +353,6 @@ def _build_run(
             "warning": int((counts or {}).get("warning", 0)),
             "error": int((counts or {}).get("error", 0)),
         },
-        "bottleneck": find_bottleneck(
-            [(str(x["name"]), x.get("duration_seconds")) for x in out_steps]
-        ),
         "running_step": running_step,
         "first_missing_step": missing[0] if missing else None,
         "missing_count": len(missing),

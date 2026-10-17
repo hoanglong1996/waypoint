@@ -930,7 +930,6 @@ class TestDurations(unittest.TestCase):
         self.assertFalse(first["duration_approx"])
         self.assertEqual(first["started_at"], "2026-10-15T02:00:00Z")
         self.assertEqual(self.step(run, "read_gads_clickview")["duration_seconds"], 60)
-        self.assertEqual(run["bottleneck"], "read_gads_clickview")
         self.assertEqual(run["duration"]["seconds"], sum(seconds))
         self.assertEqual(run["duration_seconds"], sum(seconds))
 
@@ -987,12 +986,6 @@ class TestDurations(unittest.TestCase):
         run = runs_for(raw)[0]
         self.assertIsNone(self.step(run, "read_callrail_account")["duration_seconds"])
 
-    def test_no_bottleneck_for_a_single_step_or_a_tie(self) -> None:
-        run = runs_for(make_run("prod", R1, step_seconds=[10] * 9))[0]
-        self.assertIsNone(run["bottleneck"])
-        one = runs_for(make_run("prod", R1, missing_from=1, step_seconds=[10] * 9))[0]
-        self.assertIsNone(one["bottleneck"])
-
     def test_old_runs_only_gain_new_keys(self) -> None:
         run = runs_for(make_run("prod", R1))[0]
         self.assertEqual(run["status"], "complete")
@@ -1007,7 +1000,7 @@ OLD_RUN_KEYS = {
     "status", "running_step", "first_missing_step", "missing_count", "loss_steps", "unreadable", "died",
     "failed", "flow_status", "flow_problems", "flow", "steps",
 }  # fmt: skip
-NEW_RUN_KEYS = {"duration", "bottleneck", "event_counts", "metrics_over"}  # specs/012, 013
+NEW_RUN_KEYS = {"duration", "event_counts", "metrics_over"}  # specs/012, 013
 OLD_STEP_KEYS = {
     "done": {"name", "state", "inputs", "output", "finished_at"},
     "unplanned": {"name", "state", "inputs", "output", "finished_at"},

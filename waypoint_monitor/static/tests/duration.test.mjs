@@ -1,4 +1,4 @@
-/* Durations (specs/012-duration-and-run-events): formatting, mapping and the bottleneck line. */
+/* Durations (specs/012-duration-and-run-events): formatting, mapping . */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mapOverview, mapRun } from '../js/api.js';
@@ -63,35 +63,13 @@ test('mapStep keeps the duration of a failed step', () => {
   assert.equal(run.steps[1].durationSeconds, 31);
 });
 
-test('mapRun maps duration and bottleneck, null for an older server', () => {
+test('mapRun maps duration, null for an older server', () => {
   const run = mapRun(apiRun([done('a')], {
-    duration: { seconds: 655, running: false, complete: true, slow: false }, bottleneck: 'a',
+    duration: { seconds: 655, running: false, complete: true, slow: false },
   }));
   assert.deepEqual(run.duration, { seconds: 655, running: false, complete: true, slow: false });
-  assert.equal(run.bottleneck, 'a');
   const old = mapRun(apiRun([done('a')]));
   assert.equal(old.duration, null);
-  assert.equal(old.bottleneck, null);
-});
-
-test('analyse exposes the bottleneck and its share of the run', () => {
-  const run = mapRun(apiRun([
-    done('a', { duration_seconds: 100 }), done('b', { duration_seconds: 380 }), done('c', { duration_seconds: 120 }),
-  ], { duration: { seconds: 600, running: false, complete: true, slow: false }, bottleneck: 'b' }));
-  const a = analyse(run);
-  assert.equal(a.bottleneck, 'b');
-  assert.equal(a.bottleneckShare, 63);
-  assert.equal(a.duration.seconds, 600);
-});
-
-test('analyse has no bottleneck without two durations or without a run duration', () => {
-  const run = mapRun(apiRun([done('a', { duration_seconds: 100 })]));
-  assert.equal(analyse(run).bottleneck, null);
-  assert.equal(analyse(run).bottleneckShare, null);
-  const zero = mapRun(apiRun([done('a'), done('b', { duration_seconds: 10 })], {
-    duration: { seconds: 0, running: false, complete: true, slow: false }, bottleneck: 'b',
-  }));
-  assert.equal(analyse(zero).bottleneckShare, null);
 });
 
 test('mapOverview maps the latest run duration, running flag, slow flag and counts', () => {
@@ -215,7 +193,7 @@ test('a run with no durations at all renders dashes, never NaN, undefined, null 
   const older = mapRun(apiRun([done('a'), done('b')]));
   const html2 = heroHTML(older, [older], { staleHours: 26 }, null);
   assert.doesNotMatch(html2, /NaN|undefined|null/);
-  assert.doesNotMatch(html2, /Slowest|Slower than usual/);
+  assert.doesNotMatch(html2, /Slower than usual/);
 });
 
 test('an older run with no events gets the upgrade note and no scary wording', () => {

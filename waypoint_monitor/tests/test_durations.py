@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 from app.domain.durations import (
     StepTiming,
     failed_timing,
-    find_bottleneck,
     finished_timing,
     flag_slow,
     run_duration,
@@ -115,21 +114,6 @@ class TestRunDuration(unittest.TestCase):
         d = run_duration(at(100), at(100), at(60), running=True, complete=False)
         self.assertEqual(d["seconds"], None)
 
-
-class TestBottleneck(unittest.TestCase):
-    def test_strict_maximum(self) -> None:
-        self.assertEqual(find_bottleneck([("a", 10), ("b", 90), ("c", 30)]), "b")
-
-    def test_unknown_durations_are_skipped(self) -> None:
-        self.assertEqual(find_bottleneck([("a", None), ("b", 90), ("c", 30)]), "b")
-
-    def test_needs_two_durations(self) -> None:
-        self.assertIsNone(find_bottleneck([("a", 90)]))
-        self.assertIsNone(find_bottleneck([("a", None), ("b", 90)]))
-        self.assertIsNone(find_bottleneck([]))
-
-    def test_tie_for_the_maximum_has_no_bottleneck(self) -> None:
-        self.assertIsNone(find_bottleneck([("a", 50), ("b", 50), ("c", 10)]))
 
 
 def run_of(

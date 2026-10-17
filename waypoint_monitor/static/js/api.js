@@ -211,7 +211,6 @@ export function mapRun(r) {
     duration: r.duration
       ? { seconds: r.duration.seconds == null ? null : r.duration.seconds, running: !!r.duration.running, complete: !!r.duration.complete, slow: !!r.duration.slow }
       : null,
-    bottleneck: r.bottleneck || null,
     metricsOver: r.metrics_over || 0,
     eventCounts: { warning: (r.event_counts && r.event_counts.warning) || 0, error: (r.event_counts && r.event_counts.error) || 0 },
     ageSeconds: r.age_seconds,
