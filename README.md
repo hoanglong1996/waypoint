@@ -80,7 +80,7 @@ Full list and behaviour: [`waypoint_monitor/README.md`](waypoint_monitor/README.
 The SDK is installed straight from this repository by git tag. It is not on PyPI, so always use the full URL:
 
 ```bash
-pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.5.0#subdirectory=packages/waypoint_etl"
+pip install "waypoint-etl[redis] @ git+https://github.com/hoanglong1996/waypoint.git@waypoint-etl-v0.6.0#subdirectory=packages/waypoint_etl"
 ```
 
 (Step errors shown as **Failed**, with their stack trace, need `waypoint-etl` 0.3.0 or newer. Exact step durations and `waypoint_etl.log` events need 0.4.0 or newer; durations and the run timeline also work for older pipelines, with estimated step times. `waypoint_etl.metric` numbers per step, with optional units and warning limits, need 0.5.0 or newer. Loops tracked as a map step (`map_step`, `item`) need 0.6.0 or newer. The monitor works with any version.)
@@ -105,7 +105,7 @@ Then open Claude Code in your project and paste this prompt (fill in the three v
 ```text
 Use the adopting-waypoint-etl skill to add Waypoint tracking to this pipeline.
 
-- SDK tag: waypoint-etl-v0.5.0
+- SDK tag: waypoint-etl-v0.6.0
 - Environment name: qa            (must match the monitor's ENVIRONMENTS)
 - Redis URL: read from the REDIS_URL env var (do not hard-code or print it)
 
