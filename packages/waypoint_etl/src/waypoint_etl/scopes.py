@@ -21,6 +21,12 @@ if TYPE_CHECKING:
     from waypoint_etl.auditor import StepAuditor
 
 
+# True inside a map_step() that was ignored because another map step is open: its items are ignored too.
+_nested: "contextvars.ContextVar[bool]" = contextvars.ContextVar(
+    "waypoint_nested_map", default=False
+)
+
+
 def _active() -> "Optional[StepAuditor]":
     from waypoint_etl import registry  # late: registry imports this module
 
@@ -36,11 +42,20 @@ class MapScope:
         self._block: Optional[MapBlock] = None
         self._map_token: "Optional[contextvars.Token[Optional[str]]]" = None
         self._step_token: "Optional[contextvars.Token[Optional[str]]]" = None
+        self._nested_token: "Optional[contextvars.Token[bool]]" = None
 
     def __enter__(self) -> "MapScope":
         try:
             auditor = _active()
-            if auditor is not None:
+            if auditor is not None and current_map.get() is not None:
+                # Map steps do not nest: the inner loop is plain code of the outer item's current step.
+                auditor._warn_map(
+                    f"nested:{self._name}",
+                    f"map step {self._name!r} is inside map step {current_map.get()!r}; "
+                    "map steps cannot be nested, so it is ignored (declare it as a normal step)",
+                )
+                self._nested_token = _nested.set(True)
+            elif auditor is not None:
                 block = auditor.open_map(self._name)
                 if block is not None:
                     self._auditor = auditor
@@ -58,6 +73,11 @@ class MapScope:
         tb: Optional[TracebackType],
     ) -> None:
         try:
+            if self._nested_token is not None:
+                try:
+                    _nested.reset(self._nested_token)
+                except ValueError:
+                    pass
             for var, token in ((current_step, self._step_token), (current_map, self._map_token)):
                 if token is not None:
                     try:
@@ -73,6 +93,7 @@ class MapScope:
             self._auditor = None
             self._map_token = None
             self._step_token = None
+            self._nested_token = None
 
     async def __aenter__(self) -> "MapScope":
         return self.__enter__()
@@ -99,7 +120,7 @@ class ItemScope:
     def __enter__(self) -> "ItemScope":
         try:
             auditor = _active()
-            if auditor is None:
+            if auditor is None or (_nested.get() and self._map is None):
                 return self
             block = auditor.resolve_block(self._map, current_map.get())
             if block is None:

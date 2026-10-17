@@ -45,7 +45,7 @@ def process(account):
 
 | Call | Behaviour |
 |---|---|
-| `map_step(name)` | Context manager (also `async with`). Entering writes the ordinary start marker of step `name`; leaving normally writes its step record, leaving with an exception writes its failure item and re-raises. Never suppresses an exception. Without `init`, or for a name that is not a declared map step, it does nothing except warn once for the latter. |
+| `map_step(name)` | Context manager (also `async with`). Entering writes the ordinary start marker of step `name`; leaving normally writes its step record, leaving with an exception writes its failure item and re-raises. Never suppresses an exception. Map steps do not nest (0.6.1): inside an open map step it is ignored with one warning, and `item()` calls inside it are ignored too (inner steps stay with the enclosing item). Without `init`, or for a name that is not a declared map step, it does nothing except warn once for the latter. |
 | `item(key, *, map=None)` | Context manager (also `async with`) for one item. Resolves its map: `map=`, else the enclosing `map_step` of this context, else the one open map block of the run; else nothing is recorded (one warning). Sanitises `key` (research R9). A duplicate key in the same map step: first record kept, this pass ignored (inner steps still run, nothing is recorded), one warning. An exception leaving the block marks the item failed (when no inner step failed) and propagates. |
 | `@audited_step`, `waypoint_etl.log`, `waypoint_etl.warn`, `waypoint_etl.error`, `waypoint_etl.metric` | Inside `item()` they belong to that item: an inner step is recorded on the item, events carry `item`, metrics merge per inner step. Outside `item()` they behave exactly as in 0.5.0. |
 
@@ -75,7 +75,7 @@ Item key `^[A-Za-z0-9_.-]{1,64}$` (other characters become `_`, longer keys are 
 
 ## Exports
 
-`MapStepSpec`, `map_step`, `item` added to `waypoint_etl.__all__`; `__version__ = "0.6.0"`.
+`MapStepSpec`, `map_step`, `item` added to `waypoint_etl.__all__`; `__version__ = "0.6.1"`.
 
 ## Store protocol
 

@@ -176,7 +176,10 @@ outside.
   Items run in a child process are not attributed unless the child calls `init` itself. Storage is bounded per map
   step and run: 1,000 items keep a full record, then up to 1,000 more failed items (compact) and the 50 slowest;
   counts always cover every item. Records are written in the background (at most once a second); nothing here
-  raises or waits on the network. The map step is **Failed** in the monitor when the loop ends with a failed item,
+  raises or waits on the network. **Map steps do not nest**: only the outermost loop of a flow is a map step. A loop
+  inside an item is plain code of the item's inner step (or a normal `StepSpec`); a `map_step()`/`item()` opened
+  inside another map step is ignored with one warning, and the inner steps stay attributed to the outer item.
+  `MapStepSpec.steps` accepts `StepSpec` only. The map step is **Failed** in the monitor when the loop ends with a failed item,
   even if your code caught the error.
 - Counts: `None` → none, list/tuple/set → its length, anything else → 1. Never the contents.
 

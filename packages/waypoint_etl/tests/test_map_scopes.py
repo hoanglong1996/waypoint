@@ -388,8 +388,29 @@ class TestNothingRecorded(unittest.TestCase):
                 with waypoint_etl.map_step("accounts"):
                     process(2)
         registry.clear()
-        self.assertEqual(len(store.keys("running")), 1)
-        self.assertIn("already open", out.getvalue())
+        self.assertIn("cannot be nested", out.getvalue())
+        self.assertEqual(len(store.keys("item")), 0)
+
+    def test_a_nested_map_step_and_its_items_are_ignored(self) -> None:
+        store, _ = start()
+        out = io.StringIO()
+        with redirect_stdout(out):
+            with waypoint_etl.map_step("accounts"):
+                with waypoint_etl.item("outer"):
+                    fetch([0])
+                    with waypoint_etl.map_step("accounts"):
+                        for n in range(3):
+                            with waypoint_etl.item(f"inner{n}"):
+                                transform([0])
+                    load([0])
+        registry.clear()
+        record = store.item("outer")
+        self.assertEqual(record["state"], "done")
+        self.assertEqual([s["step"] for s in record["steps"]], ["fetch", "transform", "load"])
+        self.assertEqual(
+            store.aggregate()["counts"], {"started": 1, "running": 0, "done": 1, "failed": 0}
+        )
+        self.assertIn("cannot be nested", out.getvalue())
 
     def test_a_duplicate_key_runs_its_steps_but_records_nothing_at_run_level(self) -> None:
         store, _ = start()

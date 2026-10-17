@@ -330,30 +330,30 @@ Chỉ làm map step khi có **một trong các dấu hiệu**:
 - cần đếm in/out riêng cho từng item để phát hiện mất dữ liệu ở một item.
 
 ### SDK
-- [ ] Khai báo trong spec, ví dụ `MapStepSpec("accounts", over="b", max_concurrency=5, steps=(StepSpec(...), ...))`;
+- [x] Khai báo trong spec, ví dụ `MapStepSpec("accounts", over="b", max_concurrency=5, steps=(StepSpec(...), ...))`;
       đưa vào flow description (tăng `v`).
-- [ ] Ngữ cảnh item: `with waypoint_etl.item(key):` hoặc decorator, để các step con biết mình thuộc item nào
+- [x] Ngữ cảnh item: `with waypoint_etl.item(key):` hoặc decorator, để các step con biết mình thuộc item nào
       (dùng `contextvars`, an toàn với thread và asyncio).
-- [ ] `item_key` là id hoặc chỉ số ngắn, **không phải nội dung dữ liệu**; giới hạn độ dài và ký tự.
-- [ ] Bỏ giả định "step chạy tuần tự": key `running` và `index` phải có thêm chiều item
+- [x] `item_key` là id hoặc chỉ số ngắn, **không phải nội dung dữ liệu**; giới hạn độ dài và ký tự.
+- [x] Bỏ giả định "step chạy tuần tự": key `running` và `index` phải có thêm chiều item
       (ví dụ `...:running:{NN}-{step}:{item}`).
-- [ ] Mọi record con (finish, failed, event, metric) mang `item_key`.
-- [ ] Giới hạn quy mô: số item tối đa theo dõi chi tiết mỗi map step (ví dụ 1.000); vượt thì chỉ giữ tổng hợp
+- [x] Mọi record con (finish, failed, event, metric) mang `item_key`.
+- [x] Giới hạn quy mô: số item tối đa theo dõi chi tiết mỗi map step (ví dụ 1.000); vượt thì chỉ giữ tổng hợp
       và các item lỗi hoặc chậm.
-- [ ] Heartbeat vẫn ở cấp run; item chạy ở process con vẫn là giới hạn đã biết.
+- [x] Heartbeat vẫn ở cấp run; item chạy ở process con vẫn là giới hạn đã biết.
 
 ### Monitor
-- [ ] Trạng thái tổng hợp của map step: ví dụ "7/10 xong, 2 đang chạy, 1 lỗi"; Failed nếu có item lỗi chưa
+- [x] Trạng thái tổng hợp của map step: ví dụ "7/10 xong, 2 đang chạy, 1 lỗi"; Failed nếu có item lỗi chưa
       thay thế, Running nếu còn item đang chạy.
-- [ ] Đếm in/out theo từng item và cộng gộp; phát hiện mất dữ liệu ở mức item.
-- [ ] Duration: tổng của map step và phân bố theo item (p50, p95, item chậm nhất).
-- [ ] API trả dạng tổng hợp theo mặc định, và danh sách item có phân trang, lọc theo trạng thái.
+- [x] Đếm in/out theo từng item và cộng gộp; phát hiện mất dữ liệu ở mức item.
+- [x] Duration: tổng của map step và phân bố theo item (p50, p95, item chậm nhất).
+- [x] API trả dạng tổng hợp theo mặc định, và danh sách item có phân trang, lọc theo trạng thái.
 
 ### UI
-- [ ] Graph: map step là một node có thể mở rộng, hiện tiến độ (n/N) và số item lỗi; mở ra thấy item flow.
-- [ ] Danh sách item có tìm, lọc (lỗi/đang chạy/chậm) và sắp xếp theo thời lượng; chỉ vẽ chi tiết item lỗi
+- [x] Graph: map step là một node có thể mở rộng, hiện tiến độ (n/N) và số item lỗi; mở ra thấy item flow.
+- [x] Danh sách item có tìm, lọc (lỗi/đang chạy/chậm) và sắp xếp theo thời lượng; chỉ vẽ chi tiết item lỗi
       hoặc chậm khi N lớn.
-- [ ] Drawer của item: các step con, số đếm, lỗi, event, metric của riêng item đó.
+- [x] Drawer của item: các step con, số đếm, lỗi, event, metric của riêng item đó.
 
 ### Tiêu chí hoàn thành
 - Map step với 10 item, concurrency 5, hiện tiến độ đúng khi đang chạy và chỉ ra chính xác item và step con

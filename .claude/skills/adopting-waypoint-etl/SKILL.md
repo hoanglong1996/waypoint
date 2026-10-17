@@ -91,7 +91,7 @@ waypoint_etl.init(
 
 `init` returns `True` when auditing is on. Optional `heartbeat_seconds=15` (default) lets the monitor tell Stalled from Died; `None` turns it off.
 
-## Loops: map step (0.6.0 or newer)
+## Loops: map step (0.6.0 or newer; nesting rule enforced from 0.6.1)
 
 Use a map step when a step loops over items and the user wants to see which item and which inner step failed or was slow. If the loop only needs totals, a normal step with `waypoint_etl.metric("items_failed", n, mode="add")` is enough; say so and let the user choose. Skip this section when the project has no loops.
 
@@ -118,9 +118,11 @@ MY_PIPELINE = PipelineSpec(name="my-pipeline", steps=(
 
 Rules (a violation turns tracking off with a warning naming the problem):
 - Inner step names are unique across the **whole** pipeline, including top-level steps and other map steps.
-- 1 to 20 inner steps, in a **straight line**: no branches, no map step inside a map step.
+- 1 to 20 inner steps, in a **straight line**: no branches, no map step inside a map step (see "Nested loops" below).
 - An inner step's `inputs` may name only an earlier inner step of the same map or an earlier top-level step.
 - `max_concurrency`, when given, is an int >= 1. `over` must name an earlier top-level step.
+
+**Nested loops: only the outermost loop is a map step.** When the code has loops inside loops, make the first (outermost) one the `MapStepSpec` and treat every loop inside it as ordinary code: wrap the **whole inner loop** in one normal `StepSpec` (decorated function) of the map step's `steps`. Never write `map_step()` or `item()` inside an item, and never put a `MapStepSpec` in another's `steps`. From 0.6.1 the SDK ignores a nested `map_step()` (and its `item()` calls) with one warning, so the inner loop is not tracked per item.
 
 **2. Decorate the inner steps** exactly like any step (`@waypoint_etl.audited_step("fetch")`, Step 3); the same parameter-name rule applies to their `inputs`.
 

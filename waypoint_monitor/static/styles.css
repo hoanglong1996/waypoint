@@ -1337,6 +1337,8 @@ a.ctxbar__name:hover { text-decoration: underline; }
 .step__map-prog { font-variant-numeric: tabular-nums; }
 .step__map-note { color: var(--bad); font-weight: 600; }
 [data-map-slot] { margin-top: 12px; }
+/* the step card is a grid with named areas: these extra rows must span all of its columns, not sit in the first one */
+.step__card > .step__map, .step__card > [data-map-slot] { grid-column: 1 / -1; min-width: 0; }
 
 /* the item page */
 [data-item-doc] { display: flex; flex-direction: column; gap: var(--s-4); }
